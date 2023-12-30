@@ -300,9 +300,20 @@ class JupyterAPI(geemap.Map):
     def __init__(self):
         super().__init__()
 
-        # Create state and global variables
-        self.added_layers = {}
+        self.setup_global_variables()
 
+        self.create_widgets()
+
+        self.setup_event_listeners()
+
+        self.initialize_ui_state()
+
+
+        self.update_final_output()
+
+
+    def setup_global_variables(self):
+        self.added_layers = {}
         self.glofas_dict = {
             "products": {
                 'cems-glofas-seasonal': {
@@ -375,70 +386,62 @@ class JupyterAPI(geemap.Map):
             }
         }
 
+
+    def create_widgets(self):
         self.boundary_type = widgets.ToggleButtons(
             options=['Predefined Boundaries', 'User Defined', 'User Uploaded Data'],
             disabled=False,
             value='Predefined Boundaries',
-            tooltips=['Predefined Boundaries (such as watersheds or administrative boundaries)', 'User Defined (draw a polygon on the map)', 'User Uploaded Data (upload a shapefile, kml, or kmz)'],
+            tooltips=['Predefined Boundaries (such as watersheds or administrative boundaries)',
+                      'User Defined (draw a polygon on the map)',
+                      'User Uploaded Data (upload a shapefile, kml, or kmz)'],
         )
+        self.dropdown = self.create_dropdown(boundary_dropdown, 'Select Boundary:', 'watersheds_4')
+        self.dropdown.layout.width = 'auto'
 
-        self.dropdown = self.create_dropdown(boundary_dropdown, 'Select Boundary:',
-                                             'watersheds_4')
-        self.dropdown.layout.width = 'auto'  # Adjust the width of the entire dropdown
         self.dropdown_api = self.create_dropdown({'GloFas': 'glofas'}, 'Select API:', 'glofas')
         self.dropdown_api.layout.width = 'auto'
+
         self.glofas_options = self.create_glofas_dropdown([x for x in self.glofas_dict['products'].keys()],
                                                           description='Select GloFas Product:',
                                                           default_value='cems-glofas-seasonal')
-        self.add_to_map_check = widgets.Checkbox(value=True, description='Add Downloaded Image to Map')
         self.glofas_options.layout.width = 'auto'
+
+        self.add_to_map_check = widgets.Checkbox(value=True, description='Add Downloaded Image to Map')
         self.btn = widgets.Button(description='Process Drawn Features')
         self.btn.layout.width = '100%'
-        # self.layer = self.states if self.dropdown.value == 'admin_0' else self.hydrosheds
-        # self.column = 'ADM0_NAME' if self.dropdown.value == 'admin_0' else 'HYBAS_ID'
-        self.btn.on_click(self.on_button_click)
 
-        # self.add_widget(self.btn)
-        self.widget_container = VBox(layout=Layout(resize='both', overflow='auto'))
-        self.add_widget(self.widget_container)
-
-        self.out = Output()
-        # self.add_widget(self.out)
-
-        # Define the instruction text and file upload widgets first
         self.instruction_text = widgets.Text(value='Draw one or more polygons on the map', disabled=True)
         self.upload_widget = widgets.FileUpload(accept='.shp,.geojson,.kml', multiple=False)
 
-        # Set their display to 'none' initially
-        self.instruction_text.layout.display = 'none'
-        self.upload_widget.layout.display = 'none'
-
-        # Create and initialize the specific widgets
+        # Initially hide all specific widgets
         self.glofas1_widgets = create_specific_widgets_for_glofas1(self.glofas_dict) or []
         self.glofas2_widgets = create_specific_widgets_for_glofas2(self.glofas_dict) or []
         self.glofas3_widgets = create_specific_widgets_for_glofas3(self.glofas_dict) or []
-
-        # Initially hide all specific widgets
         for widget in self.glofas1_widgets + self.glofas2_widgets + self.glofas3_widgets:
             widget.layout.visibility = 'hidden'
 
-        # Initialize map with default dropdown value
-        self.on_dropdown_change({'new': self.dropdown.value})
+        self.widget_container = VBox(layout=Layout(resize='both', overflow='auto'))
+        self.out = Output()
 
-        self.on_glofas_option_change({'new': self.glofas_options.value})
-
-        # Initially set up widgets based on the default boundary type
-        self.on_boundary_type_change({'new': self.boundary_type.value})
-
-        # Set up listeners for boundary type changes
+    def setup_event_listeners(self):
         self.boundary_type.observe(self.on_boundary_type_change, names='value')
-
         self.boundary_type.observe(self.on_any_change, names='value')
         self.dropdown.observe(self.on_any_change, names='value')
         self.glofas_options.observe(self.on_any_change, names='value')
+        self.btn.on_click(self.on_button_click)
 
+    def initialize_ui_state(self):
+        self.on_dropdown_change({'new': self.dropdown.value})
+        self.on_glofas_option_change({'new': self.glofas_options.value})
+        self.on_boundary_type_change({'new': self.boundary_type.value})
 
-        self.update_final_output()
+        # Set initial visibility for instruction text and upload widget
+        self.instruction_text.layout.display = 'none'
+        self.upload_widget.layout.display = 'none'
+
+        # Add the main widget container to the display
+        self.add_widget(self.widget_container)
 
     def create_dropdown(self, dropdown_options, description, default_value):
         """
@@ -509,6 +512,7 @@ class JupyterAPI(geemap.Map):
         Gather current selections from all relevant widgets.
         :return: dict of current selections
         """
+
         selections = {
             'boundary_type': self.boundary_type.value,
             'selected_boundary': self.dropdown.value,
@@ -516,6 +520,7 @@ class JupyterAPI(geemap.Map):
             'uploaded_file': self.upload_widget.value,  # This will include the uploaded file data
             # ... include other relevant widget values ...
         }
+        print(selections)
         return selections
 
     def update_final_output(self):
@@ -706,6 +711,7 @@ class JupyterAPI(geemap.Map):
 
         :param change: A dictionary representing the change in value of the boundary_type widget.
         """
+        print("Boundary type changed to:", change['new'])  # Debug print
         boundary_value = change['new']
         self.update_boundary_options(boundary_value)
 
@@ -716,6 +722,7 @@ class JupyterAPI(geemap.Map):
         # ... (add any additional logic specific to your application)
 
     def update_boundary_options(self, boundary_value):
+        print(boundary_value)
         # Define how the boundary type affects the boundary dropdown options
         if boundary_value == 'Predefined Boundaries':
             # Predefined boundaries selected
