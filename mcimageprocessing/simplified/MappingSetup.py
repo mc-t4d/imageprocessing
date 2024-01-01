@@ -129,28 +129,29 @@ def create_specific_widgets_for_glofas1(glofas_dict):
     )
     leadtime.layout.width = 'auto'
 
-    year = widgets.Dropdown(
-        options=[x for x in glofas_dict['products']['cems-glofas-seasonal']['year']],
-        value=min([x for x in glofas_dict['products']['cems-glofas-seasonal']['year']]),
-        description='Year:',
-        disabled=False,
-    )
 
-    month = widgets.Dropdown(
-        options=[x for x in glofas_dict['products']['cems-glofas-seasonal']['month']],
-        value=max([x for x in glofas_dict['products']['cems-glofas-seasonal']['month']]),
-        description='Month:',
+    # Define the minimum and maximum dates based on the year and month data
+    min_year = min(glofas_dict['products']['cems-glofas-seasonal']['year'])
+    max_year = max(glofas_dict['products']['cems-glofas-seasonal']['year'])
+    min_month = 1  # Assuming January is always included
+    max_month = 12  # Assuming December is always included
+
+    # Create the DatePicker widget with constraints
+    date_picker = DatePicker(
+        description='Select Date:',
         disabled=False,
+        value=datetime.date(min_year, min_month, 1),  # Default value
+        min=datetime.date(min_year, min_month, 1),  # Minimum value
+        max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
     )
 
     system_version.layout.width = 'auto'
-    year.layout.width = 'auto'
-    month.layout.width = 'auto'
+    date_picker.layout.width = 'auto'
 
     filechooser1 = fc.FileChooser(os.getcwd(), show_only_dirs=True)
 
     # Return a list of widgets
-    return [system_version, leadtime, year, month, filechooser1]
+    return [system_version, leadtime, date_picker, filechooser1]
 
 
 def create_specific_widgets_for_glofas2(glofas_dict):
@@ -1078,7 +1079,7 @@ class JupyterAPI(geemap.Map):
         with self.out:
             if self.boundary_type.value == 'Predefined Boundaries':
                 if self.draw_features:
-                    for feature in self.draw_features:
+                    for index, feature in enumerate(self.draw_features):
                         distinct_values = self.process_drawn_features([feature])
                         self.download_feature_geometry(distinct_values)
                         bbox = self.get_bounding_box(distinct_values=distinct_values)
@@ -1088,10 +1089,11 @@ class JupyterAPI(geemap.Map):
                             system_version = self.glofas1_widgets[0].value.replace('.',
                                                                                    '_').lower()  # Assuming this is the system_version widget
                             leadtime_hour = str(self.glofas1_widgets[1].value)  # Assuming this is the leadtime widget
-                            year = str(self.glofas1_widgets[2].value)  # Assuming this is the year widget
-                            month = self.glofas1_widgets[3].value  # Assuming this is the month widget
+                            date = self.glofas1_widgets[2].value
+                            year = str(date.year)
+                            month = int(date.month)
                             day = "01"
-                            folder_location = self.glofas1_widgets[4].selected  # Assuming this is the file chooser widget
+                            folder_location = self.glofas1_widgets[3].selected  # Assuming this is the file chooser widget
                         elif self.glofas_options.value == 'cems-glofas-forecast':
                             system_version = self.glofas2_widgets[0].value.replace('.',
                                                                                    '_').lower()
@@ -1158,7 +1160,7 @@ class JupyterAPI(geemap.Map):
                     print("No features have been drawn on the map.")
             elif self.boundary_type.value == 'User Defined':
                 if self.draw_features:
-                    for feature in self.draw_features:
+                    for index, feature in enumerate(self.draw_features):
                         bbox = self.get_bounding_box(distinct_values=None, feature=feature)
 
                         if self.glofas_options.value == 'cems-glofas-seasonal':
@@ -1166,11 +1168,12 @@ class JupyterAPI(geemap.Map):
                             system_version = self.glofas1_widgets[0].value.replace('.',
                                                                                    '_').lower()  # Assuming this is the system_version widget
                             leadtime_hour = str(self.glofas1_widgets[1].value)  # Assuming this is the leadtime widget
-                            year = str(self.glofas1_widgets[2].value)  # Assuming this is the year widget
-                            month = self.glofas1_widgets[3].value  # Assuming this is the month widget
+                            date = self.glofas1_widgets[2].value
+                            year = str(date.year)
+                            month = int(date.month)
                             day = "01"
                             folder_location = self.glofas1_widgets[
-                                4].selected  # Assuming this is the file chooser widget
+                                3].selected  # Assuming this is the file chooser widget
                         elif self.glofas_options.value == 'cems-glofas-forecast':
                             system_version = self.glofas2_widgets[0].value.replace('.',
                                                                                    '_').lower()
@@ -1211,7 +1214,7 @@ class JupyterAPI(geemap.Map):
                         }
 
                         # Call the download_data method
-                        file_name = f"{self.dropdown.value}_userdefined_{year}_{month}_{request_parameters.get('day', '01')}.grib"
+                        file_name = f"{self.dropdown.value}_userdefined{index}_{year}_{month}_{request_parameters.get('day', '01')}.grib"
                         file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
 
                         print(f"Downloaded {year} file to {file_path}")
@@ -1233,6 +1236,7 @@ class JupyterAPI(geemap.Map):
                             self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
                 else:
                     print("No features have been drawn on the map.")
+
             elif self.boundary_type.value == 'User Uploaded Data':
                 if self.userlayers['User Uploaded Data']:
                     bbox = self.get_bounding_box(distinct_values=None)
@@ -1241,10 +1245,11 @@ class JupyterAPI(geemap.Map):
                         system_version = self.glofas1_widgets[0].value.replace('.',
                                                                                '_').lower()  # Assuming this is the system_version widget
                         leadtime_hour = str(self.glofas1_widgets[1].value)  # Assuming this is the leadtime widget
-                        year = str(self.glofas1_widgets[2].value)  # Assuming this is the year widget
-                        month = self.glofas1_widgets[3].value  # Assuming this is the month widget
+                        date = self.glofas1_widgets[2].value
+                        year = str(date.year)
+                        month = int(date.month)
                         day = "01"
-                        folder_location = self.glofas1_widgets[4].selected  # Assuming this is the file chooser widget
+                        folder_location = self.glofas1_widgets[3].selected  # Assuming this is the file chooser widget
                     elif self.glofas_options.value == 'cems-glofas-forecast':
                         system_version = self.glofas2_widgets[0].value.replace('.',
                                                                                '_').lower()
