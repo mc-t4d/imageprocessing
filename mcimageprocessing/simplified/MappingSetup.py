@@ -12,21 +12,24 @@ import localtileserver
 import numpy as np
 import pygrib
 from ipywidgets import DatePicker
+import json
 import datetime
 import rasterio
 from IPython.display import HTML
 from ipywidgets import Output, Layout
+from ipyleaflet import GeoJSON
 import rioxarray
 from shapely.geometry import shape
 from osgeo import gdal, ogr
 from shapely.geometry import Polygon, MultiPolygon
 from ipywidgets import VBox
 from osgeo import gdal
+import geojson
 from rasterio.features import geometry_mask
 from rasterio.mask import mask as riomask
 from shapely.geometry import shape
 from tqdm.notebook import tqdm
-from ipywidgets import Text, FileUpload, VBox
+from ipywidgets import Text, FileUpload, VBox, jslink, Stack
 from shapely.geometry import shape
 
 from mcimageprocessing.simplified.GloFasAPI import CDSAPI
@@ -124,6 +127,7 @@ def create_specific_widgets_for_glofas1(glofas_dict):
         readout=True,
         readout_format='d'
     )
+    leadtime.layout.width = 'auto'
 
     year = widgets.Dropdown(
         options=[x for x in glofas_dict['products']['cems-glofas-seasonal']['year']],
@@ -180,6 +184,7 @@ def create_specific_widgets_for_glofas2(glofas_dict):
         readout=True,
         readout_format='d'
     )
+    leadtime.layout.width = 'auto'
 
     # Define the minimum and maximum dates based on the year and month data
     min_year = min(glofas_dict['products']['cems-glofas-forecast']['year'])
@@ -238,6 +243,8 @@ def create_specific_widgets_for_glofas3(glofas_dict):
         readout=True,
         readout_format='d'
     )
+
+    leadtime.layout.width = 'auto'
 
     # Define the minimum and maximum dates based on the year and month data
     min_year = min(glofas_dict['products']['cems-glofas-forecast']['year'])
@@ -309,7 +316,7 @@ class JupyterAPI(geemap.Map):
         self.initialize_ui_state()
 
 
-        self.update_final_output()
+        # self.update_final_output()
 
 
     def setup_global_variables(self):
@@ -396,23 +403,27 @@ class JupyterAPI(geemap.Map):
                       'User Defined (draw a polygon on the map)',
                       'User Uploaded Data (upload a shapefile, kml, or kmz)'],
         )
+
         self.dropdown = self.create_dropdown(boundary_dropdown, 'Select Boundary:', 'watersheds_4')
         self.dropdown.layout.width = 'auto'
 
         self.dropdown_api = self.create_dropdown({'GloFas': 'glofas'}, 'Select API:', 'glofas')
         self.dropdown_api.layout.width = 'auto'
 
-        self.glofas_options = self.create_glofas_dropdown([x for x in self.glofas_dict['products'].keys()],
-                                                          description='Select GloFas Product:',
-                                                          default_value='cems-glofas-seasonal')
-        self.glofas_options.layout.width = 'auto'
 
         self.add_to_map_check = widgets.Checkbox(value=True, description='Add Downloaded Image to Map')
         self.btn = widgets.Button(description='Process Drawn Features')
         self.btn.layout.width = '100%'
 
+
         self.instruction_text = widgets.Text(value='Draw one or more polygons on the map', disabled=True)
-        self.upload_widget = widgets.FileUpload(accept='.shp,.geojson,.kml', multiple=False)
+        self.upload_widget = widgets.FileUpload(accept='.geojson', multiple=False)
+
+        self.boundary_stack = VBox([self.dropdown, self.instruction_text, self.upload_widget])
+
+        self.api_choice_stack = VBox([])
+
+        self.end_of_vbox_items = VBox([self.add_to_map_check, self.btn])
 
         # Initially hide all specific widgets
         self.glofas1_widgets = create_specific_widgets_for_glofas1(self.glofas_dict) or []
@@ -421,24 +432,36 @@ class JupyterAPI(geemap.Map):
         for widget in self.glofas1_widgets + self.glofas2_widgets + self.glofas3_widgets:
             widget.layout.visibility = 'hidden'
 
-        self.widget_container = VBox(layout=Layout(resize='both', overflow='auto'))
+        self.glofas_stack = VBox([])
+
+        self.widget_container = VBox([self.boundary_type, self.boundary_stack, self.dropdown_api, self.api_choice_stack, self.end_of_vbox_items], layout=Layout(resize='both', overflow='auto'))
+
+        self.userlayers = {}
+
         self.out = Output()
 
     def setup_event_listeners(self):
         self.boundary_type.observe(self.on_boundary_type_change, names='value')
-        self.boundary_type.observe(self.on_any_change, names='value')
-        self.dropdown.observe(self.on_any_change, names='value')
-        self.glofas_options.observe(self.on_any_change, names='value')
+        self.dropdown.observe(self.on_dropdown_change, names='value')
+        self.dropdown_api.observe(self.on_api_change, names='value')
         self.btn.on_click(self.on_button_click)
+        self.upload_widget.observe(self.on_file_upload, names='value')
 
     def initialize_ui_state(self):
         self.on_dropdown_change({'new': self.dropdown.value})
-        self.on_glofas_option_change({'new': self.glofas_options.value})
+        self.on_api_change({'new': self.dropdown_api.value})
         self.on_boundary_type_change({'new': self.boundary_type.value})
+        self.on_file_upload({'new': self.upload_widget.value})
 
         # Set initial visibility for instruction text and upload widget
         self.instruction_text.layout.display = 'none'
+        with self.out:
+            print(self.instruction_text)
         self.upload_widget.layout.display = 'none'
+        with self.out:
+            print(self.upload_widget)
+
+        self.on_api_change({'new': self.dropdown_api.value})
 
         # Add the main widget container to the display
         self.add_widget(self.widget_container)
@@ -507,42 +530,130 @@ class JupyterAPI(geemap.Map):
 
     # Replace 'your_grib_file.grib' with the path to your actual GRIB file
 
-    def gather_current_selections(self):
-        """
-        Gather current selections from all relevant widgets.
-        :return: dict of current selections
-        """
+    # def gather_current_selections(self):
+    #     """
+    #     Gather current selections from all relevant widgets.
+    #     :return: dict of current selections
+    #     """
+    #
+    #     selections = {
+    #         'boundary_type': self.boundary_type.value,
+    #         'selected_boundary': self.dropdown.value,
+    #         'glofas_product': self.glofas_options.value,
+    #         'uploaded_file': self.upload_widget.value,  # This will include the uploaded file data
+    #         # ... include other relevant widget values ...
+    #     }
+    #
+    #     return selections
 
-        selections = {
-            'boundary_type': self.boundary_type.value,
-            'selected_boundary': self.dropdown.value,
-            'glofas_product': self.glofas_options.value,
-            'uploaded_file': self.upload_widget.value,  # This will include the uploaded file data
-            # ... include other relevant widget values ...
-        }
-        print(selections)
-        return selections
+    # def update_final_output(self):
+    #     """
+    #     Update the final output container based on current selections.
+    #     """
+    #     selections = self.gather_current_selections()
+    #
+    #     # Handle special cases or default behavior
+    #     if 'special_case' in selections['boundary_type']:
+    #         # Do something specific for this special case
+    #         pass
+    #
+    #     # Dynamically update the final container based on the selections
+    #     # This might include showing/hiding widgets, displaying messages, etc.
+    #     # ...
+    #
+    # def on_any_change(self, change):
+    #     """
+    #     Generic change handler to update the final output whenever any widget changes.
+    #     """
+    #     self.update_final_output()
 
-    def update_final_output(self):
-        """
-        Update the final output container based on current selections.
-        """
-        selections = self.gather_current_selections()
+    def calculate_bounds(self, geojson_content):
+        # Initialize min and max coordinates
+        min_lat, min_lon, max_lat, max_lon = 90, 180, -90, -180
 
-        # Handle special cases or default behavior
-        if 'special_case' in selections['boundary_type']:
-            # Do something specific for this special case
-            pass
+        # Function to update the bounds based on a coordinate pair
+        def update_bounds(lat, lon):
+            nonlocal min_lat, min_lon, max_lat, max_lon
+            if lat < min_lat: min_lat = lat
+            if lon < min_lon: min_lon = lon
+            if lat > max_lat: max_lat = lat
+            if lon > max_lon: max_lon = lon
 
-        # Dynamically update the final container based on the selections
-        # This might include showing/hiding widgets, displaying messages, etc.
-        # ...
+        # Iterate through the coordinates and update the bounds
+        for feature in geojson_content['features']:
+            coords = feature['geometry']['coordinates']
+            geom_type = feature['geometry']['type']
 
-    def on_any_change(self, change):
+            # Update bounds based on the geometry type
+            if geom_type == 'Point':
+                update_bounds(*coords)
+            elif geom_type in ['LineString', 'MultiPoint']:
+                for coord in coords:
+                    update_bounds(*coord)
+            elif geom_type in ['Polygon', 'MultiLineString']:
+                for part in coords:
+                    for coord in part:
+                        update_bounds(*coord)
+            elif geom_type == 'MultiPolygon':
+                for polygon in coords:
+                    for part in polygon:
+                        for coord in part:
+                            update_bounds(*coord)
+
+        return [[min_lat, min_lon], [max_lat, max_lon]]
+
+    def on_file_upload(self, change):
         """
-        Generic change handler to update the final output whenever any widget changes.
+        Handle file upload. This function is called when a file is uploaded.
         """
-        self.update_final_output()
+        uploaded_files = change['new']  # Get the list of uploaded file info
+
+        try:
+            # Process each uploaded file
+            for file_info in uploaded_files:
+                filename = file_info['name']
+                with self.out:
+                    print(f"Uploaded file: {filename}")
+
+                # This is the file content as a memoryview object
+                content = file_info['content']
+
+                # Convert the memoryview object to bytes then decode to string
+                content_str = bytes(content).decode("utf-8")
+
+                # Load the string as GeoJSON
+                geojson_content = geojson.loads(content_str)
+
+                # Create a GeoJSON layer
+
+
+                style = {
+                    "color": "black",  # Line color
+                    "fillColor": "black",  # Fill color
+                    "weight": 1,  # Border width
+                    "fillOpacity": 0.5  # Fill opacity
+                }
+
+                geojson_layer = GeoJSON(data=geojson_content, style=style)
+
+                with self.out:
+                    print("GeoJSON content:", geojson_content)
+
+                # Add the GeoJSON to the map
+                try:
+                    self.add_layer(geojson_layer,
+                                   name='User Uploaded Data',
+                                   vis_params={'color': 'black'})
+                    # bounds = self.calculate_bounds(geojson_content)
+                    # self.fit_bounds(bounds)
+                    self.userlayers['User Uploaded Data'] = geojson_layer
+                except Exception as e:
+                    with self.out:
+                        print(f"Error adding layer: {e}")
+
+        except Exception as e:
+            with self.out:
+                print(f"Error processing files: {e}")
 
     def convert_to_cog(self, input_path, output_path):
         # Convert a GeoTIFF to a COG using gdal_translate
@@ -617,10 +728,16 @@ class JupyterAPI(geemap.Map):
 
             raster = xds.isel(band=0)
 
+            with self.out:
+                print(geometry)
+
             try:
                 polygon = shape(geometry['geometries'][1])
             except KeyError:
                 polygon = shape(geometry)
+
+            except TypeError:
+                polygon = geometry
 
             gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs="EPSG:4326")
             gdf = gdf.to_crs(raster.rio.crs)  # Reproject the geometry to match the raster's CRS
@@ -667,7 +784,7 @@ class JupyterAPI(geemap.Map):
             disabled=False,
         )
 
-        dropdown.observe(self.on_glofas_option_change, names='value')
+        # dropdown.observe(self.on_glofas_option_change, names='value')
         return dropdown
 
     def on_dropdown_change(self, change):
@@ -705,56 +822,88 @@ class JupyterAPI(geemap.Map):
             self.add_layer(hydrosheds_layer)
             self.added_layers[f'watersheds_{new_value[1]}'] = hydrosheds_layer
 
+
+    def on_api_change(self, change):
+        """
+        Handle the change event of a dropdown menu.
+
+        :param change: A dictionary containing the change event information.
+        :return: None
+        """
+        new_value = change['new']
+
+        # Remove any existing layers
+        # for name, layer in self.added_layers.items():
+        #     if layer in self.layers:
+        #         self.remove_layer(layer)
+        # self.added_layers = {}
+
+        # Add the appropriate layer based on the selection
+        if new_value == 'glofas':
+            self.glofas_options = self.create_glofas_dropdown([x for x in self.glofas_dict['products'].keys()],
+                                        description='Select GloFas Product:',
+                                        default_value='cems-glofas-seasonal')
+            self.glofas_options.layout.width = 'auto'
+            self.glofas_options.observe(self.on_glofas_option_change, names='value')
+            self.on_glofas_option_change({'new': self.glofas_options.value})
+            self.api_choice_stack.children = [self.glofas_options, self.glofas_stack]
+        else:
+            pass
+
     def on_boundary_type_change(self, change):
         """
         Handle changes to the boundary type selection.
 
         :param change: A dictionary representing the change in value of the boundary_type widget.
         """
-        print("Boundary type changed to:", change['new'])  # Debug print
+        with self.out:
+            print("Boundary type changed to:", change['new'])  # Debug print
         boundary_value = change['new']
         self.update_boundary_options(boundary_value)
 
-        # Reset the widget container to include only the widgets relevant to the selected boundary type
-        self.widget_container.children = [self.boundary_type, self.dropdown, self.dropdown_api, self.glofas_options]
-
-        # Update the visibility and options of other widgets based on the selected boundary type
-        # ... (add any additional logic specific to your application)
-
     def update_boundary_options(self, boundary_value):
-        print(boundary_value)
         # Define how the boundary type affects the boundary dropdown options
         if boundary_value == 'Predefined Boundaries':
+            self.on_dropdown_change({'new': self.dropdown.value})
             # Predefined boundaries selected
             self.dropdown.layout.display = 'block'  # Show the dropdown
             self.instruction_text.layout.display = 'none'  # Hide the instruction text
             self.upload_widget.layout.display = 'none'  # Hide the upload widget
-        elif boundary_value == 'User Defined':
-            # User defined selected
-            self.dropdown.layout.display = 'none'  # Hide the dropdown
-            self.instruction_text.layout.display = 'block'  # Show the instruction text
-            self.upload_widget.layout.display = 'none'  # Hide the upload widget
-            print("User Defined selected - text should be visible now.")
-        elif boundary_value == 'User Uploaded Data':
-            # User uploaded data selected
-            self.dropdown.layout.display = 'none'  # Hide the dropdown
-            self.instruction_text.layout.display = 'none'  # Hide the instruction text
-            self.upload_widget.layout.display = 'block'  # Show the upload widget
+
+        elif boundary_value in ['User Defined', 'User Uploaded Data']:
+            # Either User defined or User uploaded data selected
+
+            # Remove EE Leaflet Tile Layers with Google Earth Engine attribution
+            for layer in self.layers:
+                if hasattr(layer, 'attribution') and 'Google Earth Engine' in layer.attribution:
+                    self.remove_layer(layer)
+
+            if boundary_value == 'User Defined':
+                # User defined selected
+                self.dropdown.layout.display = 'none'  # Hide the dropdown
+                self.instruction_text.layout.display = 'block'  # Show the instruction text
+                self.upload_widget.layout.display = 'none'  # Hide the upload widget
+                with self.out:
+                    print("User Defined selected - text should be visible now.")
+
+            elif boundary_value == 'User Uploaded Data':
+                # User uploaded data selected
+                self.dropdown.layout.display = 'none'  # Hide the dropdown
+                self.instruction_text.layout.display = 'none'  # Hide the instruction text
+                self.upload_widget.layout.display = 'block'  # Show the upload widget
+
         else:
             # Default case, hide everything
             self.dropdown.layout.display = 'none'
             self.instruction_text.layout.display = 'none'
             self.upload_widget.layout.display = 'none'
 
-        # Update the widget container to include the custom widgets along with the defaults
-        self.widget_container.children = [self.boundary_type, self.dropdown, self.dropdown_api, self.glofas_options,
-                                          self.instruction_text, self.upload_widget]
-
     def on_glofas_option_change(self, change):
         """
         Handle the change event of the "glofas_option" dropdown widget.
         """
         new_value = change['new']
+        self.glofas_stack.children = ()  # Clear the glofas_stack
         self.update_glofas_container(new_value)
 
     def update_glofas_container(self, glofas_value):
@@ -763,27 +912,40 @@ class JupyterAPI(geemap.Map):
 
         :param glofas_value: The selected value of the GloFAS product dropdown.
         """
-        # Reset children and visibility for all widgets
-        self.widget_container.children = [self.boundary_type, self.dropdown, self.dropdown_api, self.glofas_options]
-        for widget in self.glofas1_widgets + self.glofas2_widgets + self.glofas3_widgets:
-            widget.layout.visibility = 'hidden'
 
-        # Update widget container and visibility based on the GloFAS product selection
+        # Mapping of GloFAS product names to their respective widget lists
         glofas_widgets_mapping = {
             'cems-glofas-seasonal': self.glofas1_widgets,
             'cems-glofas-forecast': self.glofas2_widgets,
             'cems-glofas-reforecast': self.glofas3_widgets,
         }
 
+        # Hide all widgets from previous selection
+        for widget_list in glofas_widgets_mapping.values():
+            for widget in widget_list:
+                # widget.layout.display = 'none'
+                widget.layout.visibility = 'hidden'
+
         if glofas_value in glofas_widgets_mapping:
+            # Get the specific widgets for the selected GloFAS product
             specific_widgets = glofas_widgets_mapping[glofas_value]
-            self.widget_container.children += tuple(specific_widgets)
+
+            # Set the visibility of the specific widgets
             for widget in specific_widgets:
+                # widget.layout.display = 'block'
                 widget.layout.visibility = 'visible'
 
-        # Always add the 'add_to_map_check' and 'btn' widgets
-        self.widget_container.children += (self.add_to_map_check, self.btn,)
+            # Replace the children of the glofas_stack with the specific widgets
+            self.glofas_stack.children = tuple(specific_widgets)
 
+            with self.out:
+                print("Updated glofas_stack with", len(self.glofas_stack.children), "widgets.")
+
+        else:
+            # If the selected GloFAS product is not recognized, clear the glofas_stack
+            self.glofas_stack.children = ()
+            with self.out:
+                print("Cleared glofas_stack.")
 
     def add_clipped_raster_to_map(self, raster_path, vis_params=None):
         if vis_params is None:
@@ -914,12 +1076,166 @@ class JupyterAPI(geemap.Map):
         :return: None
         """
         with self.out:
-            if self.draw_features:
-                for feature in self.draw_features:
-                    distinct_values = self.process_drawn_features([feature])
-                    self.download_feature_geometry(distinct_values)
-                    bbox = self.get_bounding_box(distinct_values)
+            if self.boundary_type.value == 'Predefined Boundaries':
+                if self.draw_features:
+                    for feature in self.draw_features:
+                        distinct_values = self.process_drawn_features([feature])
+                        self.download_feature_geometry(distinct_values)
+                        bbox = self.get_bounding_box(distinct_values=distinct_values)
 
+                        if self.glofas_options.value == 'cems-glofas-seasonal':
+                            # Retrieve values from widgets
+                            system_version = self.glofas1_widgets[0].value.replace('.',
+                                                                                   '_').lower()  # Assuming this is the system_version widget
+                            leadtime_hour = str(self.glofas1_widgets[1].value)  # Assuming this is the leadtime widget
+                            year = str(self.glofas1_widgets[2].value)  # Assuming this is the year widget
+                            month = self.glofas1_widgets[3].value  # Assuming this is the month widget
+                            day = "01"
+                            folder_location = self.glofas1_widgets[4].selected  # Assuming this is the file chooser widget
+                        elif self.glofas_options.value == 'cems-glofas-forecast':
+                            system_version = self.glofas2_widgets[0].value.replace('.',
+                                                                                   '_').lower()
+                            leadtime_hour = str(self.glofas2_widgets[1].value)
+                            date = self.glofas2_widgets[2].value
+                            year = str(date.year)
+                            month = int(date.month)
+                            day = str(date.day)
+                            folder_location = self.glofas2_widgets[3].selected
+                        elif self.glofas_options.value == 'cems-glofas-reforecast':
+                            system_version = self.glofas3_widgets[0].value.replace('.',
+                                                                                   '_').lower()
+                            leadtime_hour = str(self.glofas3_widgets[1].value)
+                            date = self.glofas2_widgets[2].value
+                            year = str(date.year)
+                            month = int(date.month)
+                            day = str(date.day)
+                            folder_location = self.glofas3_widgets[3].selected
+
+                        print(f"add_to_map value is {self.add_to_map_check.value}")
+                        # Create an instance of the CDSAPI class
+                        cds_api = CDSAPI()
+
+                        # Prepare the request parameters
+                        request_parameters = {
+                            'variable': 'river_discharge_in_the_last_24_hours',
+                            'format': 'grib',
+                            'system_version': system_version,
+                            'hydrological_model': 'lisflood',
+                            'product_type': 'ensemble_perturbed_forecasts',
+                            'year': year,
+                            'month': month,
+                            # Omit 'day' to use the default value or provide a specific day
+                            'day': day,
+                            'leadtime_hour': leadtime_hour,
+                            'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
+                            'folder_location': folder_location,
+                        }
+
+                        # Call the download_data method
+                        file_name = f"{self.dropdown.value}_{'_'.join(str(value) for value in distinct_values)}_{year}_{month}_{request_parameters.get('day', '01')}.grib"
+                        file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
+
+                        print(f"Downloaded {year} file to {file_path}")
+
+                        min_val, max_val = self.get_raster_min_max(file_path)
+
+                        if min_val == -9999:
+                            min_val = 0
+
+
+                        vis_params = {
+                            'min': min_val,
+                            'max': max_val,
+                            'palette': 'viridis',  # or any other valid colormap name
+                            'nodata': -9999  # Replace with your actual nodata value
+                        }
+
+                        clipped_raster_path = self.clip_raster(file_path, self.geometry)
+                        if self.add_to_map_check.value:
+                            self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
+                        print("Distinct values from all drawn features:", distinct_values)
+                else:
+                    print("No features have been drawn on the map.")
+            elif self.boundary_type.value == 'User Defined':
+                if self.draw_features:
+                    for feature in self.draw_features:
+                        bbox = self.get_bounding_box(distinct_values=None, feature=feature)
+
+                        if self.glofas_options.value == 'cems-glofas-seasonal':
+                            # Retrieve values from widgets
+                            system_version = self.glofas1_widgets[0].value.replace('.',
+                                                                                   '_').lower()  # Assuming this is the system_version widget
+                            leadtime_hour = str(self.glofas1_widgets[1].value)  # Assuming this is the leadtime widget
+                            year = str(self.glofas1_widgets[2].value)  # Assuming this is the year widget
+                            month = self.glofas1_widgets[3].value  # Assuming this is the month widget
+                            day = "01"
+                            folder_location = self.glofas1_widgets[
+                                4].selected  # Assuming this is the file chooser widget
+                        elif self.glofas_options.value == 'cems-glofas-forecast':
+                            system_version = self.glofas2_widgets[0].value.replace('.',
+                                                                                   '_').lower()
+                            leadtime_hour = str(self.glofas2_widgets[1].value)
+                            date = self.glofas2_widgets[2].value
+                            year = str(date.year)
+                            month = int(date.month)
+                            day = str(date.day)
+                            folder_location = self.glofas2_widgets[3].selected
+                        elif self.glofas_options.value == 'cems-glofas-reforecast':
+                            system_version = self.glofas3_widgets[0].value.replace('.',
+                                                                                   '_').lower()
+                            leadtime_hour = str(self.glofas3_widgets[1].value)
+                            date = self.glofas2_widgets[2].value
+                            year = str(date.year)
+                            month = int(date.month)
+                            day = str(date.day)
+                            folder_location = self.glofas3_widgets[3].selected
+
+                        print(f"add_to_map value is {self.add_to_map_check.value}")
+                        # Create an instance of the CDSAPI class
+                        cds_api = CDSAPI()
+
+                        # Prepare the request parameters
+                        request_parameters = {
+                            'variable': 'river_discharge_in_the_last_24_hours',
+                            'format': 'grib',
+                            'system_version': system_version,
+                            'hydrological_model': 'lisflood',
+                            'product_type': 'ensemble_perturbed_forecasts',
+                            'year': year,
+                            'month': month,
+                            # Omit 'day' to use the default value or provide a specific day
+                            'day': day,
+                            'leadtime_hour': leadtime_hour,
+                            'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
+                            'folder_location': folder_location,
+                        }
+
+                        # Call the download_data method
+                        file_name = f"{self.dropdown.value}_userdefined_{year}_{month}_{request_parameters.get('day', '01')}.grib"
+                        file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
+
+                        print(f"Downloaded {year} file to {file_path}")
+
+                        min_val, max_val = self.get_raster_min_max(file_path)
+
+                        if min_val == -9999:
+                            min_val = 0
+
+                        vis_params = {
+                            'min': min_val,
+                            'max': max_val,
+                            'palette': 'viridis',  # or any other valid colormap name
+                            'nodata': -9999  # Replace with your actual nodata value
+                        }
+
+                        clipped_raster_path = self.clip_raster(file_path, self.geometry)
+                        if self.add_to_map_check.value:
+                            self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
+                else:
+                    print("No features have been drawn on the map.")
+            elif self.boundary_type.value == 'User Uploaded Data':
+                if self.userlayers['User Uploaded Data']:
+                    bbox = self.get_bounding_box(distinct_values=None)
                     if self.glofas_options.value == 'cems-glofas-seasonal':
                         # Retrieve values from widgets
                         system_version = self.glofas1_widgets[0].value.replace('.',
@@ -969,7 +1285,7 @@ class JupyterAPI(geemap.Map):
                     }
 
                     # Call the download_data method
-                    file_name = f"{self.dropdown.value}_{'_'.join(str(value) for value in distinct_values)}_{year}_{month}_{request_parameters.get('day', '01')}.grib"
+                    file_name = f"{self.dropdown.value}_userdefined_{year}_{month}_{request_parameters.get('day', '01')}.grib"
                     file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
 
                     print(f"Downloaded {year} file to {file_path}")
@@ -978,7 +1294,6 @@ class JupyterAPI(geemap.Map):
 
                     if min_val == -9999:
                         min_val = 0
-
 
                     vis_params = {
                         'min': min_val,
@@ -990,9 +1305,9 @@ class JupyterAPI(geemap.Map):
                     clipped_raster_path = self.clip_raster(file_path, self.geometry)
                     if self.add_to_map_check.value:
                         self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
-                    print("Distinct values from all drawn features:", distinct_values)
+
             else:
-                print("No features have been drawn on the map.")
+                print("Invalid boundary type.")
 
     def on_button_click(self, b):
         """
@@ -1005,7 +1320,7 @@ class JupyterAPI(geemap.Map):
 
             # Assuming `distinct_values` is available after drawing and processing
 
-    def get_bounding_box(self, distinct_values):
+    def get_bounding_box(self, distinct_values=None, feature=None):
         """
         :param distinct_values: a list of distinct values used to filter the data
         :return: a GeoDataFrame representing the bounding box of the filtered data
@@ -1014,15 +1329,34 @@ class JupyterAPI(geemap.Map):
         * the data using the distinct values and returns the bounding box as a GeoDataFrame. If the dropdown value is 'watersheds_4', it filters the data using the distinct values and returns
         * the bounding box as a GeoDataFrame.
         """
-        if self.dropdown.value.split('_')[0] == 'admin':
-            bounds = self.layer.filter(ee.Filter.inList(self.column, distinct_values)).geometry().bounds().getInfo()
-            gdf = gpd.GeoDataFrame([{'geometry': shape(bounds)}], crs='EPSG:4326')
-            return gdf.geometry.bounds
-        elif self.dropdown.value.split('_')[0] == 'watersheds':
-            bounds = self.layer.filter(
-                ee.Filter.inList(self.column, distinct_values)).geometry().bounds().getInfo()
-            gdf = gpd.GeoDataFrame([{'geometry': shape(bounds)}], crs='EPSG:4326')
-            return gdf.geometry.bounds
+
+
+        if distinct_values:
+            if self.dropdown.value.split('_')[0] == 'admin':
+                bounds = self.layer.filter(ee.Filter.inList(self.column, distinct_values)).geometry().bounds().getInfo()
+                gdf = gpd.GeoDataFrame([{'geometry': shape(bounds)}], crs='EPSG:4326')
+                return gdf.geometry.bounds
+            elif self.dropdown.value.split('_')[0] == 'watersheds':
+                bounds = self.layer.filter(
+                    ee.Filter.inList(self.column, distinct_values)).geometry().bounds().getInfo()
+                gdf = gpd.GeoDataFrame([{'geometry': shape(bounds)}], crs='EPSG:4326')
+                return gdf.geometry.bounds
+        if 'User Uploaded Data' in self.userlayers and self.boundary_type.value == 'User Uploaded Data':
+            gdf = gpd.GeoDataFrame.from_features(self.userlayers['User Uploaded Data'].data)
+            print(gdf)
+            dissolved_gdf = gdf.dissolve()
+            print(dissolved_gdf)
+            self.geometry = dissolved_gdf.geometry.iloc[0]
+            return dissolved_gdf.geometry.bounds
+
+        elif self.draw_layer and self.boundary_type.value == 'User Defined':
+            if feature:
+                if isinstance(feature, ee.Feature):
+                    feature_info = feature.getInfo()  # This converts the GEE Feature to a Python dictionary
+                    geometry = feature_info['geometry']
+                gdf = gpd.GeoDataFrame([{'geometry': shape(geometry)}], crs='EPSG:4326')
+                self.geometry = gdf.geometry.iloc[0]
+                return gdf.geometry.bounds
 
     def get_map_and_output(self):
         """
