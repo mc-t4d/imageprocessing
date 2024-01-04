@@ -174,25 +174,40 @@ class EarthEngineManager(BaseModel):
 
         self.year_ranges = date_ranges
 
-    def get_image_collection_dates(self, collection: str):
+    def get_image_collection_dates(self, collection: str, min_max_only: bool = False):
         # Regular expression to match both formats
         pattern = r'^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+){1,2}$'
 
-        if not re.match(pattern, collection):
-            raise ValueError(
-                f"Invalid collection format: {collection}. Expected format: 'Source/Code' (e.g., 'COPERNICUS/S2_SR') or 'Source/Code/Dataset' (e.g., 'MODIS/061/MOD13A2')")
+        # if not re.match(pattern, collection):
+        #     raise ValueError(
+        #         f"Invalid collection format: {collection}. Expected format: 'Source/Code' (e.g., 'COPERNICUS/S2_SR') or 'Source/Code/Dataset' (e.g., 'MODIS/061/MOD13A2')")
 
         def format_dates(img):
             original_date = ee.Date(img.get('system:time_start'))
             current_day = original_date.format('YYYY-MM-dd')
             return ee.Feature(None, {'current_date': current_day})
 
+        def get_min_max_dates(collection):
+            # Get the minimum date in the collection.
+            min_date = ee.Date(collection.aggregate_min('system:time_start')).format('YYYY-MM-dd')
+            # Get the maximum date in the collection.
+            max_date = ee.Date(collection.aggregate_max('system:time_start')).format('YYYY-MM-dd')
+
+            min_date = min_date.getInfo()
+
+            max_date = max_date.getInfo()
+
+            return [min_date, max_date]
+
         collection = ee.ImageCollection(collection)
-        formatted_dates = collection.map(format_dates)
-        current_date_list = formatted_dates.aggregate_array('current_date')
-        ee_date_list = current_date_list.getInfo()
-        self.ee_dates = [x for x in ee_date_list]
-        return self.ee_dates
+        if min_max_only:
+            return get_min_max_dates(collection)
+        else:
+            formatted_dates = collection.map(format_dates)
+            current_date_list = formatted_dates.aggregate_array('current_date')
+            ee_date_list = current_date_list.getInfo()
+            self.ee_dates = [x for x in ee_date_list]
+            return self.ee_dates
 
     # def get_boundary(self):
     #     gdf = gpd.GeoDataFrame.from_postgis(

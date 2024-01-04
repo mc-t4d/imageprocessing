@@ -28,9 +28,11 @@ import geojson
 from rasterio.features import geometry_mask
 from rasterio.mask import mask as riomask
 from shapely.geometry import shape
-from tqdm.notebook import tqdm
-from ipywidgets import Text, FileUpload, VBox, jslink, Stack
+from tqdm.notebook import tqdm as notebook_tqdm
+from ipywidgets import Text, FileUpload, VBox, jslink, Stack, HBox
 from shapely.geometry import shape
+import warnings
+from IPython.display import display
 
 from mcimageprocessing.simplified.GloFasAPI import CDSAPI
 from mcimageprocessing.simplified.earthengine import EarthEngineManager
@@ -42,6 +44,7 @@ custom_css = """
 .widget-label {
     width: auto !important;
 }
+</style>
 
 """
 
@@ -54,7 +57,7 @@ boundary_dropdown = {'Admin 0': 'admin_0', 'Admin 1': 'admin_1', 'Admin 2': 'adm
                      'Watersheds Level 10': 'watersheds_10', 'Watersheds Level 11': 'watersheds_11',
                      'Watersheds Level 12': 'watersheds_12'}
 
-boundary_definition_type = {'User Definied': 'user_defined', 'Predefined Boundaries': 'predefined',
+boundary_definition_type = {'User Defined': 'user_defined', 'Predefined Boundaries': 'predefined',
                             'User Uploaded Data': 'user_uploaded'}
 
 # Render the CSS in the notebook
@@ -62,217 +65,22 @@ HTML(custom_css)
 
 ee_instance = EarthEngineManager(authentication_file='../ee_auth_file.json')
 
-
-def create_specific_widgets_for_glofas1(glofas_dict):
-    """
-    :param glofas_dict: A dictionary containing data specific to GloFas Data Type 1.
-    :return: A list of widgets created for GloFas Data Type 1.
-
-    This method creates widgets specific to GloFas Data Type 1. It takes a dictionary `glofas_dict` as a parameter and returns a list of widgets. The widgets created include a `system_version
-    *` ToggleButtons widget, a `leadtime` IntSlider widget, a `year` Dropdown widget, a `month` Dropdown widget, and a `filechooser1` FileChooser widget. These widgets are customized based
-    * on the data present in the `glofas_dict`.
-
-    The `system_version` ToggleButtons widget allows the user to select the system version. The options for the ToggleButtons are obtained from the `glofas_dict['products']['cems-glofas
-    *-seasonal']['system_version']` list.
-
-    The `leadtime` IntSlider widget allows the user to select the lead time. The minimum and maximum values for the IntSlider are obtained from the `glofas_dict['products']['cems-glofas
-    *-seasonal']['leadtime_hour']` list. The step is set to 24, and the default value is set to 24.
-
-    The `year` Dropdown widget allows the user to select the year. The options for the Dropdown widget are obtained from the `glofas_dict['products']['cems-glofas-seasonal']['year']` list
-    *. The default value is set to the minimum value in the list.
-
-    The `month` Dropdown widget allows the user to select the month. The options for the Dropdown widget are obtained from the `glofas_dict['products']['cems-glofas-seasonal']['month']`
-    * list. The default value is set to the maximum value in the list.
-
-    The `system_version`, `year`, and `month` widgets have their layout width set to 'auto' for better display.
-
-    The `filechooser1` FileChooser widget is created with the current working directory as the default directory, and only directories are shown.
-
-    Finally, the method returns the list of all the created widgets.
-
-    Example usage:
-
-    glofas_dict = {
-        'products': {
-            'cems-glofas-seasonal': {
-                'system_version': ['operational', 'experimental'],
-                'leadtime_hour': [24, 48, 72],
-                'year': [2020, 2021, 2022],
-                'month': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-            }
-        }
-    }
-
-    widgets_list = create_specific_widgets_for_glofas1(glofas_dict)
-    """
-    # Create widgets specific to GloFas Data Type 1
-    # Example: A text input for a parameter and a dropdown to select an option
-
-    system_version = widgets.ToggleButtons(
-        options=[x.replace('_', '.').title() for x in
-                 glofas_dict['products']['cems-glofas-seasonal']['system_version']],
-        description='System Version:',
-        disabled=False,
-        value='Operational',
-    )
-
-    leadtime = widgets.IntSlider(
-        value=24,
-        min=min(glofas_dict['products']['cems-glofas-seasonal']['leadtime_hour']),
-        max=max(glofas_dict['products']['cems-glofas-seasonal']['leadtime_hour']),
-        step=24,
-        description='Lead Time:',
-        disabled=False,
-        orientation='horizontal',
-        readout=True,
-        readout_format='d'
-    )
-    leadtime.layout.width = 'auto'
-
-
-    # Define the minimum and maximum dates based on the year and month data
-    min_year = min(glofas_dict['products']['cems-glofas-seasonal']['year'])
-    max_year = max(glofas_dict['products']['cems-glofas-seasonal']['year'])
-    min_month = 1  # Assuming January is always included
-    max_month = 12  # Assuming December is always included
-
-    # Create the DatePicker widget with constraints
-    date_picker = DatePicker(
-        description='Select Date:',
-        disabled=False,
-        value=datetime.date(min_year, min_month, 1),  # Default value
-        min=datetime.date(min_year, min_month, 1),  # Minimum value
-        max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
-    )
-
-    system_version.layout.width = 'auto'
-    date_picker.layout.width = 'auto'
-
-    filechooser1 = fc.FileChooser(os.getcwd(), show_only_dirs=True)
-
-    # Return a list of widgets
-    return [system_version, leadtime, date_picker, filechooser1]
-
-
-def create_specific_widgets_for_glofas2(glofas_dict):
-    """
-    :param glofas_dict: A dictionary containing GloFas data
-    :return: A list of specific widgets for GloFas Data Type 2
-
-    This method creates specific widgets for GloFas Data Type 2. It takes in a dictionary `glofas_dict`, which should contain the necessary data for creating the widgets. The method creates
-    * a ToggleButtons widget for selecting the system version, an IntSlider widget for selecting the lead time, and Dropdown widgets for selecting the year, month, and day. The method also
-    * creates a FileChooser widget for selecting files. The created widgets are then added to a list and returned by the method.
-    """
-    # Create widgets specific to GloFas Data Type 2
-    # Example: A slider for selecting a range and a button
-
-    system_version = widgets.ToggleButtons(
-        options=[x.replace('_', '.').title() for x in
-                 glofas_dict['products']['cems-glofas-forecast']['system_version']],
-        description='System Version:',
-        disabled=False,
-        value='Operational',
-    )
-
-    leadtime = widgets.IntSlider(
-        value=24,
-        min=min(glofas_dict['products']['cems-glofas-forecast']['leadtime_hour']),
-        max=max(glofas_dict['products']['cems-glofas-forecast']['leadtime_hour']),
-        step=24,
-        description='Lead Time:',
-        disabled=False,
-        orientation='horizontal',
-        readout=True,
-        readout_format='d'
-    )
-    leadtime.layout.width = 'auto'
-
-    # Define the minimum and maximum dates based on the year and month data
-    min_year = min(glofas_dict['products']['cems-glofas-forecast']['year'])
-    max_year = max(glofas_dict['products']['cems-glofas-forecast']['year'])
-    min_month = 1  # Assuming January is always included
-    max_month = 12  # Assuming December is always included
-
-    # Create the DatePicker widget with constraints
-    date_picker = DatePicker(
-        description='Select Date:',
-        disabled=False,
-        value=datetime.date(min_year, min_month, 1),  # Default value
-        min=datetime.date(min_year, min_month, 1),   # Minimum value
-        max=datetime.date(max_year, max_month, 31)   # Maximum value (assumes 31 days in max month)
-    )
-
-    # Adjusting the layout
-    date_picker.layout.width = 'auto'
-
-    system_version.layout.width = 'auto'
-
-    filechooser2 = fc.FileChooser(os.getcwd(), show_only_dirs=True)
-
-    # Return a list of widgets
-    return [system_version, leadtime, date_picker, filechooser2]
-
-
-def create_specific_widgets_for_glofas3(glofas_dict):
-    """
-    :param glofas_dict: A dictionary containing the data needed to create the specific widgets for GloFas Data Type 2.
-    :return: A list of widgets that are specific to GloFas Data Type 2.
-
-    This method takes in a dictionary and uses the data within the dictionary to create specific widgets for GloFas Data Type 2. The widgets created are a ToggleButtons widget for selecting
-    * the system version, an IntSlider widget for selecting the lead time, and Dropdown widgets for selecting the year, month, and day. Additionally, a FileChooser widget is created for
-    * choosing a file. These widgets are then returned as a list.
-    """
-    # Create widgets specific to GloFas Data Type 2
-    # Example: A slider for selecting a range and a button
-
-    system_version = widgets.ToggleButtons(
-        options=[x.replace('_', '.').title() for x in
-                 glofas_dict['products']['cems-glofas-reforecast']['system_version']],
-        description='System Version:',
-        disabled=False,
-        value='Version.4.0',
-    )
-
-    leadtime = widgets.IntSlider(
-        value=24,
-        min=min(glofas_dict['products']['cems-glofas-reforecast']['leadtime_hour']),
-        max=max(glofas_dict['products']['cems-glofas-reforecast']['leadtime_hour']),
-        step=24,
-        description='Lead Time:',
-        disabled=False,
-        orientation='horizontal',
-        readout=True,
-        readout_format='d'
-    )
-
-    leadtime.layout.width = 'auto'
-
-    # Define the minimum and maximum dates based on the year and month data
-    min_year = min(glofas_dict['products']['cems-glofas-forecast']['year'])
-    max_year = max(glofas_dict['products']['cems-glofas-forecast']['year'])
-    min_month = 1  # Assuming January is always included
-    max_month = 12  # Assuming December is always included
-
-    # Create the DatePicker widget with constraints
-    date_picker = DatePicker(
-        description='Select Date:',
-        disabled=False,
-        value=datetime.date(min_year, min_month, 1),  # Default value
-        min=datetime.date(min_year, min_month, 1),  # Minimum value
-        max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
-    )
-
-    system_version.layout.width = 'auto'
-    date_picker.layout.width = 'auto'
-
-    filechooser3 = fc.FileChooser(os.getcwd(), show_only_dirs=True)
-
-    # Return a list of widgets
-    return [system_version, leadtime, date_picker, filechooser3]
-
+warnings.filterwarnings('ignore', category=UserWarning, message="This was only*")
 
 NODATA_VALUE = -9999
 
+class OutputWidgetTqdm(notebook_tqdm):
+    def __init__(self, *args, **kwargs):
+        # You can add custom arguments here if needed, or pass through to superclass
+        self.output_widget = kwargs.pop('output_widget', None)  # Extract the output widget
+        super().__init__(*args, **kwargs)
+
+    def display(self, *args, **kwargs):
+        # Override the display method to redirect to the output widget
+        if self.output_widget:
+            self.output_widget.clear_output(wait=True)
+            with self.output_widget:
+                display(self.container)
 
 class JupyterAPI(geemap.Map):
     """
@@ -316,9 +124,7 @@ class JupyterAPI(geemap.Map):
 
         self.initialize_ui_state()
 
-
         # self.update_final_output()
-
 
     def setup_global_variables(self):
         self.added_layers = {}
@@ -328,23 +134,8 @@ class JupyterAPI(geemap.Map):
                     "system_version": ['operational', 'version_3_1', 'version_2_2'],
                     'hydrological_model': ['lisflood'],
                     "variable": "river_discharge_in_the_last_24_hours",
-                    "leadtime_hour": [
-                        24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360, 384, 408,
-                        432, 456, 480, 504, 528, 552, 576, 600, 624, 648, 672, 696, 720, 744, 768, 792,
-                        816, 840, 864, 888, 912, 936, 960, 984, 1008, 1032, 1056, 1080, 1104, 1128, 1152,
-                        1176, 1200, 1224, 1248, 1272, 1296, 1320, 1344, 1368, 1392, 1416, 1440, 1464, 1488,
-                        1512, 1536, 1560, 1584, 1608, 1632, 1656, 1680, 1704, 1728, 1752, 1776, 1800, 1824,
-                        1848, 1872, 1896, 1920, 1944, 1968, 1992, 2016, 2040, 2064, 2088, 2112, 2136, 2160,
-                        2184, 2208, 2232, 2256, 2280, 2304, 2328, 2352, 2376, 2400, 2424, 2448, 2472, 2496,
-                        2520, 2544, 2568, 2592, 2616, 2640, 2664, 2688, 2712, 2736, 2760, 2784, 2808, 2832,
-                        2856, 2880, 2904, 2928, 2952, 2976, 3000, 3024, 3048, 3072, 3096, 3120, 3144, 3168,
-                        3192, 3216, 3240, 3264, 3288, 3312, 3336, 3360, 3384, 3408, 3432, 3456, 3480, 3504,
-                        3528, 3552, 3576, 3600, 3624, 3648, 3672, 3696, 3720, 3744, 3768, 3792, 3816, 3840,
-                        3864, 3888, 3912, 3936, 3960, 3984, 4008, 4032, 4056, 4080, 4104, 4128, 4152, 4176,
-                        4200, 4224, 4248, 4272, 4296, 4320, 4344, 4368, 4392, 4416, 4440, 4464, 4488, 4512,
-                        4536, 4560, 4584, 4608, 4632, 4656, 4680, 4704, 4728, 4752, 4776, 4800, 4824, 4848,
-                        4872, 4896, 4920, 4944, 4968, 4992, 5016, 5040, 5064, 5088, 5112, 5136, 5160],
-                    "year": [2019, 2020, 2021, 2022, 2023],
+                    "leadtime_hour": list(range(24, 5161, 24)),
+                    "year": list(range(2019, datetime.date.today().year + 1)),
                     "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
                               "11", "12"],
                     # "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -358,15 +149,11 @@ class JupyterAPI(geemap.Map):
                         'control_forecast', 'ensemble_perturbed_forecasts',
                     ],
                     "variable": "river_discharge_in_the_last_24_hours",
-                    "leadtime_hour": [
-                        24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360, 384, 408,
-                        432, 456, 480, 504, 528, 552, 576, 600, 624, 648, 672, 696, 720],
-                    "year": [2020, 2021, 2022, 2023],
+                    "leadtime_hour": list(range(24, 721, 24)),
+                    "year": list(range(2020, datetime.date.today().year + 1)),
                     "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
                               "11", "12"],
-                    "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                            13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-                            23, 24, 25, 26, 27, 28, 29, 30, 31],
+                    "day": list(range(24, 32)),
                     # "area": [10.95, -90.95, -30.95, -29.95],
                     "format": "grib"
                 },
@@ -376,66 +163,73 @@ class JupyterAPI(geemap.Map):
                     'product_type': [
                         'control_forecast', 'ensemble_perturbed_forecasts',
                     ],
-                    "leadtime_hour": [
-                        24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360, 384, 408,
-                        432, 456, 480, 504, 528, 552, 576, 600, 624, 648, 672, 696, 720, 744, 768, 792,
-                        816, 840, 864, 888, 912, 936, 960, 984, 1008, 1032, 1056, 1080, 1104],
-                    "year": [1999, 2000, 20001, 2002, 2003, 2004, 2005, 2006, 2007,
-                             2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015,
-                             2016, 2017, 2018, 2019, 2020, 2021, 2022],
+                    "leadtime_hour": list(range(24, 1105, 24)),
+                    "year": list(range(1999, datetime.date.today().year + 1)),
                     "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
                               "11", "12"],
-                    "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                            13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-                            23, 24, 25, 26, 27, 28, 29, 30, 31],
+                    "day": list(range(24, 32)),
                     # "area": [10.95, -90.95, -30.95, -29.95],
                     "format": "grib"
                 }
             }
         }
 
-
     def create_widgets(self):
         self.boundary_type = widgets.ToggleButtons(
-            options=['Predefined Boundaries', 'User Defined', 'User Uploaded Data'],
+            options=['Predefined Boundaries', 'User Defined', 'User Uploaded Data', 'Parameter File'],
             disabled=False,
             value='Predefined Boundaries',
             tooltips=['Predefined Boundaries (such as watersheds or administrative boundaries)',
                       'User Defined (draw a polygon on the map)',
-                      'User Uploaded Data (upload a shapefile, kml, or kmz)'],
+                      'User Uploaded Data (upload a shapefile, kml, or kmz)',
+                      'Parameter file generated during a past run or setup.'],
         )
 
         self.dropdown = self.create_dropdown(boundary_dropdown, 'Select Boundary:', 'watersheds_4')
         self.dropdown.layout.width = 'auto'
 
-        self.dropdown_api = self.create_dropdown({'GloFas': 'glofas'}, 'Select API:', 'glofas')
+        self.dropdown_api = self.create_dropdown({'GloFas': 'glofas', 'Google Earth Engine': 'gee'}, 'Select API:',
+                                                 'glofas')
         self.dropdown_api.layout.width = 'auto'
 
-
         self.add_to_map_check = widgets.Checkbox(value=True, description='Add Downloaded Image to Map')
-        self.btn = widgets.Button(description='Process Drawn Features')
+        self.btn = widgets.Button(description='Process')
         self.btn.layout.width = '100%'
 
-
         self.instruction_text = widgets.Text(value='Draw one or more polygons on the map', disabled=True)
+        self.instruction_text.style.text_color = '#c8102e'
         self.upload_widget = widgets.FileUpload(accept='.geojson', multiple=False)
+        self.upload_widget.layout.width= '100%'
+        self.upload_widget.style.button_color = '#c8102e'
+        self.upload_widget.style.text_color = 'white'
+
+        self.no_data_helper_checklist = widgets.Checkbox(value=True, description='No-Data Helper Function',
+                                                         tooltip="Due to GloFas API framework, some versions and/or "
+                                                                 "models aren't available for certain dates. If enabled,"
+                                                                 "This will allow the program to automatically alter the version date and "
+                                                                 "hydrological model to find a matching dataset.")
 
         self.boundary_stack = VBox([self.dropdown, self.instruction_text, self.upload_widget])
 
         self.api_choice_stack = VBox([])
 
-        self.end_of_vbox_items = VBox([self.add_to_map_check, self.btn])
+        self.end_of_vbox_items = VBox([self.add_to_map_check, self.no_data_helper_checklist])
 
-        # Initially hide all specific widgets
-        self.glofas1_widgets = create_specific_widgets_for_glofas1(self.glofas_dict) or []
-        self.glofas2_widgets = create_specific_widgets_for_glofas2(self.glofas_dict) or []
-        self.glofas3_widgets = create_specific_widgets_for_glofas3(self.glofas_dict) or []
-        for widget in self.glofas1_widgets + self.glofas2_widgets + self.glofas3_widgets:
-            widget.layout.visibility = 'hidden'
+        self.predefined_upload_widget = widgets.FileUpload(
+            accept='.json',
+            multiple=False  # True to accept multiple files upload else False
+        )
+
+        self.predefined_upload_widget.layout.display='none'
+        self.predefined_upload_widget.layout.width = '100%'
+        self.predefined_upload_widget.style.button_color = '#c8102e'
+        self.predefined_upload_widget.style.text_color = 'white'
 
         self.glofas_stack = VBox([])
 
-        self.widget_container = VBox([self.boundary_type, self.boundary_stack, self.dropdown_api, self.api_choice_stack, self.end_of_vbox_items], layout=Layout(resize='both', overflow='auto'))
+        self.widget_container = VBox(
+            [self.boundary_type, self.boundary_stack, self.dropdown_api, self.api_choice_stack, self.end_of_vbox_items, self.predefined_upload_widget, self.btn],
+            layout=Layout(resize='both', overflow='auto'))
 
         self.userlayers = {}
 
@@ -456,11 +250,8 @@ class JupyterAPI(geemap.Map):
 
         # Set initial visibility for instruction text and upload widget
         self.instruction_text.layout.display = 'none'
-        with self.out:
-            print(self.instruction_text)
+
         self.upload_widget.layout.display = 'none'
-        with self.out:
-            print(self.upload_widget)
 
         self.on_api_change({'new': self.dropdown_api.value})
 
@@ -485,6 +276,143 @@ class JupyterAPI(geemap.Map):
 
         dropdown.observe(self.on_dropdown_change, names='value')
         return dropdown
+
+    def on_gee_search_button_clicked(self, b):
+        # Here you define what happens when the button is clicked.
+        # For now, it's just a print statement.
+        assets = geemap.search_ee_data(self.gee_layer_search_widget.value)
+        with self.out:
+            print([x['id'] for x in assets])
+            print([x['title'] for x in assets])
+            print("Button clicked: Searching for", self.gee_layer_search_widget.value)
+        self.gee_layer_search_results_dropdown.options = {x['title']: x['id'] for x in assets}
+
+    def on_gee_layer_selected(self, b):
+
+        selected_layer = self.gee_layer_search_results_dropdown.value
+        self.ee_dates_min_max = ee_instance.get_image_collection_dates(selected_layer, min_max_only=True)
+        print(datetime.datetime.strptime(self.ee_dates_min_max[0], '%Y-%m-%d'))
+
+    def on_single_or_range_dates_change(self, change):
+
+        if self.single_or_range_dates.value == 'Single Date':
+            self.gee_single_date_selector = widgets.Dropdown(
+                options=[],
+                value=None,
+                description='Results:',
+                disabled=False,
+                layout=Layout(width='auto')
+            )
+
+            self.gee_single_date_selector.options = ee_instance.get_image_collection_dates(
+                self.gee_layer_search_results_dropdown.value, min_max_only=False)
+            self.gee_date_selection.children = [self.gee_single_date_selector]
+        elif self.single_or_range_dates.value == 'Date Range':
+            start_date = datetime.datetime.strptime(self.ee_dates_min_max[0], '%Y-%m-%d').date()
+            end_date = datetime.datetime.strptime(self.ee_dates_min_max[1], '%Y-%m-%d').date()
+
+            self.gee_date_picker_start = DatePicker(
+                description='Select Start Date:',
+                disabled=False,
+                min=start_date,
+                max=end_date,
+                value=start_date
+            )
+            self.gee_date_picker_end = DatePicker(
+                description='Select End Date:',
+                disabled=False,
+                min=start_date,
+                max=end_date,
+                value=end_date
+            )
+
+            self.gee_multi_date_aggregation_periods = widgets.ToggleButtons(
+                options=['Monthly', 'Yearly'],
+                disabled=False,
+                value='Monthly',
+                tooltips=['Monthly', 'Yearly'],
+            )
+
+            aggregation_values = {
+                'mode': lambda ic: ic.mode(),
+                'median': lambda ic: ic.median(),
+                'mean': lambda ic: ic.mean(),
+                'max': lambda ic: ic.max(),
+                'min': lambda ic: ic.min(),
+                'sum': lambda ic: ic.reduce(ee.Reducer.sum()),
+                'first': lambda ic: ic.sort('system:time_start', False).first(),
+                'last': lambda ic: ic.sort('system:time_start', False).last()
+            }
+
+            self.gee_multi_date_aggregation_method = widgets.Dropdown(
+                options={x.title(): x for x in aggregation_values.keys()},
+                value='mean',
+                description='Aggregation Method:',
+                disabled=False,
+            )
+            self.gee_date_selection.children = [HBox([self.gee_date_picker_start, self.gee_date_picker_end]),
+                                                self.gee_multi_date_aggregation_periods,
+                                                self.gee_multi_date_aggregation_method]
+
+    def create_widgets_gee(self):
+
+        self.gee_layer_search_widget = widgets.Text(
+            value='',
+            placeholder='Search for a layer',
+            description='Search:',
+            disabled=False,
+            layout=Layout(width='auto')
+        )
+
+        self.gee_layer_search_widget.layout.width = 'auto'
+
+        self.search_button = widgets.Button(
+            description='Search',
+            disabled=False,
+            button_style='',  # 'success', 'info', 'warning', 'danger' or ''
+            tooltip='Click to search',
+            icon='search'  # Icons names are available at https://fontawesome.com/icons
+        )
+
+        self.search_button.on_click(self.on_gee_search_button_clicked)
+
+        self.search_box = HBox([self.gee_layer_search_widget, self.search_button])
+
+        self.gee_layer_search_results_dropdown = widgets.Dropdown(
+            options=[],
+            value=None,
+            description='Results:',
+            disabled=False,
+            layout=Layout(width='auto')
+        )
+
+        self.select_layer_gee = widgets.Button(
+            description='Select',
+            disabled=False,
+            button_style='',  # 'success', 'info', 'warning', 'danger' or ''
+            tooltip='Select Layer',
+            icon='crosshairs'  # Icons names are available at https://fontawesome.com/icons
+        )
+
+        self.select_layer_gee.on_click(self.on_gee_layer_selected)
+
+        self.layer_select_box = HBox([self.gee_layer_search_results_dropdown, self.select_layer_gee])
+
+        self.single_or_range_dates = widgets.ToggleButtons(
+            options=['Single Date', 'Date Range'],
+            disabled=False,
+            value='Date Range',
+            tooltips=['Single Date', 'Date Range'],
+        )
+
+        self.single_or_range_dates.observe(self.on_single_or_range_dates_change, names='value')
+        self.select_layer_gee.on_click(self.on_single_or_range_dates_change)
+
+        self.gee_date_selection = widgets.VBox([])
+
+        return [self.search_box, self.layer_select_box, self.single_or_range_dates, self.gee_date_selection]
+
+    # def update_gee_date_selection_box(self, change):
 
     def toggle_minimize(self, b):
         # This function is called when the minimize button is clicked.
@@ -516,7 +444,6 @@ class JupyterAPI(geemap.Map):
                 # Read each message
                 message = grib_file.message(i)
 
-
                 try:
                     # Attempt to read the data array
                     data = message.values
@@ -530,43 +457,6 @@ class JupyterAPI(geemap.Map):
             print(f"An overall error occurred: {e}")
 
     # Replace 'your_grib_file.grib' with the path to your actual GRIB file
-
-    # def gather_current_selections(self):
-    #     """
-    #     Gather current selections from all relevant widgets.
-    #     :return: dict of current selections
-    #     """
-    #
-    #     selections = {
-    #         'boundary_type': self.boundary_type.value,
-    #         'selected_boundary': self.dropdown.value,
-    #         'glofas_product': self.glofas_options.value,
-    #         'uploaded_file': self.upload_widget.value,  # This will include the uploaded file data
-    #         # ... include other relevant widget values ...
-    #     }
-    #
-    #     return selections
-
-    # def update_final_output(self):
-    #     """
-    #     Update the final output container based on current selections.
-    #     """
-    #     selections = self.gather_current_selections()
-    #
-    #     # Handle special cases or default behavior
-    #     if 'special_case' in selections['boundary_type']:
-    #         # Do something specific for this special case
-    #         pass
-    #
-    #     # Dynamically update the final container based on the selections
-    #     # This might include showing/hiding widgets, displaying messages, etc.
-    #     # ...
-    #
-    # def on_any_change(self, change):
-    #     """
-    #     Generic change handler to update the final output whenever any widget changes.
-    #     """
-    #     self.update_final_output()
 
     def calculate_bounds(self, geojson_content):
         # Initialize min and max coordinates
@@ -613,8 +503,6 @@ class JupyterAPI(geemap.Map):
             # Process each uploaded file
             for file_info in uploaded_files:
                 filename = file_info['name']
-                with self.out:
-                    print(f"Uploaded file: {filename}")
 
                 # This is the file content as a memoryview object
                 content = file_info['content']
@@ -627,7 +515,6 @@ class JupyterAPI(geemap.Map):
 
                 # Create a GeoJSON layer
 
-
                 style = {
                     "color": "black",  # Line color
                     "fillColor": "black",  # Fill color
@@ -636,9 +523,6 @@ class JupyterAPI(geemap.Map):
                 }
 
                 geojson_layer = GeoJSON(data=geojson_content, style=style)
-
-                with self.out:
-                    print("GeoJSON content:", geojson_content)
 
                 # Add the GeoJSON to the map
                 try:
@@ -729,9 +613,6 @@ class JupyterAPI(geemap.Map):
 
             raster = xds.isel(band=0)
 
-            with self.out:
-                print(geometry)
-
             try:
                 polygon = shape(geometry['geometries'][1])
             except KeyError:
@@ -763,7 +644,6 @@ class JupyterAPI(geemap.Map):
                     raise  # re-raise the exception if it's not the one we're expecting
 
             return grib_path
-
 
     def create_glofas_dropdown(self, dropdown_options, description, default_value):
         """
@@ -823,7 +703,6 @@ class JupyterAPI(geemap.Map):
             self.add_layer(hydrosheds_layer)
             self.added_layers[f'watersheds_{new_value[1]}'] = hydrosheds_layer
 
-
     def on_api_change(self, change):
         """
         Handle the change event of a dropdown menu.
@@ -842,12 +721,17 @@ class JupyterAPI(geemap.Map):
         # Add the appropriate layer based on the selection
         if new_value == 'glofas':
             self.glofas_options = self.create_glofas_dropdown([x for x in self.glofas_dict['products'].keys()],
-                                        description='Select GloFas Product:',
-                                        default_value='cems-glofas-seasonal')
+                                                              description='Select GloFas Product:',
+                                                              default_value='cems-glofas-seasonal')
             self.glofas_options.layout.width = 'auto'
             self.glofas_options.observe(self.on_glofas_option_change, names='value')
             self.on_glofas_option_change({'new': self.glofas_options.value})
             self.api_choice_stack.children = [self.glofas_options, self.glofas_stack]
+
+        elif new_value == 'gee':
+            self.gee_options = self.create_widgets_gee()
+            # self.gee_options.layout.width = 'auto'
+            self.api_choice_stack.children = tuple(self.gee_options)
         else:
             pass
 
@@ -857,8 +741,6 @@ class JupyterAPI(geemap.Map):
 
         :param change: A dictionary representing the change in value of the boundary_type widget.
         """
-        with self.out:
-            print("Boundary type changed to:", change['new'])  # Debug print
         boundary_value = change['new']
         self.update_boundary_options(boundary_value)
 
@@ -870,6 +752,11 @@ class JupyterAPI(geemap.Map):
             self.dropdown.layout.display = 'block'  # Show the dropdown
             self.instruction_text.layout.display = 'none'  # Hide the instruction text
             self.upload_widget.layout.display = 'none'  # Hide the upload widget
+            self.predefined_upload_widget.layout.display = 'none'
+            self.end_of_vbox_items.layout.display = 'block'
+            self.boundary_stack.layout.display = 'block'
+            self.dropdown_api.layout.display = 'block'
+            self.api_choice_stack.layout.display = 'block'
 
         elif boundary_value in ['User Defined', 'User Uploaded Data']:
             # Either User defined or User uploaded data selected
@@ -884,20 +771,183 @@ class JupyterAPI(geemap.Map):
                 self.dropdown.layout.display = 'none'  # Hide the dropdown
                 self.instruction_text.layout.display = 'block'  # Show the instruction text
                 self.upload_widget.layout.display = 'none'  # Hide the upload widget
-                with self.out:
-                    print("User Defined selected - text should be visible now.")
+                self.predefined_upload_widget.layout.display = 'none'
+                self.end_of_vbox_items.layout.display = 'block'
+                self.boundary_stack.layout.display = 'block'
+                self.dropdown_api.layout.display = 'block'
+                self.api_choice_stack.layout.display = 'block'
 
             elif boundary_value == 'User Uploaded Data':
                 # User uploaded data selected
                 self.dropdown.layout.display = 'none'  # Hide the dropdown
                 self.instruction_text.layout.display = 'none'  # Hide the instruction text
                 self.upload_widget.layout.display = 'block'  # Show the upload widget
+                self.predefined_upload_widget.layout.display = 'none'
+                self.end_of_vbox_items.layout.display = 'block'
+                self.boundary_stack.layout.display = 'block'
+                self.dropdown_api.layout.display = 'block'
+                self.api_choice_stack.layout.display = 'block'
+
+        elif boundary_value == 'Parameter File':
+            self.predefined_upload_widget.layout.display='block'
+            self.end_of_vbox_items.layout.display='none'
+            self.boundary_stack.layout.display='none'
+            self.dropdown_api.layout.display='none'
+            self.api_choice_stack.layout.display='none'
 
         else:
             # Default case, hide everything
             self.dropdown.layout.display = 'none'
             self.instruction_text.layout.display = 'none'
             self.upload_widget.layout.display = 'none'
+
+    def on_single_or_date_range_change(self, change, glofas_option: str):
+        """
+        Handle changes to the single_or_date_range widget.
+
+        :param change: A dictionary representing the change in value of the single_or_date_range widget.
+        """
+
+        single_or_date_range_value = change['new']
+
+        # Define the minimum and maximum dates based on the year and month data
+        min_year = min(self.glofas_dict['products'][glofas_option]['year'])
+        max_year = max(self.glofas_dict['products'][glofas_option]['year'])
+        min_month = 1  # Assuming January is always included
+        max_month = 12  # Assuming December is always included
+
+        print(min_year, max_year)
+
+        if single_or_date_range_value == 'Single Date':
+            # Create the DatePicker widget with constraints
+            self.date_picker = DatePicker(
+                description='Select Date:',
+                disabled=False,
+                value=datetime.date(min_year, min_month, 1),  # Default value
+                min=datetime.date(min_year, min_month, 1),  # Minimum value
+                max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+            )
+            self.glofas_date_vbox.children = [self.date_picker]
+
+        else:
+            # Create the DatePicker widgets with constraints
+            self.date_picker = HBox([
+                DatePicker(
+                description='Select Start Date:',
+                disabled=False,
+                value=datetime.date(min_year, min_month, 1),  # Default value
+                min=datetime.date(min_year, min_month, 1),  # Minimum value
+                max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+            ),
+
+            DatePicker(
+                description='Select End Date:',
+                disabled=False,
+                value=datetime.date(max_year, max_month, 31),  # Default value
+                min=datetime.date(min_year, min_month, 1),  # Minimum value
+                max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+            )])
+
+            self.glofas_date_vbox.children = [self.date_picker]
+
+    def create_widgets_for_glofas(self, glofas_option: str):
+        """
+        :param glofas_dict: A dictionary containing the data needed to create the specific widgets for GloFas Data Type 2.
+        :return: A list of widgets that are specific to GloFas Data Type 2.
+
+        This method takes in a dictionary and uses the data within the dictionary to create specific widgets for GloFas Data Type 2. The widgets created are a ToggleButtons widget for selecting
+        * the system version, an IntSlider widget for selecting the lead time, and Dropdown widgets for selecting the year, month, and day. Additionally, a FileChooser widget is created for
+        * choosing a file. These widgets are then returned as a list.
+        """
+        # Create widgets specific to GloFas Data Type 2
+        # Example: A slider for selecting a range and a button
+
+        with self.out:
+            self.system_version = widgets.ToggleButtons(
+                options=[x.replace('_', '.').title() for x in
+                         self.glofas_dict['products'][glofas_option]['system_version']],
+                description='System Version:',
+                disabled=False,
+                value=self.glofas_dict['products'][glofas_option]['system_version'][0].replace('_', '.').title(),
+            )
+
+            self.hydrological_model = widgets.ToggleButtons(
+                options=[x for x in
+                         self.glofas_dict['products'][glofas_option]['hydrological_model']],
+                description='Hydrological Model:',
+                disabled=False,
+                value=self.glofas_dict['products'][glofas_option]['hydrological_model'][0],
+            )
+
+            try:
+                self.product_type = widgets.ToggleButtons(
+                    options=[x.replace('_', '.').title() for x in
+                             self.glofas_dict['products'][glofas_option]['product_type']],
+                    description='Product Type:',
+                    disabled=False,
+                    value=self.glofas_dict['products'][glofas_option]['product_type'][0].replace('_', '.').title(),
+                )
+            except KeyError:
+                pass
+
+            self.leadtime = widgets.IntSlider(
+                value=24,
+                min=min(self.glofas_dict['products'][glofas_option]['leadtime_hour']),
+                max=max(self.glofas_dict['products'][glofas_option]['leadtime_hour']),
+                step=24,
+                description='Lead Time:',
+                disabled=False,
+                orientation='horizontal',
+                readout=True,
+                readout_format='d'
+            )
+
+            self.leadtime.layout.width = 'auto'
+
+            self.single_or_date_range = widgets.ToggleButtons(
+                options=['Single Date', 'Date Range'],
+                disabled=False,
+                value='Single Date',
+                tooltips=['Single Date', 'Date Range'],
+            )
+
+
+            self.glofas_date_vbox = VBox([])
+            self.on_single_or_date_range_change({'new': self.single_or_date_range.value}, glofas_option=glofas_option)
+
+            # Define the minimum and maximum dates based on the year and month data
+            # min_year = min(self.glofas_dict['products'][glofas_option]['year'])
+            # max_year = max(self.glofas_dict['products'][glofas_option]['year'])
+            # min_month = 1  # Assuming January is always included
+            # max_month = 12  # Assuming December is always included
+            #
+            # # Create the DatePicker widget with constraints
+            # self.date_picker = DatePicker(
+            #     description='Select Date:',
+            #     disabled=False,
+            #     value=datetime.date(min_year, min_month, 1),  # Default value
+            #     min=datetime.date(min_year, min_month, 1),  # Minimum value
+            #     max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+            # )
+
+            self.single_or_date_range.observe(
+                lambda change: self.on_single_or_date_range_change(change, glofas_option=glofas_option),
+                names='value'
+            )
+
+            self.system_version.layout.width = 'auto'
+            # self.date_picker.layout.width = 'auto'
+
+            self.filechooser_glofas = fc.FileChooser(os.getcwd(), show_only_dirs=True)
+
+            # Return a list of widgets
+            if glofas_option == 'cems-glofas-seasonal':
+                return [self.system_version, self.hydrological_model, self.leadtime, self.single_or_date_range,
+                        self.glofas_date_vbox, self.filechooser_glofas]
+            else:
+                return [self.system_version, self.hydrological_model, self.product_type, self.leadtime,
+                        self.single_or_date_range,
+                        self.glofas_date_vbox, self.filechooser_glofas]
 
     def on_glofas_option_change(self, change):
         """
@@ -915,38 +965,35 @@ class JupyterAPI(geemap.Map):
         """
 
         # Mapping of GloFAS product names to their respective widget lists
-        glofas_widgets_mapping = {
-            'cems-glofas-seasonal': self.glofas1_widgets,
-            'cems-glofas-forecast': self.glofas2_widgets,
-            'cems-glofas-reforecast': self.glofas3_widgets,
-        }
+        # glofas_widgets_mapping = {
+        #     'cems-glofas-seasonal': self.glofas1_widgets,
+        #     'cems-glofas-forecast': self.glofas2_widgets,
+        #     'cems-glofas-reforecast': self.glofas3_widgets,
+        # }
+        #
+        # # Hide all widgets from previous selection
+        # for widget_list in glofas_widgets_mapping.values():
+        #     for widget in widget_list:
+        #         # widget.layout.display = 'none'
+        #         widget.layout.visibility = 'hidden'
+        #
+        # if glofas_value in glofas_widgets_mapping:
+        #     # Get the specific widgets for the selected GloFAS product
+        #     specific_widgets = glofas_widgets_mapping[glofas_value]
+        #
+        #     # Set the visibility of the specific widgets
+        #     for widget in specific_widgets:
+        #         # widget.layout.display = 'block'
+        #         widget.layout.visibility = 'visible'
 
-        # Hide all widgets from previous selection
-        for widget_list in glofas_widgets_mapping.values():
-            for widget in widget_list:
-                # widget.layout.display = 'none'
-                widget.layout.visibility = 'hidden'
+        specific_widgets = self.create_widgets_for_glofas(glofas_value)
 
-        if glofas_value in glofas_widgets_mapping:
-            # Get the specific widgets for the selected GloFAS product
-            specific_widgets = glofas_widgets_mapping[glofas_value]
+        # Replace the children of the glofas_stack with the specific widgets
+        self.glofas_stack.children = tuple(specific_widgets)
 
-            # Set the visibility of the specific widgets
-            for widget in specific_widgets:
-                # widget.layout.display = 'block'
-                widget.layout.visibility = 'visible'
-
-            # Replace the children of the glofas_stack with the specific widgets
-            self.glofas_stack.children = tuple(specific_widgets)
-
-            with self.out:
-                print("Updated glofas_stack with", len(self.glofas_stack.children), "widgets.")
-
-        else:
-            # If the selected GloFAS product is not recognized, clear the glofas_stack
-            self.glofas_stack.children = ()
-            with self.out:
-                print("Cleared glofas_stack.")
+        # else:
+        #     # If the selected GloFAS product is not recognized, clear the glofas_stack
+        #     self.glofas_stack.children = ()
 
     def add_clipped_raster_to_map(self, raster_path, vis_params=None):
         if vis_params is None:
@@ -1070,204 +1117,178 @@ class JupyterAPI(geemap.Map):
         dataset = None  # Close the dataset
         return min_val, max_val
 
+    def get_glofas_parameters(self, glofas_product):
+        """
+        Get the parameters for the selected GloFAS product.
+
+        :return: A dictionary of parameters for the selected GloFAS product.
+        :rtype: dict
+        """
+        date_type = self.single_or_date_range.value
+        system_version = self.system_version.value.replace('.', '_').lower()
+        hydrological_model = self.hydrological_model.value
+        try:
+            product_type = self.product_type.value.replace('.', '_').lower()
+        except AttributeError:
+            product_type = None
+        leadtime_hour = self.leadtime.value
+        if date_type == 'Single Date':
+            date = self.date_picker.value
+            year = str(date.year)
+            month = int(date.month)
+            day = str(date.day)
+        elif date_type == 'Date Range':
+            start_date = self.date_picker.children[0].value
+            end_date = self.date_picker.children[1].value
+        folder_location = self.filechooser_glofas.selected
+
+        if glofas_product == 'cems-glofas-seasonal':
+
+            return {
+                'system_version': system_version,
+                'hydrological_model': hydrological_model,
+                'leadtime_hour': leadtime_hour,
+                'year': year,
+                'month': month,
+                'day': day,
+                'folder_location': folder_location,
+            }
+        elif glofas_product == 'cems-glofas-forecast':
+
+            return {
+                'system_version': system_version,
+                'hydrological_model': hydrological_model,
+                'product_type': product_type,
+                'leadtime_hour': leadtime_hour,
+                'year': year,
+                'month': month,
+                'day': day,
+                'folder_location': folder_location,
+            }
+        elif glofas_product == 'cems-glofas-reforecast':
+            return {
+                'system_version': system_version,
+                'hydrological_model': hydrological_model,
+                'product_type': product_type,
+                'leadtime_hour': leadtime_hour,
+                'year': year,
+                'month': month,
+                'day': day,
+                'folder_location': folder_location,
+            }
+        else:
+            print("Invalid GloFAS product.")
+            return None
+
+
     def draw_and_process(self):
         """
-        This method `draw_and_process` is responsible for drawing features on the map and processing them based on certain conditions.
+        This method draws features on a map and processes them based on their type and user-defined parameters.
 
         :return: None
         """
-        with self.out:
-            if self.boundary_type.value == 'Predefined Boundaries':
-                if self.draw_features:
-                    for index, feature in enumerate(self.draw_features):
-                        distinct_values = self.process_drawn_features([feature])
-                        self.download_feature_geometry(distinct_values)
-                        bbox = self.get_bounding_box(distinct_values=distinct_values)
+        if self.boundary_type.value == 'Parameter File':
+            pass
 
-                        if self.glofas_options.value == 'cems-glofas-seasonal':
-                            # Retrieve values from widgets
-                            system_version = self.glofas1_widgets[0].value.replace('.',
-                                                                                   '_').lower()  # Assuming this is the system_version widget
-                            leadtime_hour = str(self.glofas1_widgets[1].value)  # Assuming this is the leadtime widget
-                            date = self.glofas1_widgets[2].value
-                            year = str(date.year)
-                            month = int(date.month)
-                            day = "01"
-                            folder_location = self.glofas1_widgets[3].selected  # Assuming this is the file chooser widget
-                        elif self.glofas_options.value == 'cems-glofas-forecast':
-                            system_version = self.glofas2_widgets[0].value.replace('.',
-                                                                                   '_').lower()
-                            leadtime_hour = str(self.glofas2_widgets[1].value)
-                            date = self.glofas2_widgets[2].value
-                            year = str(date.year)
-                            month = int(date.month)
-                            day = str(date.day)
-                            folder_location = self.glofas2_widgets[3].selected
-                        elif self.glofas_options.value == 'cems-glofas-reforecast':
-                            system_version = self.glofas3_widgets[0].value.replace('.',
-                                                                                   '_').lower()
-                            leadtime_hour = str(self.glofas3_widgets[1].value)
-                            date = self.glofas2_widgets[2].value
-                            year = str(date.year)
-                            month = int(date.month)
-                            day = str(date.day)
-                            folder_location = self.glofas3_widgets[3].selected
+        elif self.boundary_type.value == 'Predefined Boundaries':
+            if self.draw_features:
+                for index, feature in enumerate(self.draw_features):
+                    distinct_values = self.process_drawn_features([feature])
+                    self.download_feature_geometry(distinct_values)
+                    bbox = self.get_bounding_box(distinct_values=distinct_values)
 
-                        print(f"add_to_map value is {self.add_to_map_check.value}")
-                        # Create an instance of the CDSAPI class
-                        cds_api = CDSAPI()
+                    glofas_params = self.get_glofas_parameters(self.glofas_options.value)
 
-                        # Prepare the request parameters
-                        request_parameters = {
-                            'variable': 'river_discharge_in_the_last_24_hours',
-                            'format': 'grib',
-                            'system_version': system_version,
-                            'hydrological_model': 'lisflood',
-                            'product_type': 'ensemble_perturbed_forecasts',
-                            'year': year,
-                            'month': month,
-                            # Omit 'day' to use the default value or provide a specific day
-                            'day': day,
-                            'leadtime_hour': leadtime_hour,
-                            'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
-                            'folder_location': folder_location,
-                        }
+                    # Create an instance of the CDSAPI class
+                    cds_api = CDSAPI()
+
+                    request_parameters = {
+                        'variable': 'river_discharge_in_the_last_24_hours',
+                        'format': 'grib',
+                        'system_version': glofas_params.get('system_version'),
+                        'hydrological_model': glofas_params.get('hydrological_model'),
+                        'product_type': glofas_params.get('product_type', 'ensemble_perturbed_forecasts'),
+                        'year': glofas_params.get('year'),
+                        'month': glofas_params.get('month'),
+                        # Omit 'day' to use the default value or provide a specific day
+                        'day': glofas_params.get('day', '01'),
+                        'leadtime_hour': glofas_params.get('leadtime_hour'),
+                        'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
+                        'folder_location': glofas_params.get('folder_location'),
+                    }
+
+                    try:
 
                         # Call the download_data method
-                        file_name = f"{self.dropdown.value}_{'_'.join(str(value) for value in distinct_values)}_{year}_{month}_{request_parameters.get('day', '01')}.grib"
+                        file_name = f"{self.dropdown.value}_{'_'.join(str(value) for value in distinct_values)}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
+
                         file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
 
-                        print(f"Downloaded {year} file to {file_path}")
 
-                        min_val, max_val = self.get_raster_min_max(file_path)
+                    except Exception as e:
 
-                        if min_val == -9999:
-                            min_val = 0
+                        if "no data is available within your requested subset" in str(e):
+                            system_versions = list(
+                                self.glofas_dict['products'][self.glofas_options.value]['system_version'])
+                            system_versions_attempted = [glofas_params.get('system_version')]
+                            data_found = False  # Flag to indicate successful data retrieval
 
+                            while system_versions and not data_found:
+                                system_version = system_versions.pop()
+                                with self.out:
+                                    print(f"Trying system version {system_version}")
+                                    print(system_versions_attempted)
+                                if system_version not in system_versions_attempted:
+                                    system_versions_attempted.append(system_version)
+                                    request_parameters['system_version'] = system_version
+                                    try:
+                                        file_name = f"{self.dropdown.value}_{'_'.join(str(value) for value in distinct_values)}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
+                                        file_path = cds_api.download_data(self.glofas_options.value,
+                                                                          request_parameters, file_name)
+                                        data_found = True  # Data found, prepare to exit loop
+                                    except Exception as e:
+                                        if "no data is available within your requested subset" in str(e):
+                                            continue  # Try next system version
+                                        else:
+                                            raise e  # Re-raise unexpected exceptions
 
-                        vis_params = {
-                            'min': min_val,
-                            'max': max_val,
-                            'palette': 'viridis',  # or any other valid colormap name
-                            'nodata': -9999  # Replace with your actual nodata value
-                        }
+                            if not data_found:
+                                print("No data available after trying all system versions.")
+                                # Consider adding additional handling here for when no data is found
 
-                        clipped_raster_path = self.clip_raster(file_path, self.geometry)
-                        if self.add_to_map_check.value:
-                            self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
-                        print("Distinct values from all drawn features:", distinct_values)
-                else:
-                    print("No features have been drawn on the map.")
-            elif self.boundary_type.value == 'User Defined':
-                if self.draw_features:
-                    for index, feature in enumerate(self.draw_features):
-                        bbox = self.get_bounding_box(distinct_values=None, feature=feature)
+                    min_val, max_val = self.get_raster_min_max(file_path)
 
-                        if self.glofas_options.value == 'cems-glofas-seasonal':
-                            # Retrieve values from widgets
-                            system_version = self.glofas1_widgets[0].value.replace('.',
-                                                                                   '_').lower()  # Assuming this is the system_version widget
-                            leadtime_hour = str(self.glofas1_widgets[1].value)  # Assuming this is the leadtime widget
-                            date = self.glofas1_widgets[2].value
-                            year = str(date.year)
-                            month = int(date.month)
-                            day = "01"
-                            folder_location = self.glofas1_widgets[
-                                3].selected  # Assuming this is the file chooser widget
-                        elif self.glofas_options.value == 'cems-glofas-forecast':
-                            system_version = self.glofas2_widgets[0].value.replace('.',
-                                                                                   '_').lower()
-                            leadtime_hour = str(self.glofas2_widgets[1].value)
-                            date = self.glofas2_widgets[2].value
-                            year = str(date.year)
-                            month = int(date.month)
-                            day = str(date.day)
-                            folder_location = self.glofas2_widgets[3].selected
-                        elif self.glofas_options.value == 'cems-glofas-reforecast':
-                            system_version = self.glofas3_widgets[0].value.replace('.',
-                                                                                   '_').lower()
-                            leadtime_hour = str(self.glofas3_widgets[1].value)
-                            date = self.glofas2_widgets[2].value
-                            year = str(date.year)
-                            month = int(date.month)
-                            day = str(date.day)
-                            folder_location = self.glofas3_widgets[3].selected
+                    if min_val == -9999:
+                        min_val = 0
 
-                        print(f"add_to_map value is {self.add_to_map_check.value}")
-                        # Create an instance of the CDSAPI class
-                        cds_api = CDSAPI()
+                    vis_params = {
+                        'min': min_val,
+                        'max': max_val,
+                        'palette': 'viridis',  # or any other valid colormap name
+                        'nodata': -9999  # Replace with your actual nodata value
+                    }
 
-                        # Prepare the request parameters
-                        request_parameters = {
-                            'variable': 'river_discharge_in_the_last_24_hours',
-                            'format': 'grib',
-                            'system_version': system_version,
-                            'hydrological_model': 'lisflood',
-                            'product_type': 'ensemble_perturbed_forecasts',
-                            'year': year,
-                            'month': month,
-                            # Omit 'day' to use the default value or provide a specific day
-                            'day': day,
-                            'leadtime_hour': leadtime_hour,
-                            'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
-                            'folder_location': folder_location,
-                        }
+                    clipped_raster_path = self.clip_raster(file_path, self.geometry)
 
-                        # Call the download_data method
-                        file_name = f"{self.dropdown.value}_userdefined{index}_{year}_{month}_{request_parameters.get('day', '01')}.grib"
-                        file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
+                    params_export = request_parameters.copy()
 
-                        print(f"Downloaded {year} file to {file_path}")
+                    params_export['geometry'] = self.geometry
 
-                        min_val, max_val = self.get_raster_min_max(file_path)
+                    with open(f"{file_name.replace('.grib', '')}.json", 'w') as f:
+                        f.write(json.dumps(params_export))
+                    with self.out:
+                        print(clipped_raster_path)
+                    if self.add_to_map_check.value:
+                        self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
 
-                        if min_val == -9999:
-                            min_val = 0
+            else:
+                print("No features have been drawn on the map.")
+        elif self.boundary_type.value == 'User Defined':
+            if self.draw_features:
+                for index, feature in enumerate(self.draw_features):
+                    bbox = self.get_bounding_box(distinct_values=None, feature=feature)
 
-                        vis_params = {
-                            'min': min_val,
-                            'max': max_val,
-                            'palette': 'viridis',  # or any other valid colormap name
-                            'nodata': -9999  # Replace with your actual nodata value
-                        }
-
-                        clipped_raster_path = self.clip_raster(file_path, self.geometry)
-                        if self.add_to_map_check.value:
-                            self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
-                else:
-                    print("No features have been drawn on the map.")
-
-            elif self.boundary_type.value == 'User Uploaded Data':
-                if self.userlayers['User Uploaded Data']:
-                    bbox = self.get_bounding_box(distinct_values=None)
-                    if self.glofas_options.value == 'cems-glofas-seasonal':
-                        # Retrieve values from widgets
-                        system_version = self.glofas1_widgets[0].value.replace('.',
-                                                                               '_').lower()  # Assuming this is the system_version widget
-                        leadtime_hour = str(self.glofas1_widgets[1].value)  # Assuming this is the leadtime widget
-                        date = self.glofas1_widgets[2].value
-                        year = str(date.year)
-                        month = int(date.month)
-                        day = "01"
-                        folder_location = self.glofas1_widgets[3].selected  # Assuming this is the file chooser widget
-                    elif self.glofas_options.value == 'cems-glofas-forecast':
-                        system_version = self.glofas2_widgets[0].value.replace('.',
-                                                                               '_').lower()
-                        leadtime_hour = str(self.glofas2_widgets[1].value)
-                        date = self.glofas2_widgets[2].value
-                        year = str(date.year)
-                        month = int(date.month)
-                        day = str(date.day)
-                        folder_location = self.glofas2_widgets[3].selected
-                    elif self.glofas_options.value == 'cems-glofas-reforecast':
-                        system_version = self.glofas3_widgets[0].value.replace('.',
-                                                                               '_').lower()
-                        leadtime_hour = str(self.glofas3_widgets[1].value)
-                        date = self.glofas2_widgets[2].value
-                        year = str(date.year)
-                        month = int(date.month)
-                        day = str(date.day)
-                        folder_location = self.glofas3_widgets[3].selected
+                    glofas_params = self.get_glofas_parameters(self.glofas_options.value)
 
                     print(f"add_to_map value is {self.add_to_map_check.value}")
                     # Create an instance of the CDSAPI class
@@ -1277,23 +1298,23 @@ class JupyterAPI(geemap.Map):
                     request_parameters = {
                         'variable': 'river_discharge_in_the_last_24_hours',
                         'format': 'grib',
-                        'system_version': system_version,
-                        'hydrological_model': 'lisflood',
-                        'product_type': 'ensemble_perturbed_forecasts',
-                        'year': year,
-                        'month': month,
+                        'system_version': glofas_params.get('system_version'),
+                        'hydrological_model': glofas_params.get('hydrological_model'),
+                        'product_type': glofas_params.get('product_type', 'ensemble_perturbed_forecasts'),
+                        'year': glofas_params.get('year'),
+                        'month': glofas_params.get('month'),
                         # Omit 'day' to use the default value or provide a specific day
-                        'day': day,
-                        'leadtime_hour': leadtime_hour,
+                        'day': glofas_params.get('day', '01'),
+                        'leadtime_hour': glofas_params.get('leadtime_hour'),
                         'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
-                        'folder_location': folder_location,
+                        'folder_location': glofas_params.get('folder_location'),
                     }
 
                     # Call the download_data method
-                    file_name = f"{self.dropdown.value}_userdefined_{year}_{month}_{request_parameters.get('day', '01')}.grib"
+                    file_name = f"{self.dropdown.value}_userdefined{index}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
                     file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
 
-                    print(f"Downloaded {year} file to {file_path}")
+                    print(f"Downloaded {glofas_params.get('year')} file to {file_path}")
 
                     min_val, max_val = self.get_raster_min_max(file_path)
 
@@ -1312,7 +1333,58 @@ class JupyterAPI(geemap.Map):
                         self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
 
             else:
-                print("Invalid boundary type.")
+                print("No features have been drawn on the map.")
+
+        elif self.boundary_type.value == 'User Uploaded Data':
+            if self.userlayers['User Uploaded Data']:
+                bbox = self.get_bounding_box(distinct_values=None)
+                glofas_params = self.get_glofas_parameters(self.glofas_options.value)
+
+                print(f"add_to_map value is {self.add_to_map_check.value}")
+                # Create an instance of the CDSAPI class
+                cds_api = CDSAPI()
+
+                # Prepare the request parameters
+                request_parameters = {
+                    'variable': 'river_discharge_in_the_last_24_hours',
+                    'format': 'grib',
+                    'system_version': glofas_params.get('system_version'),
+                    'hydrological_model': glofas_params.get('hydrological_model'),
+                    'product_type': glofas_params.get('product_type', 'ensemble_perturbed_forecasts'),
+                    'year': glofas_params.get('year'),
+                    'month': glofas_params.get('month'),
+                    # Omit 'day' to use the default value or provide a specific day
+                    'day': glofas_params.get('day', '01'),
+                    'leadtime_hour': glofas_params.get('leadtime_hour'),
+                    'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
+                    'folder_location': glofas_params.get('folder_location'),
+                }
+
+                # Call the download_data method
+                file_name = f"{self.dropdown.value}_userdefined_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
+                file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
+
+                print(f"Downloaded {glofas_params.get('year')} file to {file_path}")
+
+                min_val, max_val = self.get_raster_min_max(file_path)
+
+                if min_val == -9999:
+                    min_val = 0
+
+                vis_params = {
+                    'min': min_val,
+                    'max': max_val,
+                    'palette': 'viridis',  # or any other valid colormap name
+                    'nodata': -9999  # Replace with your actual nodata value
+                }
+
+                clipped_raster_path = self.clip_raster(file_path, self.geometry)
+                if self.add_to_map_check.value:
+                    self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
+
+
+        else:
+            print("Invalid boundary type.")
 
     def on_button_click(self, b):
         """
@@ -1321,9 +1393,9 @@ class JupyterAPI(geemap.Map):
         """
         with self.out:
             self.out.clear_output()  # Clear the previous output
-            self.draw_and_process()
+        self.draw_and_process()
 
-            # Assuming `distinct_values` is available after drawing and processing
+        # Assuming `distinct_values` is available after drawing and processing
 
     def get_bounding_box(self, distinct_values=None, feature=None):
         """
@@ -1334,7 +1406,6 @@ class JupyterAPI(geemap.Map):
         * the data using the distinct values and returns the bounding box as a GeoDataFrame. If the dropdown value is 'watersheds_4', it filters the data using the distinct values and returns
         * the bounding box as a GeoDataFrame.
         """
-
 
         if distinct_values:
             if self.dropdown.value.split('_')[0] == 'admin':
