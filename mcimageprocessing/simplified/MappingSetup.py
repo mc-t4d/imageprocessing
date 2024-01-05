@@ -34,7 +34,7 @@ from shapely.geometry import shape
 import warnings
 from IPython.display import display
 
-from mcimageprocessing.simplified.GloFasAPI import CDSAPI
+from mcimageprocessing.simplified.GloFasAPI import GlofasAPI
 from mcimageprocessing.simplified.earthengine import EarthEngineManager
 
 # Define custom CSS
@@ -70,6 +70,27 @@ warnings.filterwarnings('ignore', category=UserWarning, message="This was only*"
 NODATA_VALUE = -9999
 
 class OutputWidgetTqdm(notebook_tqdm):
+    """
+    OutputWidgetTqdm class
+
+    This class is a subclass of the notebook_tqdm class. It provides a custom implementation for displaying progress using the tqdm library in Jupyter Notebook.
+
+    Attributes:
+    - output_widget: An output widget used to display the progress bar.
+
+    Methods:
+    - __init__(*args, **kwargs): Initializes the OutputWidgetTqdm instance. Accepts custom arguments and also the output_widget argument to extract the output widget.
+    - display(*args, **kwargs): Overrides the display method of the superclass. Redirects the display to the output widget specified in the constructor.
+
+    Note: This class requires the tqdm and ipywidgets libraries to be installed.
+
+    Example usage:
+
+    output_widget = OutputWidget()  # Instantiate the custom output widget
+    widget_tqdm = OutputWidgetTqdm(output_widget=output_widget)  # Create an instance of OutputWidgetTqdm
+    widget_tqdm.display()  # Display the progress bar in the output widget
+
+    """
     def __init__(self, *args, **kwargs):
         # You can add custom arguments here if needed, or pass through to superclass
         self.output_widget = kwargs.pop('output_widget', None)  # Extract the output widget
@@ -84,32 +105,6 @@ class OutputWidgetTqdm(notebook_tqdm):
 
 class JupyterAPI(geemap.Map):
     """
-    JupyterAPI Class
-    ================
-
-    This is a class that extends the geemap.Map class and provides additional functionality for interacting with the JupyterAPI.
-
-    Constructor
-    -----------
-
-    ```
-    def __init__(self):
-        super().__init__()
-    ```
-
-    The constructor initializes the JupyterAPI object by calling the constructor of the superclass, geemap.Map.
-
-    Attributes
-    ----------
-
-    - `states`: A variable representing the states.
-    - `hydrosheds`: A variable representing the hydrosheds.
-    - `added_layers`: A dictionary that stores the added layers.
-
-    Methods
-    -------
-
-    No additional methods are defined in this class.
 
     """
 
@@ -236,6 +231,11 @@ class JupyterAPI(geemap.Map):
         self.out = Output()
 
     def setup_event_listeners(self):
+        """
+        Set up event listeners for the given parameters.
+
+        :return: None
+        """
         self.boundary_type.observe(self.on_boundary_type_change, names='value')
         self.dropdown.observe(self.on_dropdown_change, names='value')
         self.dropdown_api.observe(self.on_api_change, names='value')
@@ -243,6 +243,11 @@ class JupyterAPI(geemap.Map):
         self.upload_widget.observe(self.on_file_upload, names='value')
 
     def initialize_ui_state(self):
+        """
+        Initializes the UI state by setting initial values and visibility for various elements.
+
+        :return: None
+        """
         self.on_dropdown_change({'new': self.dropdown.value})
         self.on_api_change({'new': self.dropdown_api.value})
         self.on_boundary_type_change({'new': self.boundary_type.value})
@@ -260,12 +265,16 @@ class JupyterAPI(geemap.Map):
 
     def create_dropdown(self, dropdown_options, description, default_value):
         """
-        Create a dropdown widget with specified options, description, and default value.
+        Create a dropdown widget with the given options, description, and default value.
 
-        :param dropdown_options: A list of options for the dropdown.
-        :param description: A string specifying the description of the dropdown.
-        :param default_value: The default value selected in the dropdown.
-        :return: The created dropdown widget.
+        :param dropdown_options: a list of options for the dropdown
+        :type dropdown_options: list
+        :param description: the description text for the dropdown
+        :type description: str
+        :param default_value: the default value for the dropdown
+        :type default_value: any
+        :return: the created dropdown widget
+        :rtype: widgets.Dropdown
         """
         dropdown = widgets.Dropdown(
             options=dropdown_options,
@@ -278,6 +287,14 @@ class JupyterAPI(geemap.Map):
         return dropdown
 
     def on_gee_search_button_clicked(self, b):
+        """
+        Perform a search for Earth Engine data when the search button is clicked.
+
+        :param b: The button widget.
+        :type b: Button
+        :return: None
+        :rtype: None
+        """
         # Here you define what happens when the button is clicked.
         # For now, it's just a print statement.
         assets = geemap.search_ee_data(self.gee_layer_search_widget.value)
@@ -288,13 +305,22 @@ class JupyterAPI(geemap.Map):
         self.gee_layer_search_results_dropdown.options = {x['title']: x['id'] for x in assets}
 
     def on_gee_layer_selected(self, b):
+        """
+        Event handler for when a Google Earth Engine layer is selected.
 
+        :param b: The input value triggered by the event.
+        :type b: Any
+        :return: None
+        """
         selected_layer = self.gee_layer_search_results_dropdown.value
         self.ee_dates_min_max = ee_instance.get_image_collection_dates(selected_layer, min_max_only=True)
         print(datetime.datetime.strptime(self.ee_dates_min_max[0], '%Y-%m-%d'))
 
     def on_single_or_range_dates_change(self, change):
-
+        """
+        :param change: The change event object
+        :return: None
+        """
         if self.single_or_range_dates.value == 'Single Date':
             self.gee_single_date_selector = widgets.Dropdown(
                 options=[],
@@ -355,7 +381,11 @@ class JupyterAPI(geemap.Map):
                                                 self.gee_multi_date_aggregation_method]
 
     def create_widgets_gee(self):
+        """
+        Create and return a list of widgets for the Google Earth Engine layer search functionality.
 
+        :return: A list of widgets for the Google Earth Engine layer search functionality.
+        """
         self.gee_layer_search_widget = widgets.Text(
             value='',
             placeholder='Search for a layer',
@@ -415,6 +445,13 @@ class JupyterAPI(geemap.Map):
     # def update_gee_date_selection_box(self, change):
 
     def toggle_minimize(self, b):
+        """
+        Toggles the visibility of the main content and changes the button text between 'Minimize' and 'Maximize'.
+
+        :param b: A boolean value indicating whether to minimize or maximize the content.
+        :type b: bool
+        :return: None
+        """
         # This function is called when the minimize button is clicked.
         if self.main_content.layout.display == 'none':
             # If the content is hidden, show it and change button text to 'Minimize'
@@ -426,6 +463,11 @@ class JupyterAPI(geemap.Map):
             self.minimize_button.description = 'Maximize'
 
     def geometry_to_geodataframe(self):
+        """
+        Converts the geometry dictionary to a GeoDataFrame.
+
+        :return: A GeoDataFrame containing the converted geometry.
+        """
         # Convert the geometry dictionary to a shape
         geometry_shape = shape(self.geometry)
 
@@ -433,6 +475,12 @@ class JupyterAPI(geemap.Map):
         return gpd.GeoDataFrame([{'geometry': geometry_shape}], crs='EPSG:4326')
 
     def inspect_grib_file(self, file_path):
+        """
+        Inspects a GRIB file at the given file path and prints information about each message in the file.
+
+        :param file_path: The path to the GRIB file.
+        :return: None
+        """
         try:
             # Open the GRIB file
             grib_file = pygrib.open(file_path)
@@ -459,6 +507,12 @@ class JupyterAPI(geemap.Map):
     # Replace 'your_grib_file.grib' with the path to your actual GRIB file
 
     def calculate_bounds(self, geojson_content):
+        """
+        Calculate the bounds of a given GeoJSON content.
+
+        :param geojson_content: The GeoJSON content to calculate the bounds from.
+        :return: A list of two lists representing the minimum and maximum latitude and longitude coordinates respectively.
+        """
         # Initialize min and max coordinates
         min_lat, min_lon, max_lat, max_lon = 90, 180, -90, -180
 
@@ -495,7 +549,10 @@ class JupyterAPI(geemap.Map):
 
     def on_file_upload(self, change):
         """
-        Handle file upload. This function is called when a file is uploaded.
+        Method to process uploaded files and create a GeoJSON layer.
+
+        :param change: A dictionary containing the uploaded file info.
+        :return: None
         """
         uploaded_files = change['new']  # Get the list of uploaded file info
 
@@ -541,6 +598,15 @@ class JupyterAPI(geemap.Map):
                 print(f"Error processing files: {e}")
 
     def convert_to_cog(self, input_path, output_path):
+        """
+        Convert a GeoTIFF to a COG (Cloud-Optimized GeoTIFF) using gdal_translate.
+
+        :param input_path: Full path to the input GeoTIFF file.
+        :type input_path: str
+        :param output_path: Full path to the output COG file.
+        :type output_path: str
+        :return: None
+        """
         # Convert a GeoTIFF to a COG using gdal_translate
         cmd = [
             'gdal_translate',
@@ -553,6 +619,27 @@ class JupyterAPI(geemap.Map):
         subprocess.run(cmd, check=True)
 
     def convert_grib_to_geotiff(self, grib_path, geotiff_path):
+        """
+        Converts a GRIB file to a standard GeoTIFF using gdal_translate.
+
+        :param grib_path: The path to the input GRIB file.
+        :param geotiff_path: The path to save the output GeoTIFF file.
+        :return: None
+
+        This method uses the `gdal_translate` command to convert the input GRIB file to a GeoTIFF file. The output GeoTIFF file will be saved at the specified `geotiff_path` location.
+
+        **Note:** The `gdal_translate` command is executed using the `subprocess.run()` method with the `check=True` parameter to ensure the conversion process completes without any errors.
+
+        Example usage:
+
+        ```python
+        # Instantiate the object
+        converter = Converter()
+
+        # Convert a GRIB file to GeoTIFF
+        converter.convert_grib_to_geotiff('/path/to/input.grib', '/path/to/output.tif')
+        ```
+        """
         # Convert a GRIB file to a standard GeoTIFF using gdal_translate
         cmd = [
             'gdal_translate',
@@ -565,7 +652,14 @@ class JupyterAPI(geemap.Map):
 
     def get_edge_values(self, raster_array, transform, shape, geometry):
         """
-        Get the most common value at the edge of the raster, outside the geometry.
+        Get the edge values of a raster within a specified geometry.
+
+        :param raster_array: The array representing the raster.
+        :param transform: The affine transformation matrix to transform coordinates from pixel space to world space.
+        :param shape: The shape of the output raster array.
+        :param geometry: The geometry within which to find the edge values.
+        :return: An array containing the unique edge values found within the specified geometry.
+
         """
         # Create a mask for the geometry
         mask = geometry_mask([geometry], transform=transform, invert=True, out_shape=shape)
@@ -575,6 +669,15 @@ class JupyterAPI(geemap.Map):
         return edge_values
 
     def get_nodata_value(self, src):
+        """
+        Method: get_nodata_value
+
+        This method is used to retrieve the no-data value from a given data source.
+
+        :param src: The data source from which to retrieve the no-data value.
+        :return: The no-data value of the source, if available. Otherwise, it infers the no-data value from data statistics or common conventions.
+
+        """
         # Try to get no-data value from source metadata
         if src.nodata is not None:
             return src.nodata
@@ -590,6 +693,14 @@ class JupyterAPI(geemap.Map):
         return -9999  # or 0, or whatever makes sense for your data
 
     def create_mask(self, out_image, nodata_value):
+        """
+        Method to create a mask based on a given output image and no-data value.
+
+        :param out_image: The output image to create the mask from.
+        :param nodata_value: The no-data value used to determine the mask.
+        :return: The mask created based on the output image and no-data value.
+
+        """
         if nodata_value is None:
             # If no no-data value is known, you might need a custom strategy
             # Perhaps infer the no-data value based on data distribution
@@ -603,60 +714,82 @@ class JupyterAPI(geemap.Map):
             # Direct comparison for integer types
             return out_image == nodata_value
 
-    def clip_raster(self, grib_path, geometry, temp_dir=None):
-        # First, inspect the GRIB file to understand its contents
-        self.inspect_grib_file(grib_path)
+    def clip_raster(self, grib_path, geometry):
+        """
+        :param grib_path: The file path of the GRIB file to be clipped.
+        :return: The file path of the clipped TIFF file.
 
-        with rioxarray.open_rasterio(
-            grib_path,
-            masked=True) as xds:
+        The `clip_raster` method takes in a GRIB file and clips it based on a provided geometry. It returns the file path of the resulting clipped TIFF file.
 
-            raster = xds.isel(band=0)
+        The method begins by inspecting the GRIB file to understand its contents. It then converts the provided geometry into a Shapely geometry object.
 
-            try:
-                polygon = shape(geometry['geometries'][1])
-            except KeyError:
-                polygon = shape(geometry)
+        Using the `open_rasterio` function from the `rioxarray` library, the GRIB file is opened as a raster dataset with masking enabled. The first band of the raster is selected.
 
-            except TypeError:
-                polygon = geometry
+        The method then tries to extract a polygon geometry from the provided geometry. If the polygon is not found, the method falls back to using the original geometry.
 
-            gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs="EPSG:4326")
-            gdf = gdf.to_crs(raster.rio.crs)  # Reproject the geometry to match the raster's CRS
+        A GeoDataFrame is created with the polygon geometry, assigning it the CRS (Coordinate Reference System) EPSG:4326. The geometry is then reprojected to match the CRS of the raster dataset
+        *.
 
-            clipped_raster = raster.rio.clip(gdf.geometry, drop=True, invert=False)
+        The raster dataset is clipped using the clipped geometry. The `drop` parameter is set to True to remove any portions of the raster that fall outside the geometry. The `invert` parameter
+        * is set to False to keep the portions of the raster that intersect with the geometry.
 
-            try:
-                clipped_raster.rio.write_nodata(-9999, inplace=True)
-            except ValueError:
-                pass
+        The clipped raster is then checked for a potential _FillValue issue, where overwriting may cause errors. If such an issue is caught, the _FillValue encoding is deleted to resolve the
+        * issue. The clipped raster is then written to the provided output file path, replacing the .grib extension with .tif. The nodata value is set to -9999.
 
-            grib_path = grib_path.replace('.grib', '.tif')
+        If the clipping and writing process encounters any other ValueError, it is re-raised as an exception. Otherwise, the file path of the resulting clipped TIFF file is returned.
+        """
+        with self.out:
+            # First, inspect the GRIB file to understand its contents
+            self.inspect_grib_file(grib_path)
 
-            try:
-                clipped_raster.rio.to_raster(grib_path, nodata=-9999)
-            except ValueError as e:
-                if "overwriting existing key _FillValue" in str(e):
-                    if '_FillValue' in clipped_raster.encoding:
-                        del clipped_raster.encoding['_FillValue']
+            geometry = self.ee_geometry_to_shapely(geometry)
+
+            with rioxarray.open_rasterio(
+                grib_path,
+                masked=True) as xds:
+
+                raster = xds.isel(band=0)
+
+                try:
+                    polygon = shape(geometry['geometries'][1])
+                except KeyError:
+                    polygon = shape(geometry)
+
+                except TypeError:
+                    polygon = geometry
+
+                gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs="EPSG:4326")
+                gdf = gdf.to_crs(raster.rio.crs)  # Reproject the geometry to match the raster's CRS
+
+                clipped_raster = raster.rio.clip(gdf.geometry, drop=True, invert=False)
+
+                try:
+                    clipped_raster.rio.write_nodata(-9999, inplace=True)
+                except ValueError:
+                    pass
+
+                grib_path = grib_path.replace('.grib', '.tif')
+
+                try:
                     clipped_raster.rio.to_raster(grib_path, nodata=-9999)
-                else:
-                    raise  # re-raise the exception if it's not the one we're expecting
+                except ValueError as e:
+                    if "overwriting existing key _FillValue" in str(e):
+                        if '_FillValue' in clipped_raster.encoding:
+                            del clipped_raster.encoding['_FillValue']
+                        clipped_raster.rio.to_raster(grib_path, nodata=-9999)
+                    else:
+                        raise  # re-raise the exception if it's not the one we're expecting
 
-            return grib_path
+                return grib_path
 
     def create_glofas_dropdown(self, dropdown_options, description, default_value):
         """
-        Create a dropdown widget for GLOFAS.
+        Creates a dropdown widget for the GLOFAS application.
 
-        :param dropdown_options: a list of options for the dropdown
-        :type dropdown_options: list
-        :param description: a description for the dropdown
-        :type description: str
-        :param default_value: the default value for the dropdown
-        :type default_value: any
-        :return: a Dropdown widget
-        :rtype: ipywidgets.Dropdown
+        :param dropdown_options: A list of options for the dropdown.
+        :param description: The description label for the dropdown.
+        :param default_value: The default value for the dropdown.
+        :return: A Dropdown widget for the GLOFAS application.
         """
         dropdown = widgets.Dropdown(
             options=dropdown_options,
@@ -670,10 +803,25 @@ class JupyterAPI(geemap.Map):
 
     def on_dropdown_change(self, change):
         """
-        Handle the change event of a dropdown menu.
-
-        :param change: A dictionary containing the change event information.
+        :param change: A dictionary containing information about the dropdown change event.
         :return: None
+
+        This method is called when the value of a dropdown menu is changed. It takes in the `change` parameter, which is a dictionary that contains information about the change event.
+
+        The method first extracts the new value from the `change` dictionary.
+
+        It then proceeds to remove any existing layers by iterating over the `added_layers` dictionary and removing each layer from the `layers` list. It also resets the `added_layers` dictionary
+        *.
+
+        Next, it splits the new value into two parts using the underscore (_) as the delimiter.
+
+        If the first part of the new value is 'admin', it adds the states layer based on the second part of the new value. It creates a feature collection based on the specified GAUL dataset
+        * and level, and then creates an EE tile layer using the feature collection. The layer variable is updated with the new feature collection, and the column variable is set to the corresponding
+        * administrative name column. The new layer is added to the map using the `add_layer` method, and the layer is also stored in the `added_layers` dictionary.
+
+        If the first part of the new value is 'watersheds', it adds the HydroSHEDS layer based on the second part of the new value. It creates a feature collection based on the specified Hydro
+        *SHEDS dataset, and then creates an EE tile layer using the feature collection. The layer variable is updated with the new feature collection, and the column variable is set to the Hydro
+        *SHEDS ID column. The new layer is added to the map using the `add_layer` method, and the layer is also stored in the `added_layers` dictionary.
         """
         new_value = change['new']
 
@@ -705,10 +853,26 @@ class JupyterAPI(geemap.Map):
 
     def on_api_change(self, change):
         """
-        Handle the change event of a dropdown menu.
-
-        :param change: A dictionary containing the change event information.
+        :param change: dictionary containing the change information
+            - 'new': the new value of the change
         :return: None
+
+        This method is called when there is a change in the API selection. The `change` parameter is a dictionary that contains information about the change. The 'new' key in the dictionary
+        * represents the new value of the change.
+
+        Depending on the new value of the change, this method performs different actions. If the new value is 'glofas', it creates a dropdown menu for GloFas products and sets up the necessary
+        * event listener. It then updates the API choice stack to display the GloFas options.
+
+        If the new value is 'gee', it creates widgets for Google Earth Engine (GEE) options. It then updates the API choice stack to display the GEE options.
+
+        If the new value is neither 'glofas' nor 'gee', no action is taken.
+
+        Note that the commented code in the method is not executed.
+
+        Examples:
+            # Example usage
+            change = {'new': 'glofas'}
+            on_api_change(self, change)
         """
         new_value = change['new']
 
@@ -737,14 +901,27 @@ class JupyterAPI(geemap.Map):
 
     def on_boundary_type_change(self, change):
         """
-        Handle changes to the boundary type selection.
+        :param change: A dictionary representing the change that occurred in the boundary type. The dictionary should have a key 'new' which points to the new boundary value.
+        :return: None
 
-        :param change: A dictionary representing the change in value of the boundary_type widget.
+        This method updates the boundary options based on the new boundary value provided in the change dictionary. The updated options are passed to the method 'update_boundary_options'.
         """
         boundary_value = change['new']
         self.update_boundary_options(boundary_value)
 
     def update_boundary_options(self, boundary_value):
+        """
+        Method Name: update_boundary_options
+
+        Description: This method updates the boundary options based on the selected boundary value.
+
+        Parameters:
+        - boundary_value (str): The selected boundary value.
+
+        Returns:
+        None
+
+        """
         # Define how the boundary type affects the boundary dropdown options
         if boundary_value == 'Predefined Boundaries':
             self.on_dropdown_change({'new': self.dropdown.value})
@@ -803,9 +980,12 @@ class JupyterAPI(geemap.Map):
 
     def on_single_or_date_range_change(self, change, glofas_option: str):
         """
-        Handle changes to the single_or_date_range widget.
+        Handles the change event when the option for single date or date range is changed.
 
-        :param change: A dictionary representing the change in value of the single_or_date_range widget.
+        :param change: A dictionary containing information about the change event.
+        :param glofas_option: The selected Glofas option.
+        :return: None
+
         """
 
         single_or_date_range_value = change['new']
@@ -852,12 +1032,10 @@ class JupyterAPI(geemap.Map):
 
     def create_widgets_for_glofas(self, glofas_option: str):
         """
-        :param glofas_dict: A dictionary containing the data needed to create the specific widgets for GloFas Data Type 2.
-        :return: A list of widgets that are specific to GloFas Data Type 2.
+        Create widgets specific to GloFas Data Type 2
 
-        This method takes in a dictionary and uses the data within the dictionary to create specific widgets for GloFas Data Type 2. The widgets created are a ToggleButtons widget for selecting
-        * the system version, an IntSlider widget for selecting the lead time, and Dropdown widgets for selecting the year, month, and day. Additionally, a FileChooser widget is created for
-        * choosing a file. These widgets are then returned as a list.
+        :param glofas_option: The selected GloFas option
+        :return: A list of widgets specific to the selected GloFas option
         """
         # Create widgets specific to GloFas Data Type 2
         # Example: A slider for selecting a range and a button
@@ -951,7 +1129,10 @@ class JupyterAPI(geemap.Map):
 
     def on_glofas_option_change(self, change):
         """
-        Handle the change event of the "glofas_option" dropdown widget.
+        Updates the glofas_stack based on the new value received in the change parameter.
+
+        :param change:  A dictionary containing the new value of the glofas option.
+        :return: None
         """
         new_value = change['new']
         self.glofas_stack.children = ()  # Clear the glofas_stack
@@ -959,9 +1140,10 @@ class JupyterAPI(geemap.Map):
 
     def update_glofas_container(self, glofas_value):
         """
-        Update the visibility and children of the GloFAS widget container based on the selected GloFAS product.
+        Update the GloFAS container based on the selected GloFAS product.
 
-        :param glofas_value: The selected value of the GloFAS product dropdown.
+        :param glofas_value: The selected GloFAS product.
+        :return: None
         """
 
         # Mapping of GloFAS product names to their respective widget lists
@@ -996,6 +1178,25 @@ class JupyterAPI(geemap.Map):
         #     self.glofas_stack.children = ()
 
     def add_clipped_raster_to_map(self, raster_path, vis_params=None):
+        """
+        Adds a clipped raster to the map.
+
+        :param raster_path: A string specifying the path to the raster file.
+        :param vis_params: Optional dictionary specifying the visualization parameters for the raster. Default is an empty dictionary.
+        :return: None
+
+        Example usage:
+
+            add_clipped_raster_to_map('/path/to/raster.tif', vis_params={'min': 0, 'max': 255})
+
+        This method creates a `localtileserver.TileClient` object using the given raster path. It then uses the `localtileserver.get_leaflet_tile_layer` method to obtain the Leaflet tile layer
+        * for the raster, applying the visualization parameters if provided. The resulting tile layer is added to the map using the `add_layer` method. Finally, the map adjusts its bounds to
+        * fit the bounds of the raster using the `fit_bounds` method.
+
+        If a ValueError occurs during the process, it will be caught and printed as an error message. Any other exceptions will also be caught and printed.
+
+        Note: This method assumes that the necessary dependencies (`localtileserver`) are installed and importable.
+        """
         if vis_params is None:
             vis_params = {}
         try:
@@ -1010,11 +1211,11 @@ class JupyterAPI(geemap.Map):
 
     def process_drawn_features(self, drawn_features):
         """
-        Process the drawn features to get distinct values of a column.
+        Process the drawn features.
 
-        :param drawn_features: List of drawn features.
-        :type drawn_features: list of ee.Feature or ee.Geometry
-        :return: List of distinct values of the column.
+        :param drawn_features: A list of drawn features.
+        :type drawn_features: list[ee.Feature or ee.Geometry]
+        :return: A list of distinct values from the filtered layer.
         :rtype: list
         """
         all_distinct_values = []
@@ -1029,13 +1230,37 @@ class JupyterAPI(geemap.Map):
         return list(set(all_distinct_values))
 
     def ensure_multipolygon(self, geometry):
-        """Ensure the geometry is a MultiPolygon."""
+        """
+            Ensures that the given geometry is a MultiPolygon. If the geometry is a Polygon, it converts it into a MultiPolygon.
+
+            :param geometry: The geometry object to ensure as a MultiPolygon.
+            :return: The input geometry as a MultiPolygon or the original geometry if it is already a MultiPolygon.
+
+            **Example Usage**
+
+            .. code-block:: python
+
+                geometry = ee.Geometry.Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])
+                ensure_multipolygon(geometry)
+
+            **Example Output**
+
+            .. code-block:: python
+
+                <ee.Geometry.MultiPolygon object at 0x7f672fc35160>
+        """
         if geometry.type().getInfo() == 'Polygon':
             return ee.Geometry.MultiPolygon([geometry.coordinates()])
         else:
             return geometry
 
     def download_feature_geometry(self, distinct_values):
+        """
+        Downloads the geometry for each distinct value from the specified feature layer and stores it in self.geometry.
+
+        :param distinct_values: A list of distinct values for filtering the feature layer.
+        :return: None
+        """
         if not distinct_values:
             print("No distinct values provided.")
             return
@@ -1080,8 +1305,16 @@ class JupyterAPI(geemap.Map):
 
         if feature:
             self.geometry = feature.geometry().getInfo()
+            return self.geometry
 
     def process_geometry_collection(self, geometry_collection, all_geometries):
+        """
+        Processes a geometry collection and appends the coordinates of polygons and multipolygons to a list.
+
+        :param geometry_collection: A geometry collection object.
+        :param all_geometries: A list to store the coordinates of polygons and multipolygons.
+        :return: None
+        """
         geometries = geometry_collection.geometries().getInfo()
         for geom in geometries:
             geom_type = geom['type']
@@ -1092,6 +1325,10 @@ class JupyterAPI(geemap.Map):
                     all_geometries.append(poly)
 
     def get_raster_min_max(self, raster_path):
+        """
+        :param raster_path: The file path to the raster file.
+        :return: A tuple containing the minimum and maximum values of the raster.
+        """
         dataset = gdal.Open(raster_path)
         band = dataset.GetRasterBand(1)  # Assumes the raster has only one band
         min_val = band.GetMinimum()
@@ -1117,13 +1354,125 @@ class JupyterAPI(geemap.Map):
         dataset = None  # Close the dataset
         return min_val, max_val
 
+    def ee_geometry_to_shapely(self, geometry):
+        """
+        Convert an Earth Engine Geometry, Feature, or GeoJSON to a Shapely Geometry object.
+
+        :param geometry: An Earth Engine Geometry, Feature, or GeoJSON dictionary.
+        :return: A Shapely Geometry object.
+
+        """
+        # Check if the geometry is an Earth Engine Geometry or Feature
+        if isinstance(geometry, ee.Geometry) or isinstance(geometry, ee.Feature):
+            # Convert Earth Engine object to GeoJSON
+            geo_json = geometry.getInfo()
+            if 'geometry' in geo_json:  # If it's a Feature, extract the geometry part
+                geo_json = geo_json['geometry']
+            # Convert GeoJSON to a Shapely Geometry
+            return shape(geo_json)
+        elif isinstance(geometry, dict):  # Directly convert from GeoJSON if it's a dictionary
+            return shape(geometry)
+        else:
+            # If it's neither, assume it's already a Shapely Geometry or compatible
+            return geometry
+
+    def determine_geometries_to_process(self):
+        """
+        Determine the geometries to process based on the boundary type and user inputs.
+
+        :return: A list of tuples representing the geometries to process. Each tuple contains a feature and distinct values.
+        """
+        geometries = []
+        if self.boundary_type.value in ['Predefined Boundaries', 'User Defined']:
+            for feature in self.draw_features:
+                if self.boundary_type.value == 'Predefined Boundaries':
+                    distinct_values = self.process_drawn_features([feature])
+                    feature = self.download_feature_geometry(distinct_values)
+                else:  # User Defined
+                    distinct_values = None
+                    # Assuming feature is the geometry itself in this case
+                geometries.append((feature, distinct_values))
+        elif self.boundary_type.value == 'User Uploaded Data' and 'User Uploaded Data' in self.userlayers:
+            feature = self.userlayers['User Uploaded Data'].data
+            geometries.append((feature, None))
+        return geometries
+
+    def process_and_clip_raster(self, file_path, geometry):
+        """
+        Process and clip a raster file.
+
+        :param file_path: The file path of the raster file to be processed and clipped.
+        :return: None
+        """
+        with self.out:
+            min_val, max_val = self.get_raster_min_max(file_path)
+            if min_val == -9999:
+                min_val = 0
+
+            vis_params = {
+                'min': min_val,
+                'max': max_val,
+                'palette': 'viridis',
+                'nodata': -9999
+            }
+
+            clipped_raster_path = self.clip_raster(file_path, geometry)
+            if self.add_to_map_check.value:
+                self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
+
+    def download_glofas_data(self, bbox, glofas_params, index, distinct_values=None):
+        """
+        :param bbox: The bounding box of the area to download Glofas data for.
+        :param glofas_params: The parameters for downloading Glofas data.
+        :param index: The index of the Glofas data.
+        :param distinct_values: The distinct values for the Glofas data (optional).
+        :return: The file path of the downloaded Glofas data.
+
+        """
+        glofas_api = GlofasAPI()
+        request_parameters = {
+            'variable': 'river_discharge_in_the_last_24_hours',
+            'format': 'grib',
+            'system_version': glofas_params.get('system_version'),
+            'hydrological_model': glofas_params.get('hydrological_model'),
+            'product_type': glofas_params.get('product_type', 'ensemble_perturbed_forecasts'),
+            'year': glofas_params.get('year'),
+            'month': glofas_params.get('month'),
+            # Omit 'day' to use the default value or provide a specific day
+            'day': glofas_params.get('day', '01'),
+            'leadtime_hour': glofas_params.get('leadtime_hour'),
+            'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
+            'folder_location': glofas_params.get('folder_location'),
+        }
+
+        # Construct file name based on the parameters
+        file_name = f"{self.dropdown.value}_{'userdefined' if distinct_values is None else '_'.join(str(value) for value in distinct_values)}_{index}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
+
+        # Download data and return the file path
+        return glofas_api.download_data(self.glofas_options.value, request_parameters, file_name)
+
     def get_glofas_parameters(self, glofas_product):
         """
-        Get the parameters for the selected GloFAS product.
+        :param glofas_product: The type of GloFAS product.
+        :return: A dictionary containing the parameters required for the given GloFAS product.
 
-        :return: A dictionary of parameters for the selected GloFAS product.
-        :rtype: dict
-        """
+        The `get_glofas_parameters` method takes in the `glofas_product` parameter to determine the type of GloFAS product. It then collects the necessary parameters based on the type of product
+        * and returns them in a dictionary.
+
+        Note: The returned dictionary may vary depending on the value of `glofas_product`.
+
+        Example usages:
+        ```
+        parameters = get_glofas_parameters('cems-glofas-seasonal')
+        # Returns:
+        # {
+        #     'system_version': system_version,
+        #     'hydrological_model': hydrological_model,
+        #     'leadtime_hour': leadtime_hour,
+        #     'year': year,
+        #     'month': month,
+        #     'day': day,
+        #    """
         date_type = self.single_or_date_range.value
         system_version = self.system_version.value.replace('.', '_').lower()
         hydrological_model = self.hydrological_model.value
@@ -1180,216 +1529,38 @@ class JupyterAPI(geemap.Map):
             print("Invalid GloFAS product.")
             return None
 
-
     def draw_and_process(self):
         """
-        This method draws features on a map and processes them based on their type and user-defined parameters.
+        Perform the draw and process operation.
 
         :return: None
         """
-        if self.boundary_type.value == 'Parameter File':
-            pass
-
-        elif self.boundary_type.value == 'Predefined Boundaries':
-            if self.draw_features:
-                for index, feature in enumerate(self.draw_features):
-                    distinct_values = self.process_drawn_features([feature])
-                    self.download_feature_geometry(distinct_values)
-                    bbox = self.get_bounding_box(distinct_values=distinct_values)
-
-                    glofas_params = self.get_glofas_parameters(self.glofas_options.value)
-
-                    # Create an instance of the CDSAPI class
-                    cds_api = CDSAPI()
-
-                    request_parameters = {
-                        'variable': 'river_discharge_in_the_last_24_hours',
-                        'format': 'grib',
-                        'system_version': glofas_params.get('system_version'),
-                        'hydrological_model': glofas_params.get('hydrological_model'),
-                        'product_type': glofas_params.get('product_type', 'ensemble_perturbed_forecasts'),
-                        'year': glofas_params.get('year'),
-                        'month': glofas_params.get('month'),
-                        # Omit 'day' to use the default value or provide a specific day
-                        'day': glofas_params.get('day', '01'),
-                        'leadtime_hour': glofas_params.get('leadtime_hour'),
-                        'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
-                        'folder_location': glofas_params.get('folder_location'),
-                    }
-
-                    try:
-
-                        # Call the download_data method
-                        file_name = f"{self.dropdown.value}_{'_'.join(str(value) for value in distinct_values)}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
-
-                        file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
-
-
-                    except Exception as e:
-
-                        if "no data is available within your requested subset" in str(e):
-                            system_versions = list(
-                                self.glofas_dict['products'][self.glofas_options.value]['system_version'])
-                            system_versions_attempted = [glofas_params.get('system_version')]
-                            data_found = False  # Flag to indicate successful data retrieval
-
-                            while system_versions and not data_found:
-                                system_version = system_versions.pop()
-                                with self.out:
-                                    print(f"Trying system version {system_version}")
-                                    print(system_versions_attempted)
-                                if system_version not in system_versions_attempted:
-                                    system_versions_attempted.append(system_version)
-                                    request_parameters['system_version'] = system_version
-                                    try:
-                                        file_name = f"{self.dropdown.value}_{'_'.join(str(value) for value in distinct_values)}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
-                                        file_path = cds_api.download_data(self.glofas_options.value,
-                                                                          request_parameters, file_name)
-                                        data_found = True  # Data found, prepare to exit loop
-                                    except Exception as e:
-                                        if "no data is available within your requested subset" in str(e):
-                                            continue  # Try next system version
-                                        else:
-                                            raise e  # Re-raise unexpected exceptions
-
-                            if not data_found:
-                                print("No data available after trying all system versions.")
-                                # Consider adding additional handling here for when no data is found
-
-                    min_val, max_val = self.get_raster_min_max(file_path)
-
-                    if min_val == -9999:
-                        min_val = 0
-
-                    vis_params = {
-                        'min': min_val,
-                        'max': max_val,
-                        'palette': 'viridis',  # or any other valid colormap name
-                        'nodata': -9999  # Replace with your actual nodata value
-                    }
-
-                    clipped_raster_path = self.clip_raster(file_path, self.geometry)
-
-                    params_export = request_parameters.copy()
-
-                    params_export['geometry'] = self.geometry
-
-                    with open(f"{file_name.replace('.grib', '')}.json", 'w') as f:
-                        f.write(json.dumps(params_export))
-                    with self.out:
-                        print(clipped_raster_path)
-                    if self.add_to_map_check.value:
-                        self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
+        with self.out:
+            if self.boundary_type.value == 'Parameter File':
+                # Handle parameter file case
+                pass
 
             else:
-                print("No features have been drawn on the map.")
-        elif self.boundary_type.value == 'User Defined':
-            if self.draw_features:
-                for index, feature in enumerate(self.draw_features):
-                    bbox = self.get_bounding_box(distinct_values=None, feature=feature)
+                # Determine geometries to process based on boundary type
+                geometries = self.determine_geometries_to_process()
 
+                # with OutputWidgetTqdm(total=len(geometries), output_widget=self.out) as pbar:
+                for index, (geometry, distinct_values) in enumerate(geometries):
+                    bbox = self.get_bounding_box(distinct_values=distinct_values, feature=geometry)
                     glofas_params = self.get_glofas_parameters(self.glofas_options.value)
 
-                    print(f"add_to_map value is {self.add_to_map_check.value}")
-                    # Create an instance of the CDSAPI class
-                    cds_api = CDSAPI()
+                    file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
+                    self.process_and_clip_raster(file_path, geometry)
 
-                    # Prepare the request parameters
-                    request_parameters = {
-                        'variable': 'river_discharge_in_the_last_24_hours',
-                        'format': 'grib',
-                        'system_version': glofas_params.get('system_version'),
-                        'hydrological_model': glofas_params.get('hydrological_model'),
-                        'product_type': glofas_params.get('product_type', 'ensemble_perturbed_forecasts'),
-                        'year': glofas_params.get('year'),
-                        'month': glofas_params.get('month'),
-                        # Omit 'day' to use the default value or provide a specific day
-                        'day': glofas_params.get('day', '01'),
-                        'leadtime_hour': glofas_params.get('leadtime_hour'),
-                        'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
-                        'folder_location': glofas_params.get('folder_location'),
-                    }
-
-                    # Call the download_data method
-                    file_name = f"{self.dropdown.value}_userdefined{index}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
-                    file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
-
-                    print(f"Downloaded {glofas_params.get('year')} file to {file_path}")
-
-                    min_val, max_val = self.get_raster_min_max(file_path)
-
-                    if min_val == -9999:
-                        min_val = 0
-
-                    vis_params = {
-                        'min': min_val,
-                        'max': max_val,
-                        'palette': 'viridis',  # or any other valid colormap name
-                        'nodata': -9999  # Replace with your actual nodata value
-                    }
-
-                    clipped_raster_path = self.clip_raster(file_path, self.geometry)
-                    if self.add_to_map_check.value:
-                        self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
-
-            else:
-                print("No features have been drawn on the map.")
-
-        elif self.boundary_type.value == 'User Uploaded Data':
-            if self.userlayers['User Uploaded Data']:
-                bbox = self.get_bounding_box(distinct_values=None)
-                glofas_params = self.get_glofas_parameters(self.glofas_options.value)
-
-                print(f"add_to_map value is {self.add_to_map_check.value}")
-                # Create an instance of the CDSAPI class
-                cds_api = CDSAPI()
-
-                # Prepare the request parameters
-                request_parameters = {
-                    'variable': 'river_discharge_in_the_last_24_hours',
-                    'format': 'grib',
-                    'system_version': glofas_params.get('system_version'),
-                    'hydrological_model': glofas_params.get('hydrological_model'),
-                    'product_type': glofas_params.get('product_type', 'ensemble_perturbed_forecasts'),
-                    'year': glofas_params.get('year'),
-                    'month': glofas_params.get('month'),
-                    # Omit 'day' to use the default value or provide a specific day
-                    'day': glofas_params.get('day', '01'),
-                    'leadtime_hour': glofas_params.get('leadtime_hour'),
-                    'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
-                    'folder_location': glofas_params.get('folder_location'),
-                }
-
-                # Call the download_data method
-                file_name = f"{self.dropdown.value}_userdefined_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
-                file_path = cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
-
-                print(f"Downloaded {glofas_params.get('year')} file to {file_path}")
-
-                min_val, max_val = self.get_raster_min_max(file_path)
-
-                if min_val == -9999:
-                    min_val = 0
-
-                vis_params = {
-                    'min': min_val,
-                    'max': max_val,
-                    'palette': 'viridis',  # or any other valid colormap name
-                    'nodata': -9999  # Replace with your actual nodata value
-                }
-
-                clipped_raster_path = self.clip_raster(file_path, self.geometry)
-                if self.add_to_map_check.value:
-                    self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
-
-
-        else:
-            print("Invalid boundary type.")
+                        # pbar.update(1)
 
     def on_button_click(self, b):
         """
-        :param b: The button object that triggered the event
-        :return: None
+            Handle button click event.
+
+            :param b: The button object that was clicked.
+            :type b: Button
+            :return: None
         """
         with self.out:
             self.out.clear_output()  # Clear the previous output
@@ -1399,12 +1570,21 @@ class JupyterAPI(geemap.Map):
 
     def get_bounding_box(self, distinct_values=None, feature=None):
         """
-        :param distinct_values: a list of distinct values used to filter the data
-        :return: a GeoDataFrame representing the bounding box of the filtered data
+        :param distinct_values: A list of distinct values used for filtering the layer data
+        :param feature: An optional feature object used for defining a custom geometry
+        :return: The bounding box of the selected data
 
-        This method takes a list of distinct values and generates a bounding box for the filtered data based on the selected dropdown value. If the dropdown value is 'admin_0', it filters
-        * the data using the distinct values and returns the bounding box as a GeoDataFrame. If the dropdown value is 'watersheds_4', it filters the data using the distinct values and returns
-        * the bounding box as a GeoDataFrame.
+        This method calculates the bounding box of the selected data based on the provided parameters. If distinct_values is specified, it filters the layer data based on the values in distinct
+        *_values and returns the bounding box of the filtered data. If feature is specified, it converts the feature to a GeoDataFrame and returns the bounding box of the geometry. If neither
+        * distinct_values nor feature is provided, it returns the bounding box of the dissolved geometry of the User Uploaded Data.
+
+        Example usage:
+        ----------------
+        distinct_values = ['value1', 'value2']
+        feature = ee.Feature()
+
+        bounding_box = get_bounding_box(distinct_values, feature)
+        print(bounding_box)
         """
 
         if distinct_values:
@@ -1419,9 +1599,7 @@ class JupyterAPI(geemap.Map):
                 return gdf.geometry.bounds
         if 'User Uploaded Data' in self.userlayers and self.boundary_type.value == 'User Uploaded Data':
             gdf = gpd.GeoDataFrame.from_features(self.userlayers['User Uploaded Data'].data)
-            print(gdf)
             dissolved_gdf = gdf.dissolve()
-            print(dissolved_gdf)
             self.geometry = dissolved_gdf.geometry.iloc[0]
             return dissolved_gdf.geometry.bounds
 
@@ -1436,8 +1614,8 @@ class JupyterAPI(geemap.Map):
 
     def get_map_and_output(self):
         """
-        Returns the map object and the output value.
 
-        :return: A tuple containing the map object and the output value.
+        :return: A tuple containing the map object `self` and the output attribute `self.out`.
+
         """
         return self, self.out

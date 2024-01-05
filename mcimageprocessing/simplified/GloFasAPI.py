@@ -1,7 +1,8 @@
 import cdsapi
 import os
+from mcimageprocessing.simplified.MappingSetup import JupyterAPI
 
-class CDSAPI:
+class GlofasAPI:
     def __init__(self):
         self.client = cdsapi.Client()
 
