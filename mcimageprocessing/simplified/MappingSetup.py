@@ -3,21 +3,27 @@ import subprocess
 import tempfile
 
 import cdsapi
+import requests
 import ee
 import geemap
 import geopandas as gpd
 import ipyfilechooser as fc
+from bs4 import BeautifulSoup
 import ipywidgets as widgets
 import localtileserver
+import pandas as pd
 import numpy as np
 import pygrib
 from ipywidgets import DatePicker
 import json
 import datetime
 import rasterio
+from shapely.geometry import Polygon, Point
+from pyproj import Proj, transform
 from IPython.display import HTML
 from ipywidgets import Output, Layout
 from ipyleaflet import GeoJSON
+import ipyleaflet
 import rioxarray
 from shapely.geometry import shape
 from osgeo import gdal, ogr
@@ -32,9 +38,10 @@ from tqdm.notebook import tqdm as notebook_tqdm
 from ipywidgets import Text, FileUpload, VBox, jslink, Stack, HBox
 from shapely.geometry import shape
 import warnings
+import re
 from IPython.display import display
 
-from mcimageprocessing.simplified.GloFasAPI import GlofasAPI
+from mcimageprocessing.simplified.GloFasAPI import CDSAPI
 from mcimageprocessing.simplified.earthengine import EarthEngineManager
 
 # Define custom CSS
@@ -69,6 +76,7 @@ warnings.filterwarnings('ignore', category=UserWarning, message="This was only*"
 
 NODATA_VALUE = -9999
 
+
 class OutputWidgetTqdm(notebook_tqdm):
     """
     OutputWidgetTqdm class
@@ -91,6 +99,7 @@ class OutputWidgetTqdm(notebook_tqdm):
     widget_tqdm.display()  # Display the progress bar in the output widget
 
     """
+
     def __init__(self, *args, **kwargs):
         # You can add custom arguments here if needed, or pass through to superclass
         self.output_widget = kwargs.pop('output_widget', None)  # Extract the output widget
@@ -102,6 +111,7 @@ class OutputWidgetTqdm(notebook_tqdm):
             self.output_widget.clear_output(wait=True)
             with self.output_widget:
                 display(self.container)
+
 
 class JupyterAPI(geemap.Map):
     """
@@ -119,7 +129,15 @@ class JupyterAPI(geemap.Map):
 
         self.initialize_ui_state()
 
-        # self.update_final_output()
+        for control in list(self.controls):
+            if isinstance(control, ipyleaflet.WidgetControl):
+                # Check for a specific property of the widget
+                # For example, if the widget has a unique title, icon, or label
+                if 'Search location/data' in str(control.widget) or 'wrench' in str(control):
+                    self.remove_control(control)
+                    continue
+
+                    # self.update_final_output()
 
     def setup_global_variables(self):
         self.added_layers = {}
@@ -181,20 +199,24 @@ class JupyterAPI(geemap.Map):
         )
 
         self.dropdown = self.create_dropdown(boundary_dropdown, 'Select Boundary:', 'watersheds_4')
-        self.dropdown.layout.width = 'auto'
+        # self.dropdown.layout.width = 'auto'
 
-        self.dropdown_api = self.create_dropdown({'GloFas': 'glofas', 'Google Earth Engine': 'gee'}, 'Select API:',
+        self.dropdown_api = self.create_dropdown({'GloFas': 'glofas',
+                                                  'Google Earth Engine': 'gee',
+                                                  'MODIS NRT Flood Data': 'modis_nrt'}, 'Select API:',
                                                  'glofas')
-        self.dropdown_api.layout.width = 'auto'
+        # self.dropdown_api.layout.width = 'auto'
 
         self.add_to_map_check = widgets.Checkbox(value=True, description='Add Downloaded Image to Map')
         self.btn = widgets.Button(description='Process')
         self.btn.layout.width = '100%'
+        self.btn.style.button_color = '#c8102e'
+        self.btn.style.text_color = 'white'
 
         self.instruction_text = widgets.Text(value='Draw one or more polygons on the map', disabled=True)
         self.instruction_text.style.text_color = '#c8102e'
         self.upload_widget = widgets.FileUpload(accept='.geojson', multiple=False)
-        self.upload_widget.layout.width= '100%'
+        self.upload_widget.layout.width = '100%'
         self.upload_widget.style.button_color = '#c8102e'
         self.upload_widget.style.text_color = 'white'
 
@@ -215,20 +237,73 @@ class JupyterAPI(geemap.Map):
             multiple=False  # True to accept multiple files upload else False
         )
 
-        self.predefined_upload_widget.layout.display='none'
+        self.predefined_upload_widget.layout.display = 'none'
         self.predefined_upload_widget.layout.width = '100%'
         self.predefined_upload_widget.style.button_color = '#c8102e'
         self.predefined_upload_widget.style.text_color = 'white'
 
         self.glofas_stack = VBox([])
 
+        max_width_value = '600px'
+
+        self.inner_widget_container = VBox(
+            [self.boundary_type, self.boundary_stack, self.dropdown_api, self.api_choice_stack,
+             self.predefined_upload_widget, self.btn],
+            layout=Layout(width='100%', max_width=max_width_value)  # Set the width to '100%' and max_width to '50%'
+        )
+
         self.widget_container = VBox(
-            [self.boundary_type, self.boundary_stack, self.dropdown_api, self.api_choice_stack, self.end_of_vbox_items, self.predefined_upload_widget, self.btn],
-            layout=Layout(resize='both', overflow='auto'))
+            [self.inner_widget_container],
+            layout=Layout(justify_content='center', width='100%')  # Set the width of the outer container to '100%'
+        )
+
+        for widget in [self.dropdown, self.dropdown_api, self.btn]:
+            widget.layout.width = '100%'
 
         self.userlayers = {}
 
         self.out = Output()
+
+        self.modis_proj = Proj("+proj=sinu +R=6371007.181 +nadgrids=@null +wktext")
+
+        # MODIS tile size in meters
+        self.modis_tile_size = 1111950
+
+        self.modis_download_token = '''eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbF9hZGRyZXNzIjoibmlja0BrbmRjb25zdWx0aW5nLm9yZyIsImlzcyI6IkFQUyBPQXV0aDIgQXV0aGVudGljYXRvciIsImlhdCI6MTcwNDY5NDk1NSwibmJmIjoxNzA0Njk0OTU1LCJleHAiOjE4NjIzNzQ5NTUsInVpZCI6Im5oc3VyZjYwIiwidG9rZW5DcmVhdG9yIjoibmhzdXJmNjAifQ.OFsGT01-7VmQUXKhKZUx_GK3AQ5RMz3oSI9AdJmYDlQ'''
+
+        self.modis_nrt_api_root_url = 'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/archives/allData/61/MCDWD_L3_NRT/'
+
+        self.create_sub_folder = widgets.Checkbox(
+            value=True,
+            description='Create Subfolder',
+            disabled=False,
+            indent=False
+        )
+
+        self.clip_to_geometry = widgets.Checkbox(
+            value=True,
+            description='Clip Image to Geometry Bounds',
+            disabled=False,
+            indent=False
+        )
+
+        self.keep_individual_tiles = widgets.Checkbox(
+            value=False,
+            description='Keep Individual Tiles',
+            disabled=False,
+            indent=False
+        )
+
+        self.add_image_to_map = widgets.Checkbox(
+            value=True,
+            description='Add Image to Map',
+            disabled=False,
+            indent=False
+        )
+
+        self.filechooser = fc.FileChooser(os.getcwd(), show_only_dirs=True)
+
+
 
     def setup_event_listeners(self):
         """
@@ -261,7 +336,7 @@ class JupyterAPI(geemap.Map):
         self.on_api_change({'new': self.dropdown_api.value})
 
         # Add the main widget container to the display
-        self.add_widget(self.widget_container)
+        self.add_widget(self.inner_widget_container)
 
     def create_dropdown(self, dropdown_options, description, default_value):
         """
@@ -299,8 +374,6 @@ class JupyterAPI(geemap.Map):
         # For now, it's just a print statement.
         assets = geemap.search_ee_data(self.gee_layer_search_widget.value)
         with self.out:
-            print([x['id'] for x in assets])
-            print([x['title'] for x in assets])
             print("Button clicked: Searching for", self.gee_layer_search_widget.value)
         self.gee_layer_search_results_dropdown.options = {x['title']: x['id'] for x in assets}
 
@@ -314,7 +387,8 @@ class JupyterAPI(geemap.Map):
         """
         selected_layer = self.gee_layer_search_results_dropdown.value
         self.ee_dates_min_max = ee_instance.get_image_collection_dates(selected_layer, min_max_only=True)
-        print(datetime.datetime.strptime(self.ee_dates_min_max[0], '%Y-%m-%d'))
+
+        self.gee_bands_search_results.options = ee.ImageCollection(selected_layer).first().bandNames().getInfo()
 
     def on_single_or_range_dates_change(self, change):
         """
@@ -353,10 +427,10 @@ class JupyterAPI(geemap.Map):
             )
 
             self.gee_multi_date_aggregation_periods = widgets.ToggleButtons(
-                options=['Monthly', 'Yearly'],
+                options=['Monthly', 'Yearly', 'All Images', 'One Aggregation'],
                 disabled=False,
                 value='Monthly',
-                tooltips=['Monthly', 'Yearly'],
+                tooltips=['Monthly', 'Yearly', 'All Images', 'One Aggregation'],
             )
 
             aggregation_values = {
@@ -367,7 +441,8 @@ class JupyterAPI(geemap.Map):
                 'min': lambda ic: ic.min(),
                 'sum': lambda ic: ic.reduce(ee.Reducer.sum()),
                 'first': lambda ic: ic.sort('system:time_start', False).first(),
-                'last': lambda ic: ic.sort('system:time_start', False).last()
+                'last': lambda ic: ic.sort('system:time_start', False).last(),
+                # 'none': lambda ic: ic
             }
 
             self.gee_multi_date_aggregation_method = widgets.Dropdown(
@@ -386,61 +461,107 @@ class JupyterAPI(geemap.Map):
 
         :return: A list of widgets for the Google Earth Engine layer search functionality.
         """
-        self.gee_layer_search_widget = widgets.Text(
-            value='',
-            placeholder='Search for a layer',
-            description='Search:',
-            disabled=False,
-            layout=Layout(width='auto')
-        )
+        with self.out:
+            self.gee_layer_search_widget = widgets.Text(
+                value='',
+                placeholder='Search for a layer',
+                description='Search:',
+                disabled=False,
+                layout=Layout()
+            )
 
-        self.gee_layer_search_widget.layout.width = 'auto'
+            self.gee_layer_search_widget.layout.width = 'auto'
 
-        self.search_button = widgets.Button(
-            description='Search',
-            disabled=False,
-            button_style='',  # 'success', 'info', 'warning', 'danger' or ''
-            tooltip='Click to search',
-            icon='search'  # Icons names are available at https://fontawesome.com/icons
-        )
+            self.search_button = widgets.Button(
+                description='Search',
+                disabled=False,
+                button_style='',  # 'success', 'info', 'warning', 'danger' or ''
+                tooltip='Click to search',
+                icon='search'  # Icons names are available at https://fontawesome.com/icons
+            )
 
-        self.search_button.on_click(self.on_gee_search_button_clicked)
+            self.search_button.style.button_color = '#c8102e'
+            self.search_button.style.text_color = 'white'
 
-        self.search_box = HBox([self.gee_layer_search_widget, self.search_button])
+            self.search_button.on_click(self.on_gee_search_button_clicked)
 
-        self.gee_layer_search_results_dropdown = widgets.Dropdown(
-            options=[],
-            value=None,
-            description='Results:',
-            disabled=False,
-            layout=Layout(width='auto')
-        )
+            self.search_box = HBox([self.gee_layer_search_widget, self.search_button])
 
-        self.select_layer_gee = widgets.Button(
-            description='Select',
-            disabled=False,
-            button_style='',  # 'success', 'info', 'warning', 'danger' or ''
-            tooltip='Select Layer',
-            icon='crosshairs'  # Icons names are available at https://fontawesome.com/icons
-        )
+            self.gee_layer_search_results_dropdown = widgets.Dropdown(
+                options=[],
+                value=None,
+                description='Results:',
+                disabled=False,
+                layout=Layout()
+            )
 
-        self.select_layer_gee.on_click(self.on_gee_layer_selected)
+            self.select_layer_gee = widgets.Button(
+                description='Select',
+                disabled=False,
+                button_style='',  # 'success', 'info', 'warning', 'danger' or ''
+                tooltip='Select Layer',
+                icon='crosshairs'  # Icons names are available at https://fontawesome.com/icons
+            )
 
-        self.layer_select_box = HBox([self.gee_layer_search_results_dropdown, self.select_layer_gee])
+            self.select_layer_gee.style.button_color = '#c8102e'
+            self.select_layer_gee.style.text_color = 'white'
 
-        self.single_or_range_dates = widgets.ToggleButtons(
-            options=['Single Date', 'Date Range'],
-            disabled=False,
-            value='Date Range',
-            tooltips=['Single Date', 'Date Range'],
-        )
 
-        self.single_or_range_dates.observe(self.on_single_or_range_dates_change, names='value')
-        self.select_layer_gee.on_click(self.on_single_or_range_dates_change)
+            self.select_layer_gee.on_click(self.on_gee_layer_selected)
 
-        self.gee_date_selection = widgets.VBox([])
+            self.layer_select_box = HBox([self.gee_layer_search_results_dropdown, self.select_layer_gee])
 
-        return [self.search_box, self.layer_select_box, self.single_or_range_dates, self.gee_date_selection]
+            self.gee_bands_search_results = widgets.Dropdown(
+                options=[],
+                value=None,
+                description='Bands:',
+                disabled=False,
+                layout=Layout()
+            )
+
+            self.single_or_range_dates = widgets.ToggleButtons(
+                options=['Single Date', 'Date Range'],
+                disabled=False,
+                value='Date Range',
+                tooltips=['Single Date', 'Date Range'],
+            )
+
+            self.single_or_range_dates.observe(self.on_single_or_range_dates_change, names='value')
+            self.select_layer_gee.on_click(self.on_single_or_range_dates_change)
+
+            self.gee_date_selection = widgets.VBox([])
+
+            self.statistics_only_check = widgets.Checkbox(
+                value=False,
+                description='Image Statistics Only (dictionary)',
+                disabled=False,
+                indent=False
+            )
+
+            self.scale_input = widgets.Text(
+                value='1000',
+                placeholder='Scale',
+                description='Scale:',
+                disabled=False,
+                layout=Layout()
+            )
+
+            self.gee_end_of_container_options = widgets.Accordion(
+                [widgets.TwoByTwoLayout(
+                    top_left=self.statistics_only_check, top_right=self.add_image_to_map,
+                    bottom_right=self.create_sub_folder
+                )])
+
+            self.gee_end_of_container_options.set_title(0, 'Processing Options')
+
+            widget_list = [self.search_box, self.layer_select_box, self.gee_bands_search_results,
+                           self.single_or_range_dates, self.gee_date_selection, self.scale_input, self.filechooser,
+                           self.gee_end_of_container_options]
+
+            for widget in widget_list:
+                widget.layout.width = '100%'
+
+            return widget_list
 
     # def update_gee_date_selection_box(self, change):
 
@@ -714,73 +835,125 @@ class JupyterAPI(geemap.Map):
             # Direct comparison for integer types
             return out_image == nodata_value
 
-    def clip_raster(self, grib_path, geometry):
+    def clip_raster(self, file_path, geometry):
         """
-        :param grib_path: The file path of the GRIB file to be clipped.
+        :param file_path: The file path of the raster file (GRIB or TIFF) to be clipped.
+        :param geometry: The geometry to clip the raster file.
         :return: The file path of the clipped TIFF file.
-
-        The `clip_raster` method takes in a GRIB file and clips it based on a provided geometry. It returns the file path of the resulting clipped TIFF file.
-
-        The method begins by inspecting the GRIB file to understand its contents. It then converts the provided geometry into a Shapely geometry object.
-
-        Using the `open_rasterio` function from the `rioxarray` library, the GRIB file is opened as a raster dataset with masking enabled. The first band of the raster is selected.
-
-        The method then tries to extract a polygon geometry from the provided geometry. If the polygon is not found, the method falls back to using the original geometry.
-
-        A GeoDataFrame is created with the polygon geometry, assigning it the CRS (Coordinate Reference System) EPSG:4326. The geometry is then reprojected to match the CRS of the raster dataset
-        *.
-
-        The raster dataset is clipped using the clipped geometry. The `drop` parameter is set to True to remove any portions of the raster that fall outside the geometry. The `invert` parameter
-        * is set to False to keep the portions of the raster that intersect with the geometry.
-
-        The clipped raster is then checked for a potential _FillValue issue, where overwriting may cause errors. If such an issue is caught, the _FillValue encoding is deleted to resolve the
-        * issue. The clipped raster is then written to the provided output file path, replacing the .grib extension with .tif. The nodata value is set to -9999.
-
-        If the clipping and writing process encounters any other ValueError, it is re-raised as an exception. Otherwise, the file path of the resulting clipped TIFF file is returned.
         """
-        with self.out:
-            # First, inspect the GRIB file to understand its contents
-            self.inspect_grib_file(grib_path)
 
+        # Check file format and inspect if it's a GRIB file
+        with self.out:
+            if file_path.endswith('.grib'):
+                self.inspect_grib_file(file_path)
+
+            # Convert Earth Engine geometry to shapely geometry
             geometry = self.ee_geometry_to_shapely(geometry)
 
-            with rioxarray.open_rasterio(
-                grib_path,
-                masked=True) as xds:
-
-                raster = xds.isel(band=0)
-
+            # Convert to MultiPolygon if needed
+            if isinstance(geometry, dict):
                 try:
-                    polygon = shape(geometry['geometries'][1])
+                    geometry = shape(geometry['geometries'][1])
                 except KeyError:
-                    polygon = shape(geometry)
+                    geometry = shape(geometry)
+            if not isinstance(geometry, MultiPolygon):
+                geometry = MultiPolygon([geometry])
 
-                except TypeError:
-                    polygon = geometry
+            # Create a GeoDataFrame
+            gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs="EPSG:4326")
 
-                gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs="EPSG:4326")
-                gdf = gdf.to_crs(raster.rio.crs)  # Reproject the geometry to match the raster's CRS
+            # Open the raster file with rasterio
+            with rasterio.open(file_path) as src:
 
-                clipped_raster = raster.rio.clip(gdf.geometry, drop=True, invert=False)
+                # Reproject the geometry to match the raster's CRS
+                gdf = gdf.to_crs(src.crs)
 
-                try:
-                    clipped_raster.rio.write_nodata(-9999, inplace=True)
-                except ValueError:
-                    pass
+                # Read the raster data
+                raster_data = src.read(1)
 
-                grib_path = grib_path.replace('.grib', '.tif')
+                # Determine the nodata value based on the data type
+                if raster_data.dtype == 'uint8':
+                    nodata_value = 255
+                else:
+                    nodata_value = -9999
 
-                try:
-                    clipped_raster.rio.to_raster(grib_path, nodata=-9999)
-                except ValueError as e:
-                    if "overwriting existing key _FillValue" in str(e):
-                        if '_FillValue' in clipped_raster.encoding:
-                            del clipped_raster.encoding['_FillValue']
-                        clipped_raster.rio.to_raster(grib_path, nodata=-9999)
-                    else:
-                        raise  # re-raise the exception if it's not the one we're expecting
+                # Create the mask
+                mask = geometry_mask(gdf.geometry, transform=src.transform, invert=True,
+                                     out_shape=(src.height, src.width))
 
-                return grib_path
+                # Apply the mask - set nodata values
+                raster_data[~mask] = nodata_value
+
+                # Define output path
+                output_path = file_path.rsplit('.', 1)[0] + '_clipped.tif'
+
+                # Write the masked data to a new raster file
+                with rasterio.open(
+                    output_path,
+                    'w',
+                    driver='GTiff',
+                    height=src.height,
+                    width=src.width,
+                    count=1,
+                    dtype=raster_data.dtype,
+                    crs=src.crs,
+                    transform=src.transform,
+                    nodata=nodata_value
+                ) as dst:
+                    dst.write(raster_data, 1)
+
+            return output_path
+
+    # def clip_raster(self, file_path, geometry):
+    #     """
+    #     :param file_path: The file path of the raster file (GRIB or TIFF) to be clipped.
+    #     :param geometry: The geometry to clip the raster file.
+    #     :return: The file path of the clipped TIFF file.
+    #
+    #     This function takes in a raster file (GRIB or TIFF) and clips it based on the provided geometry.
+    #     It returns the file path of the resulting clipped TIFF file.
+    #     """
+    #
+    #     # Check file format and inspect if it's a GRIB file
+    #     with self.out:
+    #         if file_path.endswith('.grib'):
+    #             self.inspect_grib_file(file_path)
+    #
+    #         geometry = self.ee_geometry_to_shapely(geometry)
+    #
+    #         with rioxarray.open_rasterio(file_path, masked=True) as xds:
+    #             raster = xds.isel(band=0)
+    #
+    #             try:
+    #                 polygon = shape(geometry['geometries'][1])
+    #             except KeyError:
+    #                 polygon = shape(geometry)
+    #             except TypeError:
+    #                 polygon = geometry
+    #
+    #             gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs="EPSG:4326")
+    #             gdf = gdf.to_crs(raster.rio.crs)  # Reproject the geometry to match the raster's CRS
+    #
+    #             clipped_raster = raster.rio.clip(gdf.geometry, drop=True, invert=False)
+    #
+    #             try:
+    #                 clipped_raster.rio.write_nodata(-9999, inplace=True)
+    #             except ValueError:
+    #                 pass
+    #
+    #             output_path = file_path.rsplit('.', 1)[0] + '.tif'
+    #
+    #             try:
+    #                 clipped_raster.rio.to_raster(output_path, nodata=-9999)
+    #             except ValueError as e:
+    #                 if "overwriting existing key _FillValue" in str(e):
+    #                     if '_FillValue' in clipped_raster.encoding:
+    #                         del clipped_raster.encoding['_FillValue']
+    #                     clipped_raster.rio.to_raster(output_path, nodata=-9999)
+    #                 else:
+    #                     raise  # re-raise the exception if it's not the one we're expecting
+    #
+    #             return output_path
 
     def create_glofas_dropdown(self, dropdown_options, description, default_value):
         """
@@ -891,11 +1064,20 @@ class JupyterAPI(geemap.Map):
             self.glofas_options.observe(self.on_glofas_option_change, names='value')
             self.on_glofas_option_change({'new': self.glofas_options.value})
             self.api_choice_stack.children = [self.glofas_options, self.glofas_stack]
+            if self.boundary_type.value == 'Predefined Boundaries':
+                self.update_boundary_options('Predefined Boundaries')
 
         elif new_value == 'gee':
             self.gee_options = self.create_widgets_gee()
             # self.gee_options.layout.width = 'auto'
             self.api_choice_stack.children = tuple(self.gee_options)
+            if self.boundary_type.value == 'Predefined Boundaries':
+                self.update_boundary_options('Predefined Boundaries')
+        elif new_value == 'modis_nrt':
+            self.modis_nrt_options = self.create_widgets_for_modis_nrt()
+            self.api_choice_stack.children = tuple(self.modis_nrt_options)
+            if self.boundary_type.value == 'Predefined Boundaries':
+                self.update_boundary_options('Predefined Boundaries')
         else:
             pass
 
@@ -966,11 +1148,11 @@ class JupyterAPI(geemap.Map):
                 self.api_choice_stack.layout.display = 'block'
 
         elif boundary_value == 'Parameter File':
-            self.predefined_upload_widget.layout.display='block'
-            self.end_of_vbox_items.layout.display='none'
-            self.boundary_stack.layout.display='none'
-            self.dropdown_api.layout.display='none'
-            self.api_choice_stack.layout.display='none'
+            self.predefined_upload_widget.layout.display = 'block'
+            self.end_of_vbox_items.layout.display = 'none'
+            self.boundary_stack.layout.display = 'none'
+            self.dropdown_api.layout.display = 'none'
+            self.api_choice_stack.layout.display = 'none'
 
         else:
             # Default case, hide everything
@@ -1013,20 +1195,20 @@ class JupyterAPI(geemap.Map):
             # Create the DatePicker widgets with constraints
             self.date_picker = HBox([
                 DatePicker(
-                description='Select Start Date:',
-                disabled=False,
-                value=datetime.date(min_year, min_month, 1),  # Default value
-                min=datetime.date(min_year, min_month, 1),  # Minimum value
-                max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
-            ),
+                    description='Select Start Date:',
+                    disabled=False,
+                    value=datetime.date(min_year, min_month, 1),  # Default value
+                    min=datetime.date(min_year, min_month, 1),  # Minimum value
+                    max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+                ),
 
-            DatePicker(
-                description='Select End Date:',
-                disabled=False,
-                value=datetime.date(max_year, max_month, 31),  # Default value
-                min=datetime.date(min_year, min_month, 1),  # Minimum value
-                max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
-            )])
+                DatePicker(
+                    description='Select End Date:',
+                    disabled=False,
+                    value=datetime.date(max_year, max_month, 31),  # Default value
+                    min=datetime.date(min_year, min_month, 1),  # Minimum value
+                    max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+                )])
 
             self.glofas_date_vbox.children = [self.date_picker]
 
@@ -1089,7 +1271,6 @@ class JupyterAPI(geemap.Map):
                 tooltips=['Single Date', 'Date Range'],
             )
 
-
             self.glofas_date_vbox = VBox([])
             self.on_single_or_date_range_change({'new': self.single_or_date_range.value}, glofas_option=glofas_option)
 
@@ -1116,16 +1297,153 @@ class JupyterAPI(geemap.Map):
             self.system_version.layout.width = 'auto'
             # self.date_picker.layout.width = 'auto'
 
-            self.filechooser_glofas = fc.FileChooser(os.getcwd(), show_only_dirs=True)
+            self.glofas_end_of_vbox_items = widgets.Accordion([
+                widgets.TwoByTwoLayout(
+                    top_left=self.add_to_map_check, top_right=self.no_data_helper_checklist,
+                    bottom_left=self.create_sub_folder, bottom_right=self.clip_to_geometry
+                )
+            ])
+
+            self.glofas_end_of_vbox_items.set_title(0, 'Options')
 
             # Return a list of widgets
             if glofas_option == 'cems-glofas-seasonal':
                 return [self.system_version, self.hydrological_model, self.leadtime, self.single_or_date_range,
-                        self.glofas_date_vbox, self.filechooser_glofas]
+                        self.glofas_date_vbox, self.filechooser, self.glofas_end_of_vbox_items]
             else:
                 return [self.system_version, self.hydrological_model, self.product_type, self.leadtime,
                         self.single_or_date_range,
-                        self.glofas_date_vbox, self.filechooser_glofas]
+                        self.glofas_date_vbox, self.filechooser, self.glofas_end_of_vbox_items]
+
+    def on_single_or_date_range_change_modis_nrt(self, change):
+        """
+        Handles the change event when the option for single date or date range is changed.
+
+        :param change: A dictionary containing information about the change event.
+        :param glofas_option: The selected Glofas option.
+        :return: None
+
+        """
+
+        single_or_date_range_value = change['new']
+
+        if single_or_date_range_value == 'Single Date':
+            # Create the DatePicker widget with constraints
+            self.date_picker_modis_nrt = DatePicker(
+                description='Select Date:',
+                disabled=False,
+                value=max(self.modis_nrt_available_dates),  # Default value
+                min=min(self.modis_nrt_available_dates),  # Minimum value
+                max=max(self.modis_nrt_available_dates)  # Maximum value (assumes 31 days in max month)
+            )
+            self.modis_nrt_date_vbox.children = [self.date_picker_modis_nrt]
+
+        elif single_or_date_range_value == 'Date Range':
+            # Create the DatePicker widgets with constraints
+            self.date_picker_modis_nrt = HBox([
+                DatePicker(
+                    description='Select Start Date:',
+                    disabled=False,
+                    value=min(self.modis_nrt_available_dates),  # Default value
+                    min=min(self.modis_nrt_available_dates),  # Minimum value
+                    max=max(self.modis_nrt_available_dates)  # Maximum value (assumes 31 days in max month)
+                ),
+
+                DatePicker(
+                    description='Select End Date:',
+                    disabled=False,
+                    value=max(self.modis_nrt_available_dates),  # Default value
+                    min=min(self.modis_nrt_available_dates),  # Minimum value
+                    max=max(self.modis_nrt_available_dates)  # Maximum value (assumes 31 days in max month)
+                )])
+
+            self.modis_nrt_date_vbox.children = [self.date_picker_modis_nrt]
+
+        elif single_or_date_range_value == 'All Available Images':
+            self.modis_nrt_date_vbox.children = []
+
+        return single_or_date_range_value
+
+    def convert_to_date(self, date_string):
+        # Extract the year and the day of the year from the string
+        year = int(date_string[:4])
+        day_of_year = int(date_string[4:])
+
+        # Calculate the date by adding the day of the year to the start of the year
+        date = datetime.datetime(year, 1, 1) + datetime.timedelta(days=day_of_year - 1)
+
+        return date
+
+    def get_modis_nrt_dates(self):
+        response = requests.get(
+            'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/61/MCDWD_L3_NRT?fields=all&formats=json')
+        json_response = response.json()['content']
+        years = [x['name'] for x in json_response if x['name'] != 'Recent']
+        dates = []
+        for year in years:
+            date_response = requests.get(
+                f'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/61/MCDWD_L3_NRT/{year}?fields=all&formats=json')
+            date_response_json = date_response.json()['content']
+            for date in date_response_json:
+                dates.append(self.convert_to_date(f'{year}{date["name"]}'))
+        return dates
+
+    def create_widgets_for_modis_nrt(self):
+        """
+        Create widgets specific to GloFas Data Type 2
+
+        :param glofas_option: The selected GloFas option
+        :return: A list of widgets specific to the selected GloFas option
+        """
+        # Create widgets specific to GloFas Data Type 2
+        # Example: A slider for selecting a range and a button
+
+        self.modis_nrt_available_dates = self.get_modis_nrt_dates()
+
+        print(self.modis_nrt_available_dates)
+
+        self.single_or_date_range_modis_nrt = widgets.ToggleButtons(
+            options=['Single Date', 'Date Range', 'All Available Images'],
+            disabled=False,
+            value='Single Date',
+            tooltips=['Single Date', 'Date Range', 'All Available Images'],
+        )
+
+        self.modis_nrt_date_vbox = VBox([])
+        self.on_single_or_date_range_change_modis_nrt({'new': self.single_or_date_range_modis_nrt.value})
+
+        # Define the minimum and maximum dates based on the year and month data
+        # min_year = min(self.glofas_dict['products'][glofas_option]['year'])
+        # max_year = max(self.glofas_dict['products'][glofas_option]['year'])
+        # min_month = 1  # Assuming January is always included
+        # max_month = 12  # Assuming December is always included
+        #
+        # # Create the DatePicker widget with constraints
+        # self.date_picker = DatePicker(
+        #     description='Select Date:',
+        #     disabled=False,
+        #     value=datetime.date(min_year, min_month, 1),  # Default value
+        #     min=datetime.date(min_year, min_month, 1),  # Minimum value
+        #     max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+        # )
+
+        self.single_or_date_range_modis_nrt.observe(
+            lambda change: self.on_single_or_date_range_change_modis_nrt(change),
+            names='value'
+        )
+
+        self.end_of_vbox_items = widgets.Accordion([widgets.TwoByTwoLayout(
+            top_left=self.create_sub_folder,
+            top_right=self.clip_to_geometry,
+            bottom_left=self.keep_individual_tiles,
+            bottom_right=self.add_image_to_map
+        )])
+
+        self.end_of_vbox_items.set_title(0, 'Options')
+
+        # Return a list of widgets
+        return [self.single_or_date_range_modis_nrt, self.modis_nrt_date_vbox, self.filechooser,
+                self.end_of_vbox_items]
 
     def on_glofas_option_change(self, change):
         """
@@ -1303,8 +1621,13 @@ class JupyterAPI(geemap.Map):
         else:
             print("No valid geometries to dissolve.")
 
-        if feature:
+        if feature and self.dropdown_api.value in ['glofas', 'modis_nrt']:
             self.geometry = feature.geometry().getInfo()
+            with open('geometry.geojson', "w") as file:
+                json.dump(self.geometry, file)
+            return self.geometry
+        else:
+            self.geometry = feature.geometry()
             return self.geometry
 
     def process_geometry_collection(self, geometry_collection, all_geometries):
@@ -1329,30 +1652,32 @@ class JupyterAPI(geemap.Map):
         :param raster_path: The file path to the raster file.
         :return: A tuple containing the minimum and maximum values of the raster.
         """
-        dataset = gdal.Open(raster_path)
-        band = dataset.GetRasterBand(1)  # Assumes the raster has only one band
-        min_val = band.GetMinimum()
-        max_val = band.GetMaximum()
+        with self.out:
+            dataset = gdal.Open(raster_path)
+            band = dataset.GetRasterBand(1)  # Assumes the raster has only one band
+            min_val = band.GetMinimum()
+            max_val = band.GetMaximum()
+            nodata_val = band.GetNoDataValue()
 
-        band_data = band.ReadAsArray()
+            band_data = band.ReadAsArray()
 
-        # Check if 9999 is in the data
-        if 9999 in band_data:
-            # Mask the data to ignore values of 9999 or higher
-            masked_data = np.ma.masked_where(band_data >= 9999, band_data)
+            # Check if 9999 is in the data
+            if 9999 in band_data:
+                # Mask the data to ignore values of 9999 or higher
+                masked_data = np.ma.masked_where(band_data >= 9999, band_data)
 
-            # Find the maximum value in the masked data
-            next_highest_val = masked_data.max()
+                # Find the maximum value in the masked data
+                next_highest_val = masked_data.max()
 
-            # Set max_val to the next highest value
-            max_val = next_highest_val
+                # Set max_val to the next highest value
+                max_val = next_highest_val
 
-        # If the minimum and maximum values are not natively provided by the raster band
-        if min_val is None or max_val is None:
-            min_val, max_val = band.ComputeRasterMinMax(True)
+            # If the minimum and maximum values are not natively provided by the raster band
+            if min_val is None or max_val is None:
+                min_val, max_val = band.ComputeRasterMinMax(True)
 
-        dataset = None  # Close the dataset
-        return min_val, max_val
+            dataset = None  # Close the dataset
+            return min_val, max_val, nodata_val
 
     def ee_geometry_to_shapely(self, geometry):
         """
@@ -1376,6 +1701,27 @@ class JupyterAPI(geemap.Map):
             # If it's neither, assume it's already a Shapely Geometry or compatible
             return geometry
 
+    def convert_geojson_to_ee(self, geojson_obj):
+        if geojson_obj['type'] == 'FeatureCollection':
+            return ee.FeatureCollection(geojson_obj['features'])
+        elif geojson_obj['type'] == 'Feature':
+            geometry = geojson_obj['geometry']
+            return ee.Feature(geometry)
+        elif geojson_obj['type'] in ['Polygon', 'MultiPolygon', 'Point', 'LineString', 'MultiPoint', 'MultiLineString']:
+            return ee.Geometry(geojson_obj)
+        else:
+            raise ValueError("Unsupported GeoJSON type")
+
+    def ee_ensure_geometry(self, geometry):
+        print(type(geometry))
+        if isinstance(geometry, ee.Feature):
+            geometry = geometry.geometry()
+            return geometry
+        elif isinstance(geometry, ee.Geometry):
+            return geometry
+        else:
+            raise ValueError("Invalid geometry type. Must be an Earth Engine Geometry or Feature.")
+
     def determine_geometries_to_process(self):
         """
         Determine the geometries to process based on the boundary type and user inputs.
@@ -1397,7 +1743,7 @@ class JupyterAPI(geemap.Map):
             geometries.append((feature, None))
         return geometries
 
-    def process_and_clip_raster(self, file_path, geometry):
+    def process_and_clip_raster(self, file_path, geometry, params=None):
         """
         Process and clip a raster file.
 
@@ -1405,7 +1751,8 @@ class JupyterAPI(geemap.Map):
         :return: None
         """
         with self.out:
-            min_val, max_val = self.get_raster_min_max(file_path)
+            min_val, max_val, no_data_val = self.get_raster_min_max(file_path)
+            print(min_val, max_val, no_data_val)
             if min_val == -9999:
                 min_val = 0
 
@@ -1413,12 +1760,14 @@ class JupyterAPI(geemap.Map):
                 'min': min_val,
                 'max': max_val,
                 'palette': 'viridis',
-                'nodata': -9999
+                'nodata': no_data_val
             }
-
-            clipped_raster_path = self.clip_raster(file_path, geometry)
-            if self.add_to_map_check.value:
-                self.add_clipped_raster_to_map(clipped_raster_path, vis_params=vis_params)
+            if params['clip_to_geometry']:
+                raster_path = self.clip_raster(file_path, geometry)
+            else:
+                raster_path = file_path
+            if params['add_to_map']:
+                self.add_clipped_raster_to_map(raster_path, vis_params=vis_params)
 
     def download_glofas_data(self, bbox, glofas_params, index, distinct_values=None):
         """
@@ -1429,7 +1778,7 @@ class JupyterAPI(geemap.Map):
         :return: The file path of the downloaded Glofas data.
 
         """
-        glofas_api = GlofasAPI()
+        cds_api = CDSAPI()
         request_parameters = {
             'variable': 'river_discharge_in_the_last_24_hours',
             'format': 'grib',
@@ -1449,7 +1798,7 @@ class JupyterAPI(geemap.Map):
         file_name = f"{self.dropdown.value}_{'userdefined' if distinct_values is None else '_'.join(str(value) for value in distinct_values)}_{index}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
 
         # Download data and return the file path
-        return glofas_api.download_data(self.glofas_options.value, request_parameters, file_name)
+        return cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
 
     def get_glofas_parameters(self, glofas_product):
         """
@@ -1489,7 +1838,11 @@ class JupyterAPI(geemap.Map):
         elif date_type == 'Date Range':
             start_date = self.date_picker.children[0].value
             end_date = self.date_picker.children[1].value
-        folder_location = self.filechooser_glofas.selected
+        folder_location = self.filechooser.selected
+        create_sub_folder = self.create_sub_folder.value
+        clip_to_geometry = self.clip_to_geometry.value
+        add_to_map = self.add_image_to_map.value
+        no_data_helper = self.no_data_helper_checklist.value
 
         if glofas_product == 'cems-glofas-seasonal':
 
@@ -1501,6 +1854,10 @@ class JupyterAPI(geemap.Map):
                 'month': month,
                 'day': day,
                 'folder_location': folder_location,
+                'create_sub_folder': create_sub_folder,
+                'clip_to_geometry': clip_to_geometry,
+                'add_to_map': add_to_map,
+                'no_data_helper': no_data_helper
             }
         elif glofas_product == 'cems-glofas-forecast':
 
@@ -1513,6 +1870,10 @@ class JupyterAPI(geemap.Map):
                 'month': month,
                 'day': day,
                 'folder_location': folder_location,
+                'create_sub_folder': create_sub_folder,
+                'clip_to_geometry': clip_to_geometry,
+                'add_to_map': add_to_map,
+                'no_data_helper': no_data_helper
             }
         elif glofas_product == 'cems-glofas-reforecast':
             return {
@@ -1524,6 +1885,10 @@ class JupyterAPI(geemap.Map):
                 'month': month,
                 'day': day,
                 'folder_location': folder_location,
+                'create_sub_folder': create_sub_folder,
+                'clip_to_geometry': clip_to_geometry,
+                'add_to_map': add_to_map,
+                'no_data_helper': no_data_helper
             }
         else:
             print("Invalid GloFAS product.")
@@ -1546,13 +1911,315 @@ class JupyterAPI(geemap.Map):
 
                 # with OutputWidgetTqdm(total=len(geometries), output_widget=self.out) as pbar:
                 for index, (geometry, distinct_values) in enumerate(geometries):
-                    bbox = self.get_bounding_box(distinct_values=distinct_values, feature=geometry)
-                    glofas_params = self.get_glofas_parameters(self.glofas_options.value)
+                    if self.dropdown_api.value == 'glofas':
+                        bbox = self.get_bounding_box(distinct_values=distinct_values, feature=geometry)
+                        glofas_params = self.get_glofas_parameters(self.glofas_options.value)
+                        with self.out:
+                            print(f"Processing geometry {index + 1} of {len(geometries)}")
+                            file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
+                        self.process_and_clip_raster(file_path, geometry, glofas_params)
+                    elif self.dropdown_api.value == 'gee':
+                        print('entered gee block')
+                        gee_params = self.gather_gee_parameters()
+                        geometry = self.ee_ensure_geometry(geometry)
+                        if gee_params['multi_date'] == False:
+                            print('entered single date block')
+                            img, region = ee_instance.get_image(**gee_params, geometry=geometry)
+                            url = ee_instance.get_image_download_url(img=img, region=region, scale=gee_params['scale'])
+                            file_name = 'gee_image.tif'
+                            ee_instance.download_file_from_url(url=url, destination_path=file_name)
+                            min_val, max_val, no_data_val = self.get_raster_min_max(file_name)
+                            if self.gee_bands_search_results.value.lower() in ['ndvi', 'evi']:
+                                palette = ['FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718',
+                                           '74A901', '66A000', '529400', '3E8601', '207401', '056201',
+                                           '004C00', '023B01', '012E01', '011D01', '011301']
+                                vis_params = {
+                                    'min': 0,
+                                    'max': 10000,
+                                    'palette': palette,
+                                    'nodata': no_data_val
+                                }
+                            else:
+                                vis_params = {
+                                    'min': min_val,
+                                    'max': max_val,
+                                    'palette': 'viridis',
+                                    'nodata': no_data_val
+                                }
+                            self.addLayer(img, vis_params)
+                        else:
+                            print('entered multi date block')
+                            if gee_params['aggregation_period'] == 'Monthly':
+                                print('entered monthly block')
+                                print(gee_params['start_date'])
+                                monthly_date_ranges = ee_instance.generate_monthly_date_ranges(gee_params['start_date'],
+                                                                                               gee_params['end_date'])
+                                if gee_params['statistics_only']:
+                                    all_stats = ee.Dictionary()
+                                for dates in monthly_date_ranges:
+                                    if gee_params['statistics_only']:
+                                        image, geometry = ee_instance.get_image(multi_date=True,
+                                                                                aggregation_method=gee_params[
+                                                                                    'aggregation_method'],
+                                                                                geometry=geometry, start_date=dates[0],
+                                                                                end_date=dates[1],
+                                                                                band=gee_params['band'],
+                                                                                image_collection=gee_params[
+                                                                                    'image_collection'])
+                                        stats = ee_instance.calculate_statistics(image, geometry, gee_params[
+                                            'band'])  # This should be a server-side object
+                                        all_stats = all_stats.set(dates[0], stats)
+                                    else:
+                                        img, boundary = ee_instance.get_image(multi_date=True,
+                                                                              aggregation_method=gee_params[
+                                                                                  'aggregation_method'],
+                                                                              geometry=geometry, start_date=dates[0],
+                                                                              end_date=dates[1],
+                                                                              band=gee_params['band'],
+                                                                              image_collection=gee_params[
+                                                                                  'image_collection'])
+                                        url = ee_instance.get_image_download_url(img=img, region=boundary,
+                                                                                 scale=gee_params['scale'])
+                                        file_name = f"{gee_params['image_collection']}_{dates[0]}_{dates[1]}_{gee_params['aggregation_method']}.tif".replace(
+                                            '-', '_').replace('/', '_').replace(' ', '_')
+                                        ee_instance.download_file_from_url(url=url, destination_path=file_name)
+                                        print(f"Downloaded {file_name}")
+                                if gee_params['statistics_only']:
+                                    all_stats_info = all_stats.getInfo()
+                                    print(all_stats_info)
 
-                    file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
-                    self.process_and_clip_raster(file_path, geometry)
+                            elif gee_params['aggregation_period'] == 'Yearly':
+                                print('entered yearly block')
+                                print(gee_params['start_date'])
+                                yearly_date_ranges = ee_instance.generate_yearly_date_ranges(
+                                    gee_params['start_date'], gee_params['end_date'])
+                                if gee_params['statistics_only']:
+                                    all_stats = ee.Dictionary()
+                                for dates in yearly_date_ranges:
+                                    if gee_params['statistics_only']:
+                                        image, geometry = ee_instance.get_image(multi_date=True,
+                                                                                aggregation_method=gee_params[
+                                                                                    'aggregation_method'],
+                                                                                geometry=geometry, start_date=dates[0],
+                                                                                end_date=dates[1],
+                                                                                band=gee_params['band'],
+                                                                                image_collection=gee_params[
+                                                                                    'image_collection'])
+                                        stats = ee_instance.calculate_statistics(image, geometry, gee_params[
+                                            'band'])  # This should be a server-side object
+                                        all_stats = all_stats.set(dates[0], stats)
+
+                                    else:
+                                        img, boundary = ee_instance.get_image(multi_date=True,
+                                                                              aggregation_method=gee_params[
+                                                                                  'aggregation_method'],
+                                                                              geometry=geometry, start_date=dates[0],
+                                                                              end_date=dates[1],
+                                                                              band=gee_params['band'],
+                                                                              image_collection=gee_params[
+                                                                                  'image_collection'])
+                                        url = ee_instance.get_image_download_url(img=img, region=boundary,
+                                                                                 scale=gee_params['scale'])
+                                        file_name = f"{gee_params['image_collection']}_{dates[0]}_{dates[1]}_{gee_params['aggregation_method']}.tif".replace(
+                                            '-', '_').replace('/', '_').replace(' ', '_')
+                                        ee_instance.download_file_from_url(url=url, destination_path=file_name)
+                                        print(f"Downloaded {file_name}")
+                                if gee_params['statistics_only']:
+                                    all_stats_info = all_stats.getInfo()
+                                    print(all_stats_info)
+                            elif gee_params['aggregation_period'] == 'One Aggregation':
+                                img, boundary = ee_instance.get_image(multi_date=True,
+                                                                      aggregation_method=gee_params[
+                                                                          'aggregation_method'],
+                                                                      geometry=geometry,
+                                                                      start_date=str(gee_params['start_date']),
+                                                                      end_date=str(gee_params['end_date']),
+                                                                      band=gee_params['band'],
+                                                                      image_collection=gee_params[
+                                                                          'image_collection'])
+                                url = ee_instance.get_image_download_url(img=img, region=boundary,
+                                                                         scale=gee_params['scale'])
+                                print(url)
+                                file_name = f"{gee_params['image_collection']}_{str(gee_params['start_date'])}_{str(gee_params['end_date'])}_{gee_params['aggregation_method']}.tif".replace(
+                                    '-', '_').replace('/', '_').replace(' ', '_')
+                                ee_instance.download_file_from_url(url=url, destination_path=file_name)
+                                print(f"Downloaded {file_name}")
+
+                    elif self.dropdown_api.value == 'modis_nrt':
+                        with self.out:
+                            print('entered modis nrt block')
+                            bbox = self.get_bounding_box(distinct_values=distinct_values, feature=geometry)
+                            print(bbox)
+                            modis_nrt_params = self.gather_modis_nrt_parameters()
+                            print(modis_nrt_params)
+                            if modis_nrt_params['create_sub_folder']:
+                                folder = f"{modis_nrt_params['folder_path']}/{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':','').replace('.','')}/"
+                                os.mkdir(folder)
+
+                                modis_nrt_params['folder_path'] = folder
+                            tiles = self.get_modis_tile(bbox)
+                            print(tiles)
+                            matching_files = []
+                            for tile in tiles:
+                                h = f"{tile[0]:02d}"
+                                v = f"{tile[1]:02d}"
+                                year = modis_nrt_params['date'].year
+                                doy = f"{modis_nrt_params['date'].timetuple().tm_yday:03d}"
+                                base_url_folder = f"{self.modis_nrt_api_root_url}{year}/{doy}/"
+                                file_pattern = rf"MCDWD_L3_NRT\.A{year}{doy}\.h{h}v{v}\.061\.\d+\.hdf"
+
+                                response = requests.get(base_url_folder)
+                                html_content = response.text
+
+                                soup = BeautifulSoup(html_content, 'html.parser')
+
+                                links = soup.find_all('a')
+
+                                # Check if the request was successful
+                                for link in links:
+                                    href = link.get('href')
+                                    if re.search(file_pattern, href):
+                                        matching_files.append(href)
+
+                            headers = {
+                                'Authorization': f'Bearer {self.modis_download_token}'
+                            }
+                            hdf_files_to_process = []
+                            tif_list = []
+                            for url in matching_files:
+                                response = requests.get(url, headers=headers, stream=True)
+                                if response.status_code == 200:
+                                    filename = f"{modis_nrt_params['folder_path']}{url.split('/')[-1]}"  # Extracts the filename
+                                    with open(filename, 'wb') as f:
+                                        for chunk in response.iter_content(chunk_size=8192):
+                                            f.write(chunk)
+                                    hdf_files_to_process.append(filename)
+                                    datasets = []
+                                    subdataset_index = 0
+                                    for hdf_file in hdf_files_to_process:
+                                        # Open the HDF file
+                                        hdf_dataset = gdal.Open(hdf_file, gdal.GA_ReadOnly)
+                                        subdatasets = hdf_dataset.GetSubDatasets()
+
+                                    for hdf_file in hdf_files_to_process:
+                                        hdf_dataset = gdal.Open(hdf_file, gdal.GA_ReadOnly)
+                                        subdatasets = hdf_dataset.GetSubDatasets()
+
+                                        # Select a subdataset
+                                        subdataset = subdatasets[subdataset_index][0]
+
+                                        # Open the subdataset
+                                        ds = gdal.Open(subdataset, gdal.GA_ReadOnly)
+
+                                        # Define output path for the GeoTIFF
+                                        output_tiff = hdf_file.replace('.hdf', '.tif')
+
+                                        tif_list.append(output_tiff)
+
+                                        # Convert to GeoTIFF
+                                        gdal.Translate(output_tiff, ds)
+
+                                        # Close the dataset
+                                        ds = None
+
+                            else:
+                                print(f"Failed to download {url}. Status code: {response.status_code}")
+
+                        merged_output = f'{folder}merged.tif'
+                        gdal.Warp(merged_output, tif_list)
+                        for file in tif_list + hdf_files_to_process:
+                            if modis_nrt_params['keep_individual_tiles']:
+                                pass
+                            else:
+                                try:
+                                    os.remove(file)
+                                except FileNotFoundError:
+                                    pass
+                        self.process_and_clip_raster(merged_output, geometry, modis_nrt_params)
+
+                    else:
+                        print('No valid api selected!')
 
                         # pbar.update(1)
+
+    def gather_modis_nrt_parameters(self):
+        date_type = self.single_or_date_range_modis_nrt.value
+        folder_path = self.filechooser.selected
+        create_sub_folder = self.create_sub_folder.value
+        clip_to_geometry = self.clip_to_geometry.value
+        keep_individual_tiles = self.keep_individual_tiles.value
+        add_image_to_map = self.add_image_to_map.value
+        if date_type == 'Single Date':
+            date = self.date_picker_modis_nrt.value
+            return {
+                'date': date,
+                'multi_date': False,
+                'folder_path': folder_path,
+                'create_sub_folder': create_sub_folder,
+                'clip_to_geometry': clip_to_geometry,
+                'keep_individual_tiles': keep_individual_tiles,
+                'add_to_map': add_image_to_map
+            }
+        elif date_type == 'Date Range':
+            start_date = self.date_picker_modis_nrt.children[0].value
+            end_date = self.date_picker_modis_nrt.children[1].value
+            return {
+                'start_date': start_date,
+                'end_date': end_date,
+                'multi_date': True,
+                'folder_path': folder_path,
+                'create_sub_folder': create_sub_folder,
+                'clip_to_geometry': clip_to_geometry,
+                'keep_individual_tiles': keep_individual_tiles,
+                'add_to_map': add_image_to_map
+            }
+        pass
+
+    def gather_gee_parameters(self):
+        image_collection = self.gee_layer_search_results_dropdown.value
+        date_type = self.single_or_range_dates.value
+        band = self.gee_bands_search_results.value
+        statistics_only = self.statistics_only_check.value
+        scale = int(self.scale_input.value)
+        add_image_to_map = self.add_to_map_check.value
+        create_sub_folder = self.create_sub_folder_check.value
+        if date_type == 'Single Date':
+            date = self.gee_single_date_selector.value
+            self.add_to_map_check.value = True
+            self.add_to_map_check.disabled = False
+            return {
+                'statistics_only': statistics_only,
+                'image_collection': image_collection,
+                'multi_date': False,
+                'band': band,
+                'date': date,
+                'scale': scale,
+                'create_sub_folder': create_sub_folder,
+                'add_to_map': add_image_to_map,
+            }
+        elif date_type == 'Date Range':
+            aggregation_period = self.gee_multi_date_aggregation_periods.value
+            aggregation_method = self.gee_multi_date_aggregation_method.value
+            start_date = self.gee_date_picker_start.value
+            end_date = self.gee_date_picker_end.value
+            band = self.gee_bands_search_results.value
+            self.add_to_map_check.value = False
+            self.add_to_map_check.disabled = True
+            return {
+                'statistics_only': statistics_only,
+                'image_collection': image_collection,
+                'multi_date': True,
+                'aggregation_period': aggregation_period,
+                'aggregation_method': aggregation_method,
+                'start_date': start_date,
+                'band': band,
+                'end_date': end_date,
+                'scale': scale,
+                'create_sub_folder': create_sub_folder,
+                'add_to_map': add_image_to_map,
+            }
+        else:
+            pass
 
     def on_button_click(self, b):
         """
@@ -1619,3 +2286,41 @@ class JupyterAPI(geemap.Map):
 
         """
         return self, self.out
+
+    ##############################################################################
+    #####################################MODIS API################################
+    ##############################################################################
+
+    def calculate_modis_tile_index(self, x, y):
+        """Calculate MODIS tile indices (h, v) for given sinusoidal coordinates."""
+        h = int((x + 20015109.354) // self.modis_tile_size)
+        v = int((10007554.677 - y) // self.modis_tile_size)  # Adjust for Northern Hemisphere
+        return h, v
+
+    def get_modis_tile(self, geometry):
+        """
+        Calculate which MODIS tiles the given geometry (point, bbox list, or DataFrame) falls into.
+        :param geometry: Shapely Point, bounding box list, or DataFrame with bbox columns.
+        :return: Set of tiles (h, v) the geometry falls into.
+        """
+        tiles_covered = set()
+
+        if isinstance(geometry, Point):
+            x, y = transform(Proj(proj='latlong'), self.modis_proj, geometry.x, geometry.y)
+            tiles_covered.add(self.calculate_modis_tile_index(x, y))
+        elif isinstance(geometry, list) and len(geometry) == 4:
+            for corner in [(geometry[0], geometry[1]), (geometry[0], geometry[3]),
+                           (geometry[2], geometry[1]), (geometry[2], geometry[3])]:
+                x, y = transform(Proj(proj='latlong'), self.modis_proj, *corner)
+                tiles_covered.add(self.calculate_modis_tile_index(x, y))
+        elif isinstance(geometry, pd.DataFrame):
+            bbox = geometry.iloc[0]  # Assuming you want to process the first row
+            for corner in [(bbox['minx'], bbox['miny']), (bbox['minx'], bbox['maxy']),
+                           (bbox['maxx'], bbox['miny']), (bbox['maxx'], bbox['maxy'])]:
+                x, y = transform(Proj(proj='latlong'), self.modis_proj, *corner)
+                tiles_covered.add(self.calculate_modis_tile_index(x, y))
+        else:
+            raise TypeError(
+                "Input must be a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.")
+
+        return tiles_covered

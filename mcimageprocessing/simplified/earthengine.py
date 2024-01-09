@@ -1,7 +1,7 @@
 import ee
 import json
 from pydantic import BaseModel, validator, root_validator
-from datetime import datetime
+import datetime
 import re
 import geopandas as gpd
 import requests
@@ -116,7 +116,7 @@ class EarthEngineManager(BaseModel):
 
         image_dates = self.get_image_collection_dates(collection)
 
-        day_formated = [datetime.strptime(day, '%Y-%m-%d') for day in image_dates]
+        day_formated = [datetime.datetime.strptime(day, '%Y-%m-%d') for day in image_dates]
 
         min_date = min(day_formated)
         max_date = max(day_formated)
@@ -138,41 +138,63 @@ class EarthEngineManager(BaseModel):
                 f"Invalid aggregation function: {function}. Must be one of: {', '.join(cls.aggregation_functions.keys())}")
         return function
 
-    def generate_monthly_date_ranges(self, start_year=1981, month=1):
-        now = datetime.now()
-        current_year = now.year
-        current_month = now.month
+    def generate_monthly_date_ranges(self, start_date, end_date):
+        # Convert start and end dates from strings to date objects
+        # start_date_dt = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        # end_date_dt = datetime.datetime.strptime(end_date, '%Y-%m-%d')
 
         date_ranges = []
 
-        for year in range(start_year, current_year + 1):
+        for year in range(start_date.year, end_date.year + 1):
             for month in range(1, 13):
-                if year == current_year and month == current_month:
+                # Skip months before the start month in the start year
+                if year == start_date.year and month < start_date.month:
+                    continue
+                # Stop if the month is after the end month in the end year
+                if year == end_date.year and month > end_date.month:
                     break
+                # Get the last day of the month
                 last_day = calendar.monthrange(year, month)[1]
-                start_date = f"{year}-{month:02}-01"
-                end_date = f"{year}-{month:02}-{last_day}"
-                date_ranges.append((start_date, end_date))
+                # Format the start and end dates of the month
+                month_start_date = datetime.date(year, month, 1).strftime('%Y-%m-%d')
+                month_end_date = datetime.date(year, month, last_day).strftime('%Y-%m-%d')
+                # Append the tuple of the start and end date of the month to the list
+                date_ranges.append((month_start_date, month_end_date))
 
         return date_ranges
 
-    def generate_yearly_date_ranges(self, start_year: int = 2016):
+    def generate_yearly_date_ranges(self, start_date, end_date):
+        # Convert start and end dates from strings to date objects
+        # start_date_dt = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        # end_date_dt = datetime.datetime.strptime(end_date, '%Y-%m-%d')
 
-        if not isinstance(start_year, int) or start_year < 1900 or start_year > datetime.now().year:
-            raise ValueError(
-                f"Invalid start year: {start_year}. Start year must be an integer between 1900 and the current year.")
-
-        now = datetime.now()
-        current_year = now.year
+        # Check if end_date is supplied and valid
+        if not end_date or end_date < start_date:
+            raise ValueError("The end date must be provided and must be after the start date.")
 
         date_ranges = []
 
-        for year in range(start_year, current_year + 1):
-            start_date = f"{year}-01-01"
-            end_date = f"{year}-12-31"
-            date_ranges.append((start_date, end_date))
+        for year in range(start_date.year, end_date.year + 1):
+            # Determine the start of the year
+            if year == start_date.year:
+                year_start_date = start_date
+            else:
+                year_start_date = datetime.date(year, 1, 1)
 
-        self.year_ranges = date_ranges
+            # Determine the end of the year
+            if year == end_date.year:
+                year_end_date = end_date
+            else:
+                year_end_date = datetime.date(year, 12, 31)
+
+            # Format the start and end dates of the year
+            year_start_date_str = year_start_date.strftime('%Y-%m-%d')
+            year_end_date_str = year_end_date.strftime('%Y-%m-%d')
+
+            # Append the tuple of the start and end date of the year to the list
+            date_ranges.append((year_start_date_str, year_end_date_str))
+
+        return date_ranges
 
     def get_image_collection_dates(self, collection: str, min_max_only: bool = False):
         # Regular expression to match both formats
@@ -235,14 +257,58 @@ class EarthEngineManager(BaseModel):
     #
     #     return ee.Geometry.Polygon(ee_coords)
 
-    def get_image(self, function: str
-                  , start_date,
-                  end_date,
-                  image_collection,
-                  band,
+    def calculate_statistics(self, img, geometry, band):
+        # Define the reducers for each statistic you want to calculate
+        reducers = ee.Reducer.mean().combine(
+            reducer2=ee.Reducer.sum(),
+            sharedInputs=True
+        ).combine(
+            reducer2=ee.Reducer.max(),
+            sharedInputs=True
+        ).combine(
+            reducer2=ee.Reducer.min(),
+            sharedInputs=True
+        ).combine(
+            reducer2=ee.Reducer.stdDev(),
+            sharedInputs=True
+        ).combine(
+            reducer2=ee.Reducer.variance(),
+            sharedInputs=True
+        ).combine(
+            reducer2=ee.Reducer.median(),
+            sharedInputs=True
+        )
+
+        # Apply the reducers to the image
+        stats = img.reduceRegion(reducer=reducers, geometry=geometry, maxPixels=1e12)
+
+        # Rename the keys in the dictionary to be more descriptive
+        stats_dict = {
+            'Mean': stats.get(band + '_mean'),
+            'Sum': stats.get(band + '_sum'),
+            'Max': stats.get(band + '_max'),
+            'Min': stats.get(band + '_min'),
+            'Standard Deviation': stats.get(band + '_stdDev'),
+            'Variance': stats.get(band + '_variance'),
+            'Median': stats.get(band + '_median')
+        }
+
+        return stats_dict
+
+    def get_image(self,
+                  multi_date: bool,
+                  aggregation_period: str=None,
+                  aggregation_method: str=None,
+                  start_date:str=None,
+                  end_date:str=None,
+                    date:str=None,
+                  scale=None,
+                  image_collection:str=None,
+                  band:str=None,
                   additional_filter=False,
-                  filter_arguments=None,
-                  country='Uganda'
+                  filter_argument=None,
+                  geometry=None,
+                  statistics_only=False
                   ):
         """
         Fetches the specified image from the Earth Engine dataset and applies the specified aggregation function.
@@ -255,60 +321,105 @@ class EarthEngineManager(BaseModel):
         - nigeria (ee.Geometry): Geometry object representing Nigeria's boundary.
         """
 
-        self.__class__.validate_aggregation_function(function)
+        if multi_date:
+            self.__class__.validate_aggregation_function(aggregation_method)
 
-        img_function = EarthEngineManager.aggregation_functions.get(function)
-        if img_function is None:
-            raise ValueError(f"Invalid aggregation function: {function}")
+            img_function = EarthEngineManager.aggregation_functions.get(aggregation_method)
+            if img_function is None:
+                raise ValueError(f"Invalid aggregation function: {aggregation_method}")
 
-        print(function)
 
-        nigeria = ee.FeatureCollection("USDOS/LSIB/2017").filter(ee.Filter.eq("COUNTRY_NA", country)).geometry()
-        boundary = nigeria
+            boundary = geometry
 
-        if additional_filter:
+            # if additional_filter:
+            #     img_collection = ee.ImageCollection(image_collection).filter(
+            #         ee.Filter.date(start_date, end_date)).select(band).filter(ee.Filter.bounds(geometry))
+            # else:
+                # img_collection = ee.ImageCollection(image_collection).filter(
+                #     ee.Filter.date(start_date, end_date)).select(band)
+
             img_collection = ee.ImageCollection(image_collection).filter(
-                ee.Filter.date(start_date, end_date)).select(band).filter(
-                ee.Filter.eq(filter_arguments[0], filter_arguments[1]))
+                ee.Filter.date(start_date, end_date)).select(band).filter(ee.Filter.bounds(geometry))
+
+            # if function not in self.__class__.aggregation_functions.keys():
+            #     raise ValueError('Aggregation Function must be one of mode, median, mean, max, min, sum or None')
+
+
+            mask = ee.Image.constant(1).clip(geometry)
+
+            img = self.__class__.aggregation_functions[aggregation_method](img_collection).clip(boundary)
+
+            # Step 1: Mask where value is not -9999
+            valid_pixels = img.neq(-9999)
+
+            # Step 2: Combine valid_pixels mask with nigeria_mask
+            combined_mask = valid_pixels.And(mask)
+
+            # Step 3: Use the combined mask to mask the aggregated image
+            img_masked = img.updateMask(combined_mask)
+
+            nodata_value = 0
+            img = img_masked.unmask(nodata_value)
+
+
+            # Checking for presence of -9999 pixels
+            # min_value = img.reduceRegion(reducer=ee.Reducer.min(), geometry=nigeria, scale=30, maxPixels=1e12).get(band).getInfo()
+
+            # if min_value == -9999:
+            #     raise ValueError('The image contains -9999 pixels after processing.')
+
+            return img, boundary
         else:
 
-            img_collection = ee.ImageCollection(image_collection).filter(
-                ee.Filter.date(start_date, end_date)).select(band)
+            if isinstance(geometry, ee.Feature):
+                geometry = geometry.geometry()
+            elif isinstance(geometry, ee.Geometry):
+                geometry = geometry
+            else:
+                raise ValueError("The region must be a Feature or Geometry.")
 
-        if function not in self.__class__.aggregation_functions.keys():
-            raise ValueError('Aggregation Function must be one of mode, median, mean, max, min, sum or None')
+            img_collection = ee.ImageCollection(image_collection).filterDate(ee.Date(date)).select(band).filter(ee.Filter.bounds(geometry))
 
-        boundary_mask = nigeria
+            mask = ee.Image.constant(1).clip(geometry)
 
-        mask = ee.Image.constant(1).clip(boundary_mask)
+            img = img_collection.first().clip(geometry)
 
-        img = self.__class__.aggregation_functions[function](img_collection).clip(boundary)
+            # Step 1: Mask where value is not -9999
+            valid_pixels = img.neq(-9999)
 
-        # Step 1: Mask where value is not -9999
-        valid_pixels = img.neq(-9999)
+            # Step 2: Combine valid_pixels mask with nigeria_mask
+            combined_mask = valid_pixels.And(mask)
 
-        # Step 2: Combine valid_pixels mask with nigeria_mask
-        combined_mask = valid_pixels.And(mask)
+            # Step 3: Use the combined mask to mask the aggregated image
+            img_masked = img.updateMask(combined_mask)
 
-        # Step 3: Use the combined mask to mask the aggregated image
-        img_masked = img.updateMask(combined_mask)
+            nodata_value = 0
+            img = img_masked.unmask(nodata_value)
 
-        nodata_value = 0
-        img = img_masked.unmask(nodata_value)
 
-        # Checking for presence of -9999 pixels
-        # min_value = img.reduceRegion(reducer=ee.Reducer.min(), geometry=nigeria, scale=30, maxPixels=1e12).get(band).getInfo()
+            # Checking for presence of -9999 pixels
+            # min_value = img.reduceRegion(reducer=ee.Reducer.min(), geometry=nigeria, scale=30, maxPixels=1e12).get(band).getInfo()
 
-        # if min_value == -9999:
-        #     raise ValueError('The image contains -9999 pixels after processing.')
+            # if min_value == -9999:
+            #     raise ValueError('The image contains -9999 pixels after processing.')
 
-        return img, boundary
+            return img, geometry
 
     def get_image_download_url(self, region, scale, img, format='GEO_TIFF', crs='EPSG:4326'):
+
+
+        if isinstance(region, ee.Feature):
+            geometry = region.geometry()
+        elif isinstance(region, ee.Geometry):
+            geometry = region
+        else:
+            raise ValueError("The region must be a Feature or Geometry.")
+
+
         return img.getDownloadURL({
-            'region': region,
+            'region': geometry,
             'scale': scale,
-            'crs': 'EPSG:4326',
+            'crs': crs,
             'format': format
         })
 
@@ -390,11 +501,11 @@ class EarthEngineManager(BaseModel):
             date_ranges = self.generate_yearly_date_ranges(int(start_date[:4]))
 
         for start, end in date_ranges:
-            start = datetime.strptime(start, "%Y-%m-%d").date()
-            end = datetime.strptime(end, "%Y-%m-%d").date()
+            start = datetime.datetime.strptime(start, "%Y-%m-%d").date()
+            end = datetime.datetime.strptime(end, "%Y-%m-%d").date()
 
             # If the date range is within the specified start date and end date
-            if start >= datetime.strptime(start_date, "%Y-%m-%d").date() and end <= datetime.strptime(end_date,
+            if start >= datetime.datetime.strptime(start_date, "%Y-%m-%d").date() and end <= datetime.datetime.strptime(end_date,
                                                                                                       "%Y-%m-%d").date():
                 print(f"Processing images from {start} to {end}...")
 
