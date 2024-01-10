@@ -1647,6 +1647,25 @@ class JupyterAPI(geemap.Map):
             return geometry
 
     def convert_geojson_to_ee(self, geojson_obj):
+        """
+        Converts a GeoJSON object to Earth Engine feature or geometry.
+
+        :param geojson_obj: A GeoJSON object.
+        :return: A converted Earth Engine feature or geometry.
+
+        Raises:
+            ValueError: If the GeoJSON type is unsupported.
+
+        Example usage:
+            geojson = {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [0, 0]
+                }
+            }
+            ee_object = convert_geojson_to_ee(geojson)
+        """
         if geojson_obj['type'] == 'FeatureCollection':
             return ee.FeatureCollection(geojson_obj['features'])
         elif geojson_obj['type'] == 'Feature':
@@ -1658,6 +1677,15 @@ class JupyterAPI(geemap.Map):
             raise ValueError("Unsupported GeoJSON type")
 
     def ee_ensure_geometry(self, geometry):
+        """
+        Ensures that the input geometry is a valid Earth Engine Geometry or Feature.
+
+        :param geometry: The input geometry to be validated.
+        :type geometry: ee.Geometry or ee.Feature
+        :return: The valid Earth Engine Geometry.
+        :rtype: ee.Geometry
+        :raises ValueError: If the input geometry is neither an ee.Geometry nor an ee.Feature.
+        """
         if isinstance(geometry, ee.Feature):
             geometry = geometry.geometry()
             return geometry
