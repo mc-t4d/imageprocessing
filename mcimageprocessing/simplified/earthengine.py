@@ -139,9 +139,6 @@ class EarthEngineManager(BaseModel):
         return function
 
     def generate_monthly_date_ranges(self, start_date, end_date):
-        # Convert start and end dates from strings to date objects
-        # start_date_dt = datetime.datetime.strptime(start_date, '%Y-%m-%d')
-        # end_date_dt = datetime.datetime.strptime(end_date, '%Y-%m-%d')
 
         date_ranges = []
 
@@ -200,10 +197,6 @@ class EarthEngineManager(BaseModel):
         # Regular expression to match both formats
         pattern = r'^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+){1,2}$'
 
-        # if not re.match(pattern, collection):
-        #     raise ValueError(
-        #         f"Invalid collection format: {collection}. Expected format: 'Source/Code' (e.g., 'COPERNICUS/S2_SR') or 'Source/Code/Dataset' (e.g., 'MODIS/061/MOD13A2')")
-
         def format_dates(img):
             original_date = ee.Date(img.get('system:time_start'))
             current_day = original_date.format('YYYY-MM-dd')
@@ -230,32 +223,6 @@ class EarthEngineManager(BaseModel):
             ee_date_list = current_date_list.getInfo()
             self.ee_dates = [x for x in ee_date_list]
             return self.ee_dates
-
-    # def get_boundary(self):
-    #     gdf = gpd.GeoDataFrame.from_postgis(
-    #         f'SELECT *, ST_SimplifyPreserveTopology(geometry, {os.getenv("POLYGON_SIMPLIFICATION_TOLERANCE")}) as simplified_geometry FROM public."state_adm"',
-    #         self.sql_connect(),
-    #         geom_col='simplified_geometry'
-    #     )
-    #     gdf.crs = "EPSG:4326"
-    #
-    #     comitas_states = gdf[gdf['statename'].isin(['Adamawa', 'Taraba'])]
-    #     comitas_states = comitas_states.assign(dissolve_field=1)
-    #
-    #     dissolved_gdf = comitas_states.dissolve(by='dissolve_field')
-    #
-    #     geometry = dissolved_gdf.geometry.iloc[0]
-    #     if not geometry.is_valid or geometry.geom_type == 'MultiPolygon':
-    #         # Convert MultiPolygon to a single Polygon, here we take the largest polygon
-    #         largest_polygon = max(geometry, key=lambda a: a.area)
-    #         boundary_coords = list(largest_polygon.exterior.coords)
-    #     else:
-    #         boundary_coords = list(geometry.exterior.coords)
-    #
-    #     # Convert coordinates for Earth Engine
-    #     ee_coords = [list(coord) for coord in boundary_coords]  # Convert to list of lists
-    #
-    #     return ee.Geometry.Polygon(ee_coords)
 
     def calculate_statistics(self, img, geometry, band):
         # Define the reducers for each statistic you want to calculate
@@ -331,25 +298,18 @@ class EarthEngineManager(BaseModel):
                 raise ValueError(f"Invalid aggregation function: {aggregation_method}")
 
 
-            boundary = geometry
 
-            # if additional_filter:
-            #     img_collection = ee.ImageCollection(image_collection).filter(
-            #         ee.Filter.date(start_date, end_date)).select(band).filter(ee.Filter.bounds(geometry))
-            # else:
-                # img_collection = ee.ImageCollection(image_collection).filter(
-                #     ee.Filter.date(start_date, end_date)).select(band)
+            boundary = geometry
 
             img_collection = ee.ImageCollection(image_collection).filter(
                 ee.Filter.date(start_date, end_date)).select(band).filter(ee.Filter.bounds(geometry))
 
-            # if function not in self.__class__.aggregation_functions.keys():
-            #     raise ValueError('Aggregation Function must be one of mode, median, mean, max, min, sum or None')
-
+            ee_img_scale = img_collection.first().projection().nominalScale().getInfo()
 
             mask = ee.Image.constant(1).clip(geometry)
 
             img = self.__class__.aggregation_functions[aggregation_method](img_collection).clip(boundary)
+
 
             # Step 1: Mask where value is not -9999
             valid_pixels = img.neq(-9999)
@@ -363,14 +323,7 @@ class EarthEngineManager(BaseModel):
             nodata_value = 0
             img = img_masked.unmask(nodata_value)
 
-
-            # Checking for presence of -9999 pixels
-            # min_value = img.reduceRegion(reducer=ee.Reducer.min(), geometry=nigeria, scale=30, maxPixels=1e12).get(band).getInfo()
-
-            # if min_value == -9999:
-            #     raise ValueError('The image contains -9999 pixels after processing.')
-
-            return img, boundary
+            return img, boundary, ee_img_scale
         else:
 
             if isinstance(geometry, ee.Feature):
@@ -382,9 +335,12 @@ class EarthEngineManager(BaseModel):
 
             img_collection = ee.ImageCollection(image_collection).filterDate(ee.Date(date)).select(band).filter(ee.Filter.bounds(geometry))
 
+            ee_img_scale = img_collection.first().projection().nominalScale().getInfo()
+
             mask = ee.Image.constant(1).clip(geometry)
 
             img = img_collection.first().clip(geometry)
+
 
             # Step 1: Mask where value is not -9999
             valid_pixels = img.neq(-9999)
@@ -398,14 +354,39 @@ class EarthEngineManager(BaseModel):
             nodata_value = 0
             img = img_masked.unmask(nodata_value)
 
+            return img, geometry, ee_img_scale
 
-            # Checking for presence of -9999 pixels
-            # min_value = img.reduceRegion(reducer=ee.Reducer.min(), geometry=nigeria, scale=30, maxPixels=1e12).get(band).getInfo()
+    def split_and_sort_geometry(self, geometry, num_sections):
+        """
+        Splits a geometry into a specified number of sections and sorts them by area.
 
-            # if min_value == -9999:
-            #     raise ValueError('The image contains -9999 pixels after processing.')
+        :param geometry: The Earth Engine Geometry to split.
+        :param num_sections: Number of sections to split into (e.g., 4 for a 2x2 grid).
+        :return: A sorted list of Earth Engine Geometries.
+        """
+        bounds = geometry.bounds()
+        coords = bounds.getInfo()['coordinates'][0]
+        min_x, max_x = min(coords, key=lambda x: x[0])[0], max(coords, key=lambda x: x[0])[0]
+        min_y, max_y = min(coords, key=lambda x: x[1])[1], max(coords, key=lambda x: x[1])[1]
 
-            return img, geometry
+        # Calculate dimensions for the grid
+        num_rows = num_cols = int(num_sections ** 0.5)
+        x_step = (max_x - min_x) / num_cols
+        y_step = (max_y - min_y) / num_rows
+
+        grid = []
+        for i in range(num_cols):
+            for j in range(num_rows):
+                x_start = min_x + i * x_step
+                y_start = min_y + j * y_step
+                cell = ee.Geometry.Rectangle([x_start, y_start, x_start + x_step, y_start + y_step])
+                intersected_cell = cell.intersection(geometry, ee.ErrorMargin(x_step))
+                grid.append(intersected_cell)
+
+        # Sort the grid cells by area, largest first
+        sorted_grid = sorted(grid, key=lambda g: g.area().getInfo(), reverse=True)
+
+        return sorted_grid
 
     def get_image_download_url(self, region, scale, img, format='GEO_TIFF', crs='EPSG:4326'):
 
@@ -417,6 +398,11 @@ class EarthEngineManager(BaseModel):
         else:
             raise ValueError("The region must be a Feature or Geometry.")
 
+        if scale == 'default':
+            scale = img.projection().nominalScale().getInfo()
+        else:
+            pass
+
 
         return img.getDownloadURL({
             'region': geometry,
@@ -424,20 +410,6 @@ class EarthEngineManager(BaseModel):
             'crs': crs,
             'format': format
         })
-
-    # def download_file_from_url_to_s3(url, bucket_name, s3_destination_key):
-    #     # Initialize a session using Boto3
-    #     session = boto3.session.Session()
-    #     # Get the S3 resource
-    #     s3 = session.resource('s3')
-    #
-    #     # Get the response from the URL
-    #     response = requests.get(url, stream=True)
-    #     response.raise_for_status()
-    #
-    #     # Upload the content directly to S3
-    #     s3_object = s3.Object(bucket_name, s3_destination_key)
-    #     s3_object.put(Body=response.raw)
 
     @staticmethod
     def download_file_from_url(url, destination_path):
@@ -544,24 +516,6 @@ class EarthEngineManager(BaseModel):
                 filtered_1 = gaul_dataset.filter(ee.Filter.eq(f'ADM{level - 1}_NAME', current))
                 lower_level_units_1 = filtered_1.aggregate_array(f'ADM{level}_NAME').distinct()
 
-                # if level == 2:
-                #     output_dict = ee.Dictionary({})
-                #
-                #     def process_higher_level_unit_2(level_1_unit, prev_2):
-                #         prev_2 = ee.Dictionary(prev_2)
-                #         level_1_unit = ee.String(level_1_unit)
-                #
-                #         # filter level 2 units for current level 1 unit
-                #         filtered_2 = gaul_dataset.filter(ee.Filter.eq(f'ADM1_NAME', level_1_unit))
-                #         lower_level_units_2 = filtered_2.aggregate_array('ADM2_NAME').distinct()
-                #
-                #         return prev_2.set(level_1_unit, lower_level_units_2)
-                #
-                #     lower_level_units_2_dict = ee.Dictionary(
-                #         ee.List(lower_level_units_1.iterate(process_higher_level_unit_2, ee.Dictionary({}))))
-                #     return prev.set(current, lower_level_units_2_dict)
-                #
-                # else:
                 return prev.set(current, lower_level_units_1)
 
             admin_units_dict = ee.Dictionary(
@@ -612,25 +566,6 @@ class EarthEngineManager(BaseModel):
 
         primary_filters_sheet.add_data_validation(dv)
 
-        # if admin_level > 0:
-        #     hidden_sheet = wb.create_sheet(title="Hidden")
-        #     hidden_sheet.sheet_state = 'hidden'
-        #
-        #     for row_index, (admin0, admin1_list) in enumerate(admin_levels.items(), start=1):
-        #         for col_index, admin1 in enumerate(admin1_list, start=1):
-        #             hidden_sheet.cell(row=row_index, column=col_index, value=admin1)
-        #         # Corrected way to create a named range
-        #         named_range = f"'{hidden_sheet.title}'!$A${row_index}:$A${row_index}"
-        #         defined_name = DefinedName(name=admin0, attr_text=named_range)
-        #         wb.defined_names.append(defined_name)
-        #
-        #     # INDIRECT data validation for Admin1
-        #     dv_admin1 = DataValidation(type="list", formula1=f'INDIRECT(${get_column_letter(1)}2)',
-        #                                showDropDown=False)
-        #     primary_filters_sheet.add_data_validation(dv_admin1)
-        #     for row in range(2, 501):  # Apply to rows 2 to 500
-        #         dv_admin1.add(primary_filters_sheet[f'F{row}'])
-
         dv_date = DataValidation(type="date",
                                  operator="between",
                                  formula1=min(self.ee_dates),
@@ -667,123 +602,3 @@ class EarthEngineManager(BaseModel):
             del wb['Sheet']
 
         return wb
-
-
-# class GloFasManager(BaseModel):
-#     data_dicts = {
-#         "products": {
-#             'cems-glofas-seasonal': {
-#                 "system_version": ['operational', 'version_3_1', 'version_2_2'],
-#                 'hydrological_model': ['lisflood', 'HTESSEL-LISFLOOD'],
-#                 "variable": "river_discharge_in_the_last_24_hours",
-#                 "leadtime_hour": [
-#                     24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360, 384, 408,
-#                     432, 456, 480, 504, 528, 552, 576, 600, 624, 648, 672, 696, 720, 744, 768, 792,
-#                     816, 840, 864, 888, 912, 936, 960, 984, 1008, 1032, 1056, 1080, 1104, 1128, 1152,
-#                     1176, 1200, 1224, 1248, 1272, 1296, 1320, 1344, 1368, 1392, 1416, 1440, 1464, 1488,
-#                     1512, 1536, 1560, 1584, 1608, 1632, 1656, 1680, 1704, 1728, 1752, 1776, 1800, 1824,
-#                     1848, 1872, 1896, 1920, 1944, 1968, 1992, 2016, 2040, 2064, 2088, 2112, 2136, 2160,
-#                     2184, 2208, 2232, 2256, 2280, 2304, 2328, 2352, 2376, 2400, 2424, 2448, 2472, 2496,
-#                     2520, 2544, 2568, 2592, 2616, 2640, 2664, 2688, 2712, 2736, 2760, 2784, 2808, 2832,
-#                     2856, 2880, 2904, 2928, 2952, 2976, 3000, 3024, 3048, 3072, 3096, 3120, 3144, 3168,
-#                     3192, 3216, 3240, 3264, 3288, 3312, 3336, 3360, 3384, 3408, 3432, 3456, 3480, 3504,
-#                     3528, 3552, 3576, 3600, 3624, 3648, 3672, 3696, 3720, 3744, 3768, 3792, 3816, 3840,
-#                     3864, 3888, 3912, 3936, 3960, 3984, 4008, 4032, 4056, 4080, 4104, 4128, 4152, 4176,
-#                     4200, 4224, 4248, 4272, 4296, 4320, 4344, 4368, 4392, 4416, 4440, 4464, 4488, 4512,
-#                     4536, 4560, 4584, 4608, 4632, 4656, 4680, 4704, 4728, 4752, 4776, 4800, 4824, 4848,
-#                     4872, 4896, 4920, 4944, 4968, 4992, 5016, 5040, 5064, 5088, 5112, 5136, 5160],
-#                 "year": [2020, 2021, 2022, 2023],
-#                 "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-#                           "11", "12"],
-#                 # "area": [10.95, -90.95, -30.95, -29.95],
-#                 "format": "grib"
-#             },
-#             'cems-glofas-forecast': {
-#                 "system_version": ['operational', 'version_3_1', 'version_2_1'],
-#                 'hydrological_model': ['lisflood', 'htessel_lisflood'],
-#                 'product_type': [
-#                     'control_forecast', 'ensemble_perturbed_forecasts',
-#                 ],
-#                 "variable": "river_discharge_in_the_last_24_hours",
-#                 "leadtime_hour": [
-#                     24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360, 384, 408,
-#                     432, 456, 480, 504, 528, 552, 576, 600, 624, 648, 672, 696, 720],
-#                 "year": [2019, 2020, 2021, 2022, 2023],
-#                 "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-#                           "11", "12"],
-#                 "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-#                         13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-#                         23, 24, 25, 26, 27, 28, 29, 30, 31],
-#                 # "area": [10.95, -90.95, -30.95, -29.95],
-#                 "format": "grib"
-#             },
-#             'cems-glofas-reforecast': {
-#                 "system_version": ['version_4_0', 'version_3_1', 'version_2_2'],
-#                 'hydrological_model': ['lisflood', 'htessel_lisflood'],
-#                 'product_type': [
-#                     'control_forecast', 'ensemble_perturbed_forecasts',
-#                 ],
-#                 "leadtime_hour": [
-#                     24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360, 384, 408,
-#                     432, 456, 480, 504, 528, 552, 576, 600, 624, 648, 672, 696, 720, 744, 768, 792,
-#                     816, 840, 864, 888, 912, 936, 960, 984, 1008, 1032, 1056, 1080, 1104],
-#                 "year": [1999, 2000, 20001, 2002, 2003, 2004, 2005, 2006, 2007,
-#                          2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015,
-#                          2016, 2017, 2018, 2019, 2020, 2021, 2022],
-#                 "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-#                           "11", "12"],
-#                 "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-#                         13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-#                         23, 24, 25, 26, 27, 28, 29, 30, 31],
-#                 # "area": [10.95, -90.95, -30.95, -29.95],
-#                 "format": "grib"
-#             },
-#             'cems-glofas-seasonal-reforecast': {
-#                 "system_version": ['version_4_0', 'version_3_1', 'version_2_2'],
-#                 'hydrological_model': ['lisflood', 'htessel_lisflood'],
-#                 "variable": "river_discharge_in_the_last_24_hours",
-#                 "leadtime_hour": [
-#                     24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360, 384, 408,
-#                     432, 456, 480, 504, 528, 552, 576, 600, 624, 648, 672, 696, 720, 744, 768, 792,
-#                     816, 840, 864, 888, 912, 936, 960, 984, 1008, 1032, 1056, 1080, 1104,
-#                     1128, 1152, 1176, 1200, 1224, 1248, 1272, 1296, 1320, 1344, 1368, 1392, 1416, 1440, 1464, 1488,
-#                     1512, 1536, 1560, 1584, 1608, 1632, 1656, 1680, 1704, 1728, 1752, 1776, 1800, 1824,
-#                     1848, 1872, 1896, 1920, 1944, 1968, 1992, 2016, 2040, 2064, 2088, 2112, 2136, 2160,
-#                     2184, 2208, 2232, 2256, 2280, 2304, 2328, 2352, 2376, 2400, 2424, 2448, 2472, 2496,
-#                     2520, 2544, 2568, 2592, 2616, 2640, 2664, 2688, 2712, 2736, 2760, 2784, 2808, 2832,
-#                     2856, 2880, 2904, 2928, 2952, 2976, 3000, 3024, 3048, 3072, 3096, 3120, 3144, 3168,
-#                     3192, 3216, 3240, 3264, 3288, 3312, 3336, 3360, 3384, 3408, 3432, 3456, 3480, 3504,
-#                     3528, 3552, 3576, 3600, 3624, 3648, 3672, 3696, 3720, 3744, 3768, 3792, 3816, 3840,
-#                     3864, 3888, 3912, 3936, 3960, 3984, 4008, 4032, 4056, 4080, 4104, 4128, 4152, 4176,
-#                     4200, 4224, 4248, 4272, 4296, 4320, 4344, 4368, 4392, 4416, 4440, 4464, 4488, 4512,
-#                     4536, 4560, 4584, 4608, 4632, 4656, 4680, 4704, 4728, 4752, 4776, 4800, 4824, 4848,
-#                     4872, 4896, 4920, 4944, 4968, 4992, 5016, 5040, 5064, 5088, 5112, 5136, 5160],
-#
-#                 "year": [1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990,
-#                          1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-#                          20001, 2002, 2003, 2004, 2005, 2006, 2007,
-#                          2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015,
-#                          2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
-#                 "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-#                           "11", "12"],
-#                 "format": "grib"
-#             },
-#             'cems-glofas-historical': {
-#                 "system_version": ['version_4_0', 'version_3_1', 'version_2_1'],
-#                 'hydrological_model': ['lisflood', 'htessel_lisflood'],
-#                 "product_type": ['consoloated', 'intermediate']
-#                 "variable": "river_discharge_in_the_last_24_hours",
-#                 "year": [1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986,
-#                          1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
-#                          1995, 1996, 1997, 1998, 1999, 2000, 20001, 2002,
-#                          2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-#                          2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
-#                          2019, 2020, 2021, 2022, 2023],
-#                 "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-#                           "11", "12"],
-#                 "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-#                         12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-#                         22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
-#             }
-#         }
-#     }

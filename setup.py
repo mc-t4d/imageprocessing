@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
 """The setup script."""
 
 from setuptools import setup, find_packages
@@ -10,27 +13,27 @@ with open('README.md') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [ ]
-
 test_requirements = ['pytest>=3', ]
 
 setup(
     author="Nicholas Dowhaniuk",
     author_email='nick@kndconsulting.org',
-    python_requires='>=3.6',
+    python_requires='>=3.11',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.11',
     ],
+    requirements=requirements,
+    package_data={
+        'mcimageprocessing': ['ee_auth_file.json'],
+    },
+    include_package_data=True,
     description="A Python package built for Mercy Corps to handle image processing and analysis.",
     install_requires=requirements,
     long_description=readme + '\n\n' + history,
-    include_package_data=True,
     keywords='mcimageprocessing',
     name='mcimageprocessing',
     packages=find_packages(include=['mcimageprocessing', 'mcimageprocessing.*']),
