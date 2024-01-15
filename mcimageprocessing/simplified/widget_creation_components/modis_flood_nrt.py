@@ -78,36 +78,44 @@ def create_widgets_for_modis_nrt(self):
     :param glofas_option: The selected GloFas option
     :return: A list of widgets specific to the selected GloFas option
     """
+    with self.out:
+        self.modis_nrt_available_dates = self.get_modis_nrt_dates()
 
-    self.modis_nrt_available_dates = self.get_modis_nrt_dates()
+        self.single_or_date_range_modis_nrt = widgets.ToggleButtons(
+            options=['Single Date', 'Date Range', 'All Available Images'],
+            disabled=False,
+            value='Single Date',
+            tooltips=['Single Date', 'Date Range', 'All Available Images'],
+        )
 
-    self.single_or_date_range_modis_nrt = widgets.ToggleButtons(
-        options=['Single Date', 'Date Range', 'All Available Images'],
-        disabled=False,
-        value='Single Date',
-        tooltips=['Single Date', 'Date Range', 'All Available Images'],
-    )
+        self.modis_nrt_band_selection = widgets.Dropdown(
+            options=[x for x in self.nrt_band_options.keys()],
+            description='Band:',
+            disabled=False,
+            value='Flood 3-Day 250m Grid_Water_Composite',
+            style={'description_width': 'initial'},
+        )
 
-    self.modis_nrt_date_vbox = VBox([])
-    self.on_single_or_date_range_change_modis_nrt({'new': self.single_or_date_range_modis_nrt.value})
+        self.modis_nrt_date_vbox = VBox([])
+        self.on_single_or_date_range_change_modis_nrt({'new': self.single_or_date_range_modis_nrt.value})
 
-    self.single_or_date_range_modis_nrt.observe(
-        lambda change: self.on_single_or_date_range_change_modis_nrt(change),
-        names='value'
-    )
+        self.single_or_date_range_modis_nrt.observe(
+            lambda change: self.on_single_or_date_range_change_modis_nrt(change),
+            names='value'
+        )
 
-    self.end_of_vbox_items = widgets.Accordion([widgets.TwoByTwoLayout(
-        top_left=self.create_sub_folder,
-        top_right=self.clip_to_geometry,
-        bottom_left=self.keep_individual_tiles,
-        bottom_right=self.add_image_to_map
-    )])
+        self.end_of_vbox_items = widgets.Accordion([widgets.TwoByTwoLayout(
+            top_left=self.create_sub_folder,
+            top_right=self.clip_to_geometry,
+            bottom_left=self.keep_individual_tiles,
+            bottom_right=self.add_image_to_map
+        )])
 
-    self.end_of_vbox_items.set_title(0, 'Options')
+        self.end_of_vbox_items.set_title(0, 'Options')
 
-    # Return a list of widgets
-    return [self.single_or_date_range_modis_nrt, self.modis_nrt_date_vbox, self.filechooser,
-            self.end_of_vbox_items]
+        # Return a list of widgets
+        return [self.modis_nrt_band_selection, self.single_or_date_range_modis_nrt, self.modis_nrt_date_vbox, self.filechooser,
+                self.end_of_vbox_items]
 
 def process_modis_nrt_api(self, geometry, distinct_values, index):
     """
@@ -185,7 +193,7 @@ def process_modis_nrt_api(self, geometry, distinct_values, index):
                     f.write(chunk)
             hdf_files_to_process.append(filename)
             datasets = []
-            subdataset_index = 0
+            subdataset_index = self.nrt_band_options[self.modis_nrt_band_selection.value]
             for hdf_file in hdf_files_to_process:
                 # Open the HDF file
                 hdf_dataset = gdal.Open(hdf_file, gdal.GA_ReadOnly)
@@ -196,6 +204,7 @@ def process_modis_nrt_api(self, geometry, distinct_values, index):
                 subdatasets = hdf_dataset.GetSubDatasets()
 
                 # Select a subdataset
+                print(subdatasets)
                 subdataset = subdatasets[subdataset_index][0]
 
                 # Open the subdataset

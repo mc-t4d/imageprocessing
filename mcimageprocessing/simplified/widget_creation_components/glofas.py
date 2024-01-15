@@ -3,6 +3,7 @@ import datetime
 import ipywidgets as widgets
 from ipywidgets import DatePicker
 from ipywidgets import VBox, HBox
+import itertools
 
 from mcimageprocessing.simplified.GloFasAPI import CDSAPI
 
@@ -316,22 +317,63 @@ def get_glofas_parameters(self, glofas_product):
         print("Invalid GloFAS product.")
         return None
 
-    def process_glofas_api(self, geometry, distinct_values, index):
-        """
-        Process the GLOFAS API data.
+def process_glofas_api(self, geometry, distinct_values, index):
+    """
+    Process the GLOFAS API data.
 
-        :param geometry: The geometry object representing the area of interest.
-        :type geometry: <Geometry type>
+    :param geometry: The geometry object representing the area of interest.
+    :type geometry: <Geometry type>
 
-        :param distinct_values: The distinct values to filter the data.
-        :type distinct_values: list
+    :param distinct_values: The distinct values to filter the data.
+    :type distinct_values: list
 
-        :param index: The index value to select the data.
-        :type index: int
+    :param index: The index value to select the data.
+    :type index: int
 
-        :return: None
-        """
+    :return: None
+    """
+    with self.out:
         bbox = self.get_bounding_box(distinct_values, geometry)
         glofas_params = self.get_glofas_parameters(self.glofas_options.value)
-        file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
-        self.process_and_clip_raster(file_path, geometry, glofas_params)
+
+        # Initially try to download data with the current parameters
+        try:
+            file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
+            self.process_and_clip_raster(file_path, geometry, glofas_params)
+            return  # If successful, exit the function here
+        except Exception as e:
+
+        # If the initial attempt fails, try other combinations
+            if "no data is available within your requested subset" in str(e):
+                if glofas_params['no_data_helper']:
+                    system_version_list = self.glofas_dict['products'][self.glofas_options.value]['system_version']
+                    hydrological_model_list = self.glofas_dict['products'][self.glofas_options.value]['hydrological_model']
+                    product_type_list = self.glofas_dict['products'][self.glofas_options.value].get('product_type', [None])
+
+                    # Generate all combinations
+                    all_combinations = list(itertools.product(system_version_list, hydrological_model_list, product_type_list))
+
+                    # Remove the last attempted combination
+                    last_attempted_combination = (glofas_params['system_version'], glofas_params['hydrological_model'],
+                                                  glofas_params['product_type'] if glofas_params.get('product_type') else None)
+                    all_combinations.remove(last_attempted_combination)
+
+                    # Try each remaining combination
+                    for comb in all_combinations:
+                        try:
+                            glofas_params['system_version'], glofas_params['hydrological_model'], glofas_params['product_type'] = comb
+                            file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
+                            self.process_and_clip_raster(file_path, geometry, glofas_params)
+                            return  # If successful, exit the loop and function
+                        except Exception as e:
+                            print(e)
+                            if "no data is available within your requested subset" not in str(e):
+                                break  # Exit the loop if a different error occurs
+
+            # Handle the case where no combination was successful
+            print("No suitable data could be found for any combination.")
+
+
+
+
+

@@ -73,7 +73,6 @@ boundary_dropdown = {'Admin 0': 'admin_0', 'Admin 1': 'admin_1', 'Admin 2': 'adm
 boundary_definition_type = {'User Defined': 'user_defined', 'Predefined Boundaries': 'predefined',
                             'User Uploaded Data': 'user_uploaded'}
 
-
 # Render the CSS in the notebook
 HTML(custom_css)
 
@@ -144,6 +143,14 @@ class JupyterAPI(geemap.Map):
 
                     # self.update_final_output()
 
+    def get_map_and_output(self):
+        """
+
+        :return: A tuple containing the map object `self` and the output attribute `self.out`.
+
+        """
+        return self, self.out
+
     def setup_global_variables(self):
         self.added_layers = {}
         self.glofas_dict = {
@@ -192,6 +199,285 @@ class JupyterAPI(geemap.Map):
             }
         }
 
+        self.gaul_dictionary = {'Afghanistan': {'GAUL': 1, 'ISO3': 'AFG', 'ISO2': 'AF'},
+                                'Albania': {'GAUL': 3, 'ISO3': 'ALB', 'ISO2': 'AL'},
+                                'Algeria': {'GAUL': 4, 'ISO3': 'DZA', 'ISO2': 'DZ'},
+                                'American Samoa': {'GAUL': 5, 'ISO3': 'ASM', 'ISO2': 'AS'},
+                                'Andorra': {'GAUL': 7, 'ISO3': 'AND', 'ISO2': 'AD'},
+                                'Angola': {'GAUL': 8, 'ISO3': 'AGO', 'ISO2': 'AO'},
+                                'Anguilla': {'GAUL': 9, 'ISO3': 'AIA', 'ISO2': 'AI'},
+                                'Antarctica': {'GAUL': 10, 'ISO3': 'ATA', 'ISO2': 'AQ'},
+                                'Antigua and Barbuda': {'GAUL': 11, 'ISO3': 'ATG', 'ISO2': 'AG'},
+                                'Argentina': {'GAUL': 12, 'ISO3': 'ARG', 'ISO2': 'AR'},
+                                'Armenia': {'GAUL': 13, 'ISO3': 'ARM', 'ISO2': 'AM'},
+                                'Aruba': {'GAUL': 14, 'ISO3': 'ABW', 'ISO2': 'AW'},
+                                'Australia': {'GAUL': 17, 'ISO3': 'AUS', 'ISO2': 'AU'},
+                                'Austria': {'GAUL': 18, 'ISO3': 'AUT', 'ISO2': 'AT'},
+                                'Azerbaijan': {'GAUL': 19, 'ISO3': 'AZE', 'ISO2': 'AZ'},
+                                'Bahamas': {'GAUL': 20, 'ISO3': 'BHS', 'ISO2': 'BS'},
+                                'Bahrain': {'GAUL': 21, 'ISO3': 'BHR', 'ISO2': 'BH'},
+                                'Bangladesh': {'GAUL': 23, 'ISO3': 'BGD', 'ISO2': 'BD'},
+                                'Barbados': {'GAUL': 24, 'ISO3': 'BRB', 'ISO2': 'BB'},
+                                'Belarus': {'GAUL': 26, 'ISO3': 'BLR', 'ISO2': 'BY'},
+                                'Belgium': {'GAUL': 27, 'ISO3': 'BEL', 'ISO2': 'BE'},
+                                'Belize': {'GAUL': 28, 'ISO3': 'BLZ', 'ISO2': 'BZ'},
+                                'Benin': {'GAUL': 29, 'ISO3': 'BEN', 'ISO2': 'BJ'},
+                                'Bermuda': {'GAUL': 30, 'ISO3': 'BMU', 'ISO2': 'BM'},
+                                'Bhutan': {'GAUL': 31, 'ISO3': 'BTN', 'ISO2': 'BT'},
+                                'Bolivia': {'GAUL': 33, 'ISO3': 'BOL', 'ISO2': 'BO'},
+                                'Bosnia and Herzegovina': {'GAUL': 34, 'ISO3': 'BIH', 'ISO2': 'BA'},
+                                'Botswana': {'GAUL': 35, 'ISO3': 'BWA', 'ISO2': 'BW'},
+                                'Bouvet Island': {'GAUL': 36, 'ISO3': 'BVT', 'ISO2': 'BV'},
+                                'Brazil': {'GAUL': 37, 'ISO3': 'BRA', 'ISO2': 'BR'},
+                                'British Indian Ocean Territory': {'GAUL': 38, 'ISO3': 'IOT', 'ISO2': 'IO'},
+                                'British Virgin Islands': {'GAUL': 39, 'ISO3': 'VGB', 'ISO2': 'VG'},
+                                'Brunei Darussalam': {'GAUL': 40, 'ISO3': 'BRN', 'ISO2': 'BN'},
+                                'Bulgaria': {'GAUL': 41, 'ISO3': 'BGR', 'ISO2': 'BG'},
+                                'Burkina Faso': {'GAUL': 42, 'ISO3': 'BFA', 'ISO2': 'BF'},
+                                'Burundi': {'GAUL': 43, 'ISO3': 'BDI', 'ISO2': 'BI'},
+                                'Cambodia': {'GAUL': 44, 'ISO3': 'KHM', 'ISO2': 'KH'},
+                                'Cameroon': {'GAUL': 45, 'ISO3': 'CMR', 'ISO2': 'CM'},
+                                'Canada': {'GAUL': 46, 'ISO3': 'CAN', 'ISO2': 'CA'},
+                                'Cape Verde': {'GAUL': 47, 'ISO3': 'CPV', 'ISO2': 'CV'},
+                                'Cayman Islands': {'GAUL': 48, 'ISO3': 'CYM', 'ISO2': 'KY'},
+                                'Central African Republic': {'GAUL': 49, 'ISO3': 'CAF', 'ISO2': 'CF'},
+                                'Chad': {'GAUL': 50, 'ISO3': 'TCD', 'ISO2': 'TD'},
+                                'Chile': {'GAUL': 51, 'ISO3': 'CHL', 'ISO2': 'CL'},
+                                'Christmas Island': {'GAUL': 54, 'ISO3': 'CXR', 'ISO2': 'CX'},
+                                'Cocos (Keeling) Islands': {'GAUL': 56, 'ISO3': 'CCK', 'ISO2': 'CC'},
+                                'Colombia': {'GAUL': 57, 'ISO3': 'COL', 'ISO2': 'CO'},
+                                'Comoros': {'GAUL': 58, 'ISO3': 'COM', 'ISO2': 'KM'},
+                                'Congo': {'GAUL': 59, 'ISO3': 'COG', 'ISO2': 'CG'},
+                                'Cook Islands': {'GAUL': 60, 'ISO3': 'COK', 'ISO2': 'CK'},
+                                'Costa Rica': {'GAUL': 61, 'ISO3': 'CRI', 'ISO2': 'CR'},
+                                'Croatia': {'GAUL': 62, 'ISO3': 'HRV', 'ISO2': 'HR'},
+                                'Cuba': {'GAUL': 63, 'ISO3': 'CUB', 'ISO2': 'CU'},
+                                'Cyprus': {'GAUL': 64, 'ISO3': 'CYP', 'ISO2': 'CY'},
+                                'Czech Republic': {'GAUL': 65, 'ISO3': 'CZE', 'ISO2': 'CZ'},
+                                "Côte d'Ivoire": {'GAUL': 66, 'ISO3': 'CIV', 'ISO2': 'CI'},
+                                "Dem People's Rep of Korea": {'GAUL': 67, 'ISO3': 'PRK', 'ISO2': 'KP'},
+                                'Democratic Republic of the Congo': {'GAUL': 68, 'ISO3': 'COD', 'ISO2': 'CD'},
+                                'Denmark': {'GAUL': 69, 'ISO3': 'DNK', 'ISO2': 'DK'},
+                                'Djibouti': {'GAUL': 70, 'ISO3': 'DJI', 'ISO2': 'DJ'},
+                                'Dominica': {'GAUL': 71, 'ISO3': 'DMA', 'ISO2': 'DM'},
+                                'Dominican Republic': {'GAUL': 72, 'ISO3': 'DOM', 'ISO2': 'DO'},
+                                'Ecuador': {'GAUL': 73, 'ISO3': 'ECU', 'ISO2': 'EC'},
+                                'Egypt': {'GAUL': 40765, 'ISO3': 'EGY', 'ISO2': 'EG'},
+                                'El Salvador': {'GAUL': 75, 'ISO3': 'SLV', 'ISO2': 'SV'},
+                                'Equatorial Guinea': {'GAUL': 76, 'ISO3': 'GNQ', 'ISO2': 'GQ'},
+                                'Eritrea': {'GAUL': 77, 'ISO3': 'ERI', 'ISO2': 'ER'},
+                                'Estonia': {'GAUL': 78, 'ISO3': 'EST', 'ISO2': 'EE'},
+                                'Ethiopia': {'GAUL': 79, 'ISO3': 'ETH', 'ISO2': 'ET'},
+                                'Falkland Islands (Malvinas)': {'GAUL': 81, 'ISO3': 'FLK', 'ISO2': 'FK'},
+                                'Faroe Islands': {'GAUL': 82, 'ISO3': 'FRO', 'ISO2': 'FO'},
+                                'Fiji': {'GAUL': 83, 'ISO3': 'FJI', 'ISO2': 'FJ'},
+                                'Finland': {'GAUL': 84, 'ISO3': 'FIN', 'ISO2': 'FI'},
+                                'France': {'GAUL': 85, 'ISO3': 'FRA', 'ISO2': 'FR'},
+                                'French Guiana': {'GAUL': 86, 'ISO3': 'GUF', 'ISO2': 'GF'},
+                                'French Polynesia': {'GAUL': 87, 'ISO3': 'PYF', 'ISO2': 'PF'},
+                                'French Southern and Antarctic Territories': {'GAUL': 88, 'ISO3': 'ATF', 'ISO2': 'TF'},
+                                'Gabon': {'GAUL': 89, 'ISO3': 'GAB', 'ISO2': 'GA'},
+                                'Gambia': {'GAUL': 90, 'ISO3': 'GMB', 'ISO2': 'GM'},
+                                'Georgia': {'GAUL': 92, 'ISO3': 'GEO', 'ISO2': 'GE'},
+                                'Germany': {'GAUL': 93, 'ISO3': 'DEU', 'ISO2': 'DE'},
+                                'Ghana': {'GAUL': 94, 'ISO3': 'GHA', 'ISO2': 'GH'},
+                                'Gibraltar': {'GAUL': 95, 'ISO3': 'GIB', 'ISO2': 'GI'},
+                                'Greece': {'GAUL': 97, 'ISO3': 'GRC', 'ISO2': 'GR'},
+                                'Greenland': {'GAUL': 98, 'ISO3': 'GRL', 'ISO2': 'GL'},
+                                'Grenada': {'GAUL': 99, 'ISO3': 'GRD', 'ISO2': 'GD'},
+                                'Guadeloupe': {'GAUL': 100, 'ISO3': 'GLP', 'ISO2': 'GP'},
+                                'Guam': {'GAUL': 101, 'ISO3': 'GUM', 'ISO2': 'GU'},
+                                'Guatemala': {'GAUL': 103, 'ISO3': 'GTM', 'ISO2': 'GT'},
+                                'Guernsey': {'GAUL': 104, 'ISO3': 'GGY', 'ISO2': 'GG'},
+                                'Guinea': {'GAUL': 106, 'ISO3': 'GIN', 'ISO2': 'GN'},
+                                'Guinea-Bissau': {'GAUL': 105, 'ISO3': 'GNB', 'ISO2': 'GW'},
+                                'Guyana': {'GAUL': 107, 'ISO3': 'GUY', 'ISO2': 'GY'},
+                                'Haiti': {'GAUL': 108, 'ISO3': 'HTI', 'ISO2': 'HT'},
+                                'Heard Island and McDonald Islands': {'GAUL': 109, 'ISO3': 'HMD', 'ISO2': 'HM'},
+                                'Holy See': {'GAUL': 110, 'ISO3': 'VAT', 'ISO2': 'VA'},
+                                'Honduras': {'GAUL': 111, 'ISO3': 'HND', 'ISO2': 'HN'},
+                                'Hong Kong': {'GAUL': 33364, 'ISO3': 'HKG', 'ISO2': 'HK'},
+                                'Hungary': {'GAUL': 113, 'ISO3': 'HUN', 'ISO2': 'HU'},
+                                'Iceland': {'GAUL': 114, 'ISO3': 'ISL', 'ISO2': 'IS'},
+                                'India': {'GAUL': 115, 'ISO3': 'IND', 'ISO2': 'IN'},
+                                'Indonesia': {'GAUL': 116, 'ISO3': 'IDN', 'ISO2': 'ID'},
+                                'Iran  (Islamic Republic of)': {'GAUL': 117, 'ISO3': 'IRN', 'ISO2': 'IR'},
+                                'Iraq': {'GAUL': 118, 'ISO3': 'IRQ', 'ISO2': 'IQ'},
+                                'Ireland': {'GAUL': 119, 'ISO3': 'IRL', 'ISO2': 'IE'},
+                                'Isle of Man': {'GAUL': 120, 'ISO3': 'IMN', 'ISO2': 'IM'},
+                                'Israel': {'GAUL': 121, 'ISO3': 'ISR', 'ISO2': 'IL'},
+                                'Italy': {'GAUL': 122, 'ISO3': 'ITA', 'ISO2': 'IT'},
+                                'Jamaica': {'GAUL': 123, 'ISO3': 'JAM', 'ISO2': 'JM'},
+                                'Japan': {'GAUL': 126, 'ISO3': 'JPN', 'ISO2': 'JP'},
+                                'Jersey': {'GAUL': 128, 'ISO3': 'JEY', 'ISO2': 'JE'},
+                                'Jordan': {'GAUL': 130, 'ISO3': 'JOR', 'ISO2': 'JO'},
+                                'Kazakhstan': {'GAUL': 132, 'ISO3': 'KAZ', 'ISO2': 'KZ'},
+                                'Kenya': {'GAUL': 133, 'ISO3': 'KEN', 'ISO2': 'KE'},
+                                'Kiribati': {'GAUL': 135, 'ISO3': 'KIR', 'ISO2': 'KI'},
+                                'Kuwait': {'GAUL': 137, 'ISO3': 'KWT', 'ISO2': 'KW'},
+                                'Kyrgyzstan': {'GAUL': 138, 'ISO3': 'KGZ', 'ISO2': 'KG'},
+                                "Lao People's Democratic Republic": {'GAUL': 139, 'ISO3': 'LAO', 'ISO2': 'LA'},
+                                'Latvia': {'GAUL': 140, 'ISO3': 'LVA', 'ISO2': 'LV'},
+                                'Lebanon': {'GAUL': 141, 'ISO3': 'LBN', 'ISO2': 'LB'},
+                                'Lesotho': {'GAUL': 142, 'ISO3': 'LSO', 'ISO2': 'LS'},
+                                'Liberia': {'GAUL': 144, 'ISO3': 'LBR', 'ISO2': 'LR'},
+                                'Libya': {'GAUL': 145, 'ISO3': 'LBY', 'ISO2': 'LY'},
+                                'Liechtenstein': {'GAUL': 146, 'ISO3': 'LIE', 'ISO2': 'LI'},
+                                'Lithuania': {'GAUL': 147, 'ISO3': 'LTU', 'ISO2': 'LT'},
+                                'Luxembourg': {'GAUL': 148, 'ISO3': 'LUX', 'ISO2': 'LU'},
+                                'Macau': {'GAUL': 149, 'ISO3': 'MAC', 'ISO2': 'MO'},
+                                'Madagascar': {'GAUL': 150, 'ISO3': 'MDG', 'ISO2': 'MG'},
+                                'Malawi': {'GAUL': 152, 'ISO3': 'MWI', 'ISO2': 'MW'},
+                                'Malaysia': {'GAUL': 153, 'ISO3': 'MYS', 'ISO2': 'MY'},
+                                'Maldives': {'GAUL': 154, 'ISO3': 'MDV', 'ISO2': 'MV'},
+                                'Mali': {'GAUL': 155, 'ISO3': 'MLI', 'ISO2': 'ML'},
+                                'Malta': {'GAUL': 156, 'ISO3': 'MLT', 'ISO2': 'MT'},
+                                'Marshall Islands': {'GAUL': 157, 'ISO3': 'MHL', 'ISO2': 'MH'},
+                                'Martinique': {'GAUL': 158, 'ISO3': 'MTQ', 'ISO2': 'MQ'},
+                                'Mauritania': {'GAUL': 159, 'ISO3': 'MRT', 'ISO2': 'MR'},
+                                'Mauritius': {'GAUL': 160, 'ISO3': 'MUS', 'ISO2': 'MU'},
+                                'Mayotte': {'GAUL': 161, 'ISO3': 'MYT', 'ISO2': 'YT'},
+                                'Mexico': {'GAUL': 162, 'ISO3': 'MEX', 'ISO2': 'MX'},
+                                'Micronesia (Federated States of)': {'GAUL': 163, 'ISO3': 'FSM', 'ISO2': 'FM'},
+                                'Moldova, Republic of': {'GAUL': 165, 'ISO3': 'MDA', 'ISO2': 'MD'},
+                                'Monaco': {'GAUL': 166, 'ISO3': 'MCO', 'ISO2': 'MC'},
+                                'Mongolia': {'GAUL': 167, 'ISO3': 'MNG', 'ISO2': 'MN'},
+                                'Montenegro': {'GAUL': 2647, 'ISO3': 'MNE', 'ISO2': 'ME'},
+                                'Montserrat': {'GAUL': 168, 'ISO3': 'MSR', 'ISO2': 'MS'},
+                                'Morocco': {'GAUL': 169, 'ISO3': 'MAR', 'ISO2': 'MA'},
+                                'Mozambique': {'GAUL': 170, 'ISO3': 'MOZ', 'ISO2': 'MZ'},
+                                'Myanmar': {'GAUL': 171, 'ISO3': 'MMR', 'ISO2': 'MM'},
+                                'Namibia': {'GAUL': 172, 'ISO3': 'NAM', 'ISO2': None},
+                                'Nauru': {'GAUL': 173, 'ISO3': 'NRU', 'ISO2': 'NR'},
+                                'Nepal': {'GAUL': 175, 'ISO3': 'NPL', 'ISO2': 'NP'},
+                                'Netherlands': {'GAUL': 177, 'ISO3': 'NLD', 'ISO2': 'NL'},
+                                'Netherlands Antilles': {'GAUL': 176, 'ISO3': 'BES', 'ISO2': 'BQ'},
+                                'New Caledonia': {'GAUL': 178, 'ISO3': 'NCL', 'ISO2': 'NC'},
+                                'New Zealand': {'GAUL': 179, 'ISO3': 'NZL', 'ISO2': 'NZ'},
+                                'Nicaragua': {'GAUL': 180, 'ISO3': 'NIC', 'ISO2': 'NI'},
+                                'Niger': {'GAUL': 181, 'ISO3': 'NER', 'ISO2': 'NE'},
+                                'Nigeria': {'GAUL': 182, 'ISO3': 'NGA', 'ISO2': 'NG'},
+                                'Niue': {'GAUL': 183, 'ISO3': 'NIU', 'ISO2': 'NU'},
+                                'Norfolk Island': {'GAUL': 184, 'ISO3': 'NFK', 'ISO2': 'NF'},
+                                'Northern Mariana Islands': {'GAUL': 185, 'ISO3': 'MNP', 'ISO2': 'MP'},
+                                'Norway': {'GAUL': 186, 'ISO3': 'NOR', 'ISO2': 'NO'},
+                                'Oman': {'GAUL': 187, 'ISO3': 'OMN', 'ISO2': 'OM'},
+                                'Pakistan': {'GAUL': 188, 'ISO3': 'PAK', 'ISO2': 'PK'},
+                                'Palau': {'GAUL': 189, 'ISO3': 'PLW', 'ISO2': 'PW'},
+                                'Panama': {'GAUL': 191, 'ISO3': 'PAN', 'ISO2': 'PA'},
+                                'Papua New Guinea': {'GAUL': 192, 'ISO3': 'PNG', 'ISO2': 'PG'},
+                                'Paraguay': {'GAUL': 194, 'ISO3': 'PRY', 'ISO2': 'PY'},
+                                'Peru': {'GAUL': 195, 'ISO3': 'PER', 'ISO2': 'PE'},
+                                'Philippines': {'GAUL': 196, 'ISO3': 'PHL', 'ISO2': 'PH'},
+                                'Pitcairn': {'GAUL': 197, 'ISO3': 'PCN', 'ISO2': 'PN'},
+                                'Poland': {'GAUL': 198, 'ISO3': 'POL', 'ISO2': 'PL'},
+                                'Portugal': {'GAUL': 199, 'ISO3': 'PRT', 'ISO2': 'PT'},
+                                'Puerto Rico': {'GAUL': 200, 'ISO3': 'PRI', 'ISO2': 'PR'},
+                                'Qatar': {'GAUL': 201, 'ISO3': 'QAT', 'ISO2': 'QA'},
+                                'Republic of Korea': {'GAUL': 202, 'ISO3': 'KOR', 'ISO2': 'KR'},
+                                'Romania': {'GAUL': 203, 'ISO3': 'ROU', 'ISO2': 'RO'},
+                                'Russian Federation': {'GAUL': 204, 'ISO3': 'RUS', 'ISO2': 'RU'},
+                                'Rwanda': {'GAUL': 205, 'ISO3': 'RWA', 'ISO2': 'RW'},
+                                'Réunion': {'GAUL': 206, 'ISO3': 'REU', 'ISO2': 'RE'},
+                                'Saint Helena': {'GAUL': 207, 'ISO3': 'SHN', 'ISO2': 'SH'},
+                                'Saint Kitts and Nevis': {'GAUL': 208, 'ISO3': 'KNA', 'ISO2': 'KN'},
+                                'Saint Lucia': {'GAUL': 209, 'ISO3': 'LCA', 'ISO2': 'LC'},
+                                'Saint Pierre et Miquelon': {'GAUL': 210, 'ISO3': 'SPM', 'ISO2': 'PM'},
+                                'Saint Vincent and the Grenadines': {'GAUL': 211, 'ISO3': 'VCT', 'ISO2': 'VC'},
+                                'Samoa': {'GAUL': 212, 'ISO3': 'WSM', 'ISO2': 'WS'},
+                                'San Marino': {'GAUL': 213, 'ISO3': 'SMR', 'ISO2': 'SM'},
+                                'Sao Tome and Principe': {'GAUL': 214, 'ISO3': 'STP', 'ISO2': 'ST'},
+                                'Saudi Arabia': {'GAUL': 215, 'ISO3': 'SAU', 'ISO2': 'SA'},
+                                'Senegal': {'GAUL': 217, 'ISO3': 'SEN', 'ISO2': 'SN'},
+                                'Serbia': {'GAUL': 2648, 'ISO3': 'SRB', 'ISO2': 'RS'},
+                                'Seychelles': {'GAUL': 220, 'ISO3': 'SYC', 'ISO2': 'SC'},
+                                'Sierra Leone': {'GAUL': 221, 'ISO3': 'SLE', 'ISO2': 'SL'},
+                                'Singapore': {'GAUL': 222, 'ISO3': 'SGP', 'ISO2': 'SG'},
+                                'Slovakia': {'GAUL': 223, 'ISO3': 'SVK', 'ISO2': 'SK'},
+                                'Slovenia': {'GAUL': 224, 'ISO3': 'SVN', 'ISO2': 'SI'},
+                                'Solomon Islands': {'GAUL': 225, 'ISO3': 'SLB', 'ISO2': 'SB'},
+                                'Somalia': {'GAUL': 226, 'ISO3': 'SOM', 'ISO2': 'SO'},
+                                'South Africa': {'GAUL': 227, 'ISO3': 'ZAF', 'ISO2': 'ZA'},
+                                'South Georgia and the South Sandwich Islands': {'GAUL': 228, 'ISO3': 'SGS',
+                                                                                 'ISO2': 'GS'},
+                                'South Sudan': {'GAUL': None, 'ISO3': 'SSD', 'ISO2': 'SS'},
+                                'Spain': {'GAUL': 229, 'ISO3': 'ESP', 'ISO2': 'ES'},
+                                'Sri Lanka': {'GAUL': 231, 'ISO3': 'LKA', 'ISO2': 'LK'},
+                                'Sudan': {'GAUL': 40764, 'ISO3': 'SDN', 'ISO2': 'SD'},
+                                'Suriname': {'GAUL': 233, 'ISO3': 'SUR', 'ISO2': 'SR'},
+                                'Svalbard and Jan Mayen Islands': {'GAUL': 234, 'ISO3': 'SJM', 'ISO2': 'SJ'},
+                                'Swaziland': {'GAUL': 235, 'ISO3': 'SWZ', 'ISO2': 'SZ'},
+                                'Sweden': {'GAUL': 236, 'ISO3': 'SWE', 'ISO2': 'SE'},
+                                'Switzerland': {'GAUL': 237, 'ISO3': 'CHE', 'ISO2': 'CH'},
+                                'Syrian Arab Republic': {'GAUL': 238, 'ISO3': 'SYR', 'ISO2': 'SY'},
+                                'Tajikistan': {'GAUL': 239, 'ISO3': 'TJK', 'ISO2': 'TJ'},
+                                'Thailand': {'GAUL': 240, 'ISO3': 'THA', 'ISO2': 'TH'},
+                                'The former Yugoslav Republic of Macedonia': {'GAUL': 241, 'ISO3': 'MKD', 'ISO2': 'MK'},
+                                'Timor-Leste': {'GAUL': 242, 'ISO3': 'TLS', 'ISO2': 'TL'},
+                                'Togo': {'GAUL': 243, 'ISO3': 'TGO', 'ISO2': 'TG'},
+                                'Tokelau': {'GAUL': 244, 'ISO3': 'TKL', 'ISO2': 'TK'},
+                                'Tonga': {'GAUL': 245, 'ISO3': 'TON', 'ISO2': 'TO'},
+                                'Trinidad and Tobago': {'GAUL': 246, 'ISO3': 'TTO', 'ISO2': 'TT'},
+                                'Tunisia': {'GAUL': 248, 'ISO3': 'TUN', 'ISO2': 'TN'},
+                                'Turkey': {'GAUL': 249, 'ISO3': 'TUR', 'ISO2': 'TR'},
+                                'Turkmenistan': {'GAUL': 250, 'ISO3': 'TKM', 'ISO2': 'TM'},
+                                'Turks and Caicos islands': {'GAUL': 251, 'ISO3': 'TCA', 'ISO2': 'TC'},
+                                'Tuvalu': {'GAUL': 252, 'ISO3': 'TUV', 'ISO2': 'TV'},
+                                'U.K. of Great Britain and Northern Ireland': {'GAUL': 256, 'ISO3': 'GBR',
+                                                                               'ISO2': 'GB'},
+                                'Uganda': {'GAUL': 253, 'ISO3': 'UGA', 'ISO2': 'UG'},
+                                'Ukraine': {'GAUL': 254, 'ISO3': 'UKR', 'ISO2': 'UA'},
+                                'United Arab Emirates': {'GAUL': 255, 'ISO3': 'ARE', 'ISO2': 'AE'},
+                                'United Republic of Tanzania': {'GAUL': 257, 'ISO3': 'TZA', 'ISO2': 'TZ'},
+                                'United States Virgin Islands': {'GAUL': 258, 'ISO3': 'VIR', 'ISO2': 'VI'},
+                                'United States of America': {'GAUL': 259, 'ISO3': 'USA', 'ISO2': 'US'},
+                                'Uruguay': {'GAUL': 260, 'ISO3': 'URY', 'ISO2': 'UY'},
+                                'Uzbekistan': {'GAUL': 261, 'ISO3': 'UZB', 'ISO2': 'UZ'},
+                                'Vanuatu': {'GAUL': 262, 'ISO3': 'VUT', 'ISO2': 'VU'},
+                                'Venezuela': {'GAUL': 263, 'ISO3': 'VEN', 'ISO2': 'VE'},
+                                'Viet Nam': {'GAUL': 264, 'ISO3': 'VNM', 'ISO2': 'VN'},
+                                'Wallis and Futuna': {'GAUL': 266, 'ISO3': 'WLF', 'ISO2': 'WF'},
+                                'Western Sahara': {'GAUL': 268, 'ISO3': 'ESH', 'ISO2': 'EH'},
+                                'Yemen': {'GAUL': 269, 'ISO3': 'YEM', 'ISO2': 'YE'},
+                                'Zambia': {'GAUL': 270, 'ISO3': 'ZMB', 'ISO2': 'ZM'},
+                                'Zimbabwe': {'GAUL': 271, 'ISO3': 'ZWE', 'ISO2': 'ZW'}}
+
+        self.nrt_band_options = {'Water Counts 1-Day 250m Grid_Water_Composite': 0,
+                                 'Water Counts CS 1-Day 250m Grid_Water_Composite': 1,
+                                 'Valid Counts 1-Day 250m Grid_Water_Composite': 2,
+                                 'Valid Counts CS 1-Day 250m Grid_Water_Composite': 3,
+                                 'Flood 1-Day 250m Grid_Water_Composite': 4,
+                                 'Flood 1-Day CS 250m Grid_Water_Composite': 5,
+                                 'Water Counts 2-Day 250m Grid_Water_Composite': 6,
+                                 'Valid Counts 2-Day 250m Grid_Water_Composite': 7,
+                                 'Flood 2-Day 250m Grid_Water_Composite': 8,
+                                 'Water Counts 3-Day 250m Grid_Water_Composite': 9,
+                                 'Valid Counts 3-Day 250m Grid_Water_Composite': 10,
+                                 'Flood 3-Day 250m Grid_Water_Composite': 11}
+
+    def create_dropdown(self, dropdown_options, description, default_value):
+        """
+        Create a dropdown widget with the given options, description, and default value.
+
+        :param dropdown_options: a list of options for the dropdown
+        :type dropdown_options: list
+        :param description: the description text for the dropdown
+        :type description: str
+        :param default_value: the default value for the dropdown
+        :type default_value: any
+        :return: the created dropdown widget
+        :rtype: widgets.Dropdown
+        """
+        dropdown = widgets.Dropdown(
+            options=dropdown_options,
+            value=default_value,  # the default value
+            description=description,
+            disabled=False,
+        )
+
+        dropdown.observe(self.on_dropdown_change, names='value')
+        return dropdown
+
     def create_widgets(self):
         self.boundary_type = widgets.ToggleButtons(
             options=['Predefined Boundaries', 'User Defined', 'User Uploaded Data', 'Parameter File'],
@@ -210,7 +496,7 @@ class JupyterAPI(geemap.Map):
                                                   'Google Earth Engine': 'gee',
                                                   'MODIS NRT Flood Data': 'modis_nrt',
                                                   'WorldPop': 'worldpop',
-                                                  'Global Flood Database':'global_flood_database'}, 'Select API:',
+                                                  'Global Flood Database': 'global_flood_database'}, 'Select API:',
                                                  'glofas')
         # self.dropdown_api.layout.width = 'auto'
 
@@ -310,7 +596,6 @@ class JupyterAPI(geemap.Map):
 
         self.filechooser = fc.FileChooser(os.getcwd(), show_only_dirs=True)
 
-
     def setup_event_listeners(self):
         """
         Set up event listeners for the given parameters.
@@ -342,7 +627,8 @@ class JupyterAPI(geemap.Map):
         self.on_api_change({'new': self.dropdown_api.value})
 
         # Add the main widget container to the display
-        self.add_widget(self.inner_widget_container, layout=Layout(justify_content='center', max_height='40vh', overflow='auto'))
+        self.add_widget(self.inner_widget_container,
+                        layout=Layout(justify_content='center', max_height='40vh', overflow='auto'))
 
     def create_dropdown(self, dropdown_options, description, default_value):
         """
@@ -366,7 +652,6 @@ class JupyterAPI(geemap.Map):
 
         dropdown.observe(self.on_dropdown_change, names='value')
         return dropdown
-
 
     # def update_gee_date_selection_box(self, change):
 
@@ -709,7 +994,6 @@ class JupyterAPI(geemap.Map):
 
         return output_path
 
-
     def on_dropdown_change(self, change):
         """
         :param change: A dictionary containing information about the dropdown change event.
@@ -828,7 +1112,6 @@ class JupyterAPI(geemap.Map):
         else:
             pass
 
-
     def on_boundary_type_change(self, change):
         """
         :param change: A dictionary representing the change that occurred in the boundary type. The dictionary should have a key 'new' which points to the new boundary value.
@@ -908,7 +1191,6 @@ class JupyterAPI(geemap.Map):
             self.instruction_text.layout.display = 'none'
             self.upload_widget.layout.display = 'none'
 
-
     def convert_to_date(self, date_string):
         # Extract the year and the day of the year from the string
         year = int(date_string[:4])
@@ -918,59 +1200,6 @@ class JupyterAPI(geemap.Map):
         date = datetime.datetime(year, 1, 1) + datetime.timedelta(days=day_of_year - 1)
 
         return date
-
-
-    def add_clipped_raster_to_map(self, raster_path, vis_params=None):
-        """
-        Adds a clipped raster to the map.
-
-        :param raster_path: A string specifying the path to the raster file.
-        :param vis_params: Optional dictionary specifying the visualization parameters for the raster. Default is an empty dictionary.
-        :return: None
-
-        Example usage:
-
-            add_clipped_raster_to_map('/path/to/raster.tif', vis_params={'min': 0, 'max': 255})
-
-        This method creates a `localtileserver.TileClient` object using the given raster path. It then uses the `localtileserver.get_leaflet_tile_layer` method to obtain the Leaflet tile layer
-        * for the raster, applying the visualization parameters if provided. The resulting tile layer is added to the map using the `add_layer` method. Finally, the map adjusts its bounds to
-        * fit the bounds of the raster using the `fit_bounds` method.
-
-        If a ValueError occurs during the process, it will be caught and printed as an error message. Any other exceptions will also be caught and printed.
-
-        Note: This method assumes that the necessary dependencies (`localtileserver`) are installed and importable.
-        """
-        if vis_params is None:
-            vis_params = {}
-        try:
-            client = localtileserver.TileClient(raster_path)
-            tile_layer = localtileserver.get_leaflet_tile_layer(client, **vis_params)
-            self.add_layer(tile_layer)
-            self.fit_bounds(client.bounds)
-        except ValueError as e:
-            print(f"ValueError: {e}")
-        except Exception as e:
-            print(f"An error occurred: {e}")
-
-    def process_drawn_features(self, drawn_features):
-        """
-        Process the drawn features.
-
-        :param drawn_features: A list of drawn features.
-        :type drawn_features: list[ee.Feature or ee.Geometry]
-        :return: A list of distinct values from the filtered layer.
-        :rtype: list
-        """
-        all_distinct_values = []
-        for feature in drawn_features:
-
-            if isinstance(feature, ee.Feature) or isinstance(feature, ee.Geometry):
-                drawn_geom = feature.geometry()
-                bounding = drawn_geom.bounds()
-                filtered_layer = self.layer.filterBounds(bounding)
-                distinct_values = filtered_layer.aggregate_array(self.column).distinct().getInfo()
-                all_distinct_values.extend(distinct_values)
-        return list(set(all_distinct_values))
 
     def ensure_multipolygon(self, geometry):
         """
@@ -996,6 +1225,105 @@ class JupyterAPI(geemap.Map):
             return ee.Geometry.MultiPolygon([geometry.coordinates()])
         else:
             return geometry
+
+    def ee_geometry_to_shapely(self, geometry):
+        """
+        Convert an Earth Engine Geometry, Feature, or GeoJSON to a Shapely Geometry object.
+
+        :param geometry: An Earth Engine Geometry, Feature, or GeoJSON dictionary.
+        :return: A Shapely Geometry object.
+
+        """
+        # Check if the geometry is an Earth Engine Geometry or Feature
+        if isinstance(geometry, ee.Geometry) or isinstance(geometry, ee.Feature):
+            # Convert Earth Engine object to GeoJSON
+            geo_json = geometry.getInfo()
+            if 'geometry' in geo_json:  # If it's a Feature, extract the geometry part
+                geo_json = geo_json['geometry']
+            # Convert GeoJSON to a Shapely Geometry
+            return shape(geo_json)
+        elif isinstance(geometry, dict):  # Directly convert from GeoJSON if it's a dictionary
+            return shape(geometry)
+        else:
+            # If it's neither, assume it's already a Shapely Geometry or compatible
+            return geometry
+
+    def on_button_click(self, b):
+        """
+        Function to handle button click event.
+
+        :param b: Button object representing the clicked button.
+        :return: None
+        """
+        with self.out:
+            self.out.clear_output()  # Clear the previous output
+        self.draw_and_process()
+
+        # Assuming `distinct_values` is available after drawing and processing
+
+    def get_bounding_box(self, distinct_values=None, feature=None):
+        """
+        :param distinct_values: A list of distinct values used for filtering the layer data
+        :param feature: An optional feature object used for defining a custom geometry
+        :return: The bounding box of the selected data
+
+        This method calculates the bounding box of the selected data based on the provided parameters. If distinct_values is specified, it filters the layer data based on the values in distinct
+        *_values and returns the bounding box of the filtered data. If feature is specified, it converts the feature to a GeoDataFrame and returns the bounding box of the geometry. If neither
+        * distinct_values nor feature is provided, it returns the bounding box of the dissolved geometry of the User Uploaded Data.
+
+        Example usage:
+        ----------------
+        distinct_values = ['value1', 'value2']
+        feature = ee.Feature()
+
+        bounding_box = get_bounding_box(distinct_values, feature)
+        print(bounding_box)
+        """
+
+        if distinct_values:
+            if self.dropdown.value.split('_')[0] == 'admin':
+                bounds = self.layer.filter(ee.Filter.inList(self.column, distinct_values)).geometry().bounds().getInfo()
+                gdf = gpd.GeoDataFrame([{'geometry': shape(bounds)}], crs='EPSG:4326')
+                return gdf.geometry.bounds
+            elif self.dropdown.value.split('_')[0] == 'watersheds':
+                bounds = self.layer.filter(
+                    ee.Filter.inList(self.column, distinct_values)).geometry().bounds().getInfo()
+                gdf = gpd.GeoDataFrame([{'geometry': shape(bounds)}], crs='EPSG:4326')
+                return gdf.geometry.bounds
+        if 'User Uploaded Data' in self.userlayers and self.boundary_type.value == 'User Uploaded Data':
+            gdf = gpd.GeoDataFrame.from_features(self.userlayers['User Uploaded Data'].data)
+            dissolved_gdf = gdf.dissolve()
+            self.geometry = dissolved_gdf.geometry.iloc[0]
+            return dissolved_gdf.geometry.bounds
+
+        elif self.draw_layer and self.boundary_type.value == 'User Defined':
+            if feature:
+                if isinstance(feature, ee.Feature):
+                    feature_info = feature.getInfo()  # This converts the GEE Feature to a Python dictionary
+                    geometry = feature_info['geometry']
+                gdf = gpd.GeoDataFrame([{'geometry': shape(geometry)}], crs='EPSG:4326')
+                self.geometry = gdf.geometry.iloc[0]
+                return gdf.geometry.bounds
+
+    def draw_and_process(self):
+        """
+        Draw and process data based on the boundary type.
+
+        :return: None
+        """
+        if self.boundary_type.value == 'Parameter File':
+            self.handle_parameter_file()
+        else:
+            self.process_based_on_api_selection()
+
+    def handle_parameter_file(self):
+        """
+        Handle parameter file logic.
+
+        :return: None
+        """
+        # Handle parameter file logic here
+        pass
 
     def download_feature_geometry(self, distinct_values):
         """
@@ -1072,59 +1400,70 @@ class JupyterAPI(geemap.Map):
                 for poly in geom['coordinates']:
                     all_geometries.append(poly)
 
-    def get_raster_min_max(self, raster_path):
+    def process_drawn_features(self, drawn_features):
         """
-        :param raster_path: The file path to the raster file.
-        :return: A tuple containing the minimum and maximum values of the raster.
+        Process the drawn features.
+
+        :param drawn_features: A list of drawn features.
+        :type drawn_features: list[ee.Feature or ee.Geometry]
+        :return: A list of distinct values from the filtered layer.
+        :rtype: list
         """
+        all_distinct_values = []
+        for feature in drawn_features:
 
-        dataset = gdal.Open(raster_path)
-        band = dataset.GetRasterBand(1)  # Assumes the raster has only one band
-        min_val = band.GetMinimum()
-        max_val = band.GetMaximum()
-        nodata_val = band.GetNoDataValue()
+            if isinstance(feature, ee.Feature) or isinstance(feature, ee.Geometry):
+                drawn_geom = feature.geometry()
+                bounding = drawn_geom.bounds()
+                filtered_layer = self.layer.filterBounds(bounding)
+                distinct_values = filtered_layer.aggregate_array(self.column).distinct().getInfo()
+                all_distinct_values.extend(distinct_values)
+        return list(set(all_distinct_values))
 
-        band_data = band.ReadAsArray()
-
-        # Check if 9999 is in the data
-        if 9999 in band_data:
-            # Mask the data to ignore values of 9999 or higher
-            masked_data = np.ma.masked_where(band_data >= 9999, band_data)
-
-            # Find the maximum value in the masked data
-            next_highest_val = masked_data.max()
-
-            # Set max_val to the next highest value
-            max_val = next_highest_val
-
-        # If the minimum and maximum values are not natively provided by the raster band
-        if min_val is None or max_val is None:
-            min_val, max_val = band.ComputeRasterMinMax(True)
-
-        dataset = None  # Close the dataset
-        return min_val, max_val, nodata_val
-
-    def ee_geometry_to_shapely(self, geometry):
+    def determine_geometries_to_process(self, override_boundary_type=None):
         """
-        Convert an Earth Engine Geometry, Feature, or GeoJSON to a Shapely Geometry object.
+        Determine the geometries to process based on the boundary type and user inputs.
 
-        :param geometry: An Earth Engine Geometry, Feature, or GeoJSON dictionary.
-        :return: A Shapely Geometry object.
-
+        :return: A list of tuples representing the geometries to process. Each tuple contains a feature and distinct values.
         """
-        # Check if the geometry is an Earth Engine Geometry or Feature
-        if isinstance(geometry, ee.Geometry) or isinstance(geometry, ee.Feature):
-            # Convert Earth Engine object to GeoJSON
-            geo_json = geometry.getInfo()
-            if 'geometry' in geo_json:  # If it's a Feature, extract the geometry part
-                geo_json = geo_json['geometry']
-            # Convert GeoJSON to a Shapely Geometry
-            return shape(geo_json)
-        elif isinstance(geometry, dict):  # Directly convert from GeoJSON if it's a dictionary
-            return shape(geometry)
-        else:
-            # If it's neither, assume it's already a Shapely Geometry or compatible
+        with self.out:
+            geometries = []
+            if override_boundary_type:
+                boundary_type = override_boundary_type
+            else:
+                boundary_type = self.boundary_type.value
+            if boundary_type in ['Predefined Boundaries', 'User Defined']:
+                for feature in self.draw_features:
+                    if boundary_type == 'Predefined Boundaries':
+                        distinct_values = self.process_drawn_features([feature])
+                        feature = self.download_feature_geometry(distinct_values)
+                        print(distinct_values)
+                    else:  # User Defined
+                        distinct_values = None
+                        # Assuming feature is the geometry itself in this case
+                    geometries.append((feature, distinct_values))
+            elif boundary_type == 'User Uploaded Data' and 'User Uploaded Data' in self.userlayers:
+                feature = self.userlayers['User Uploaded Data'].data
+                geometries.append((feature, None))
+            return geometries
+
+    def ee_ensure_geometry(self, geometry):
+        """
+        Ensures that the input geometry is a valid Earth Engine Geometry or Feature.
+
+        :param geometry: The input geometry to be validated.
+        :type geometry: ee.Geometry or ee.Feature
+        :return: The valid Earth Engine Geometry.
+        :rtype: ee.Geometry
+        :raises ValueError: If the input geometry is neither an ee.Geometry nor an ee.Feature.
+        """
+        if isinstance(geometry, ee.Feature):
+            geometry = geometry.geometry()
             return geometry
+        elif isinstance(geometry, ee.Geometry):
+            return geometry
+        else:
+            raise ValueError("Invalid geometry type. Must be an Earth Engine Geometry or Feature.")
 
     def convert_geojson_to_ee(self, geojson_obj):
         """
@@ -1156,46 +1495,26 @@ class JupyterAPI(geemap.Map):
         else:
             raise ValueError("Unsupported GeoJSON type")
 
-    def ee_ensure_geometry(self, geometry):
+    def process_based_on_api_selection(self):
         """
-        Ensures that the input geometry is a valid Earth Engine Geometry or Feature.
+        Process based on the selected API.
 
-        :param geometry: The input geometry to be validated.
-        :type geometry: ee.Geometry or ee.Feature
-        :return: The valid Earth Engine Geometry.
-        :rtype: ee.Geometry
-        :raises ValueError: If the input geometry is neither an ee.Geometry nor an ee.Feature.
-        """
-        if isinstance(geometry, ee.Feature):
-            geometry = geometry.geometry()
-            return geometry
-        elif isinstance(geometry, ee.Geometry):
-            return geometry
-        else:
-            raise ValueError("Invalid geometry type. Must be an Earth Engine Geometry or Feature.")
-
-    def determine_geometries_to_process(self):
-        """
-        Determine the geometries to process based on the boundary type and user inputs.
-
-        :return: A list of tuples representing the geometries to process. Each tuple contains a feature and distinct values.
+        :return: None
         """
         with self.out:
-            geometries = []
-            if self.boundary_type.value in ['Predefined Boundaries', 'User Defined']:
-                for feature in self.draw_features:
-                    if self.boundary_type.value == 'Predefined Boundaries':
-                        distinct_values = self.process_drawn_features([feature])
-                        feature = self.download_feature_geometry(distinct_values)
-                        print(distinct_values)
-                    else:  # User Defined
-                        distinct_values = None
-                        # Assuming feature is the geometry itself in this case
-                    geometries.append((feature, distinct_values))
-            elif self.boundary_type.value == 'User Uploaded Data' and 'User Uploaded Data' in self.userlayers:
-                feature = self.userlayers['User Uploaded Data'].data
-                geometries.append((feature, None))
-            return geometries
+            geometries = self.determine_geometries_to_process()
+            print(len(geometries))
+            for index, (geometry, distinct_values) in enumerate(geometries):
+                if self.dropdown_api.value == 'glofas':
+                    self.process_glofas_api(geometry, distinct_values, index)
+                elif self.dropdown_api.value == 'gee':
+                    self.process_gee_api(geometry, distinct_values, index)
+                elif self.dropdown_api.value == 'modis_nrt':
+                    self.process_modis_nrt_api(geometry, distinct_values, index)
+                elif self.dropdown_api.value == 'worldpop':
+                    self.process_worldpop_api(geometry, distinct_values, index)
+                else:
+                    print('No valid API selected!')
 
     def process_and_clip_raster(self, file_path, geometry, params=None):
         """
@@ -1221,107 +1540,69 @@ class JupyterAPI(geemap.Map):
         if params['add_to_map']:
             self.add_clipped_raster_to_map(raster_path, vis_params=vis_params)
 
-    def draw_and_process(self):
+    def add_clipped_raster_to_map(self, raster_path, vis_params=None):
         """
-        Draw and process data based on the boundary type.
+        Adds a clipped raster to the map.
 
+        :param raster_path: A string specifying the path to the raster file.
+        :param vis_params: Optional dictionary specifying the visualization parameters for the raster. Default is an empty dictionary.
         :return: None
-        """
-        if self.boundary_type.value == 'Parameter File':
-            self.handle_parameter_file()
-        else:
-            self.process_based_on_api_selection()
-
-    def handle_parameter_file(self):
-        """
-        Handle parameter file logic.
-
-        :return: None
-        """
-        # Handle parameter file logic here
-        pass
-
-    def process_based_on_api_selection(self):
-        """
-        Process based on the selected API.
-
-        :return: None
-        """
-        geometries = self.determine_geometries_to_process()
-        for index, (geometry, distinct_values) in enumerate(geometries):
-            if self.dropdown_api.value == 'glofas':
-                self.process_glofas_api(geometry, distinct_values, index)
-            elif self.dropdown_api.value == 'gee':
-                self.process_gee_api(geometry, distinct_values, index)
-            elif self.dropdown_api.value == 'modis_nrt':
-                self.process_modis_nrt_api(geometry, distinct_values, index)
-            else:
-                print('No valid API selected!')
-
-    def on_button_click(self, b):
-        """
-        Function to handle button click event.
-
-        :param b: Button object representing the clicked button.
-        :return: None
-        """
-        with self.out:
-            self.out.clear_output()  # Clear the previous output
-        self.draw_and_process()
-
-        # Assuming `distinct_values` is available after drawing and processing
-
-    def get_bounding_box(self, distinct_values=None, feature=None):
-        """
-        :param distinct_values: A list of distinct values used for filtering the layer data
-        :param feature: An optional feature object used for defining a custom geometry
-        :return: The bounding box of the selected data
-
-        This method calculates the bounding box of the selected data based on the provided parameters. If distinct_values is specified, it filters the layer data based on the values in distinct
-        *_values and returns the bounding box of the filtered data. If feature is specified, it converts the feature to a GeoDataFrame and returns the bounding box of the geometry. If neither
-        * distinct_values nor feature is provided, it returns the bounding box of the dissolved geometry of the User Uploaded Data.
 
         Example usage:
-        ----------------
-        distinct_values = ['value1', 'value2']
-        feature = ee.Feature()
 
-        bounding_box = get_bounding_box(distinct_values, feature)
-        print(bounding_box)
+            add_clipped_raster_to_map('/path/to/raster.tif', vis_params={'min': 0, 'max': 255})
+
+        This method creates a `localtileserver.TileClient` object using the given raster path. It then uses the `localtileserver.get_leaflet_tile_layer` method to obtain the Leaflet tile layer
+        * for the raster, applying the visualization parameters if provided. The resulting tile layer is added to the map using the `add_layer` method. Finally, the map adjusts its bounds to
+        * fit the bounds of the raster using the `fit_bounds` method.
+
+        If a ValueError occurs during the process, it will be caught and printed as an error message. Any other exceptions will also be caught and printed.
+
+        Note: This method assumes that the necessary dependencies (`localtileserver`) are installed and importable.
+        """
+        if vis_params is None:
+            vis_params = {}
+        try:
+            client = localtileserver.TileClient(raster_path)
+            tile_layer = localtileserver.get_leaflet_tile_layer(client, **vis_params)
+            self.add_layer(tile_layer)
+            self.fit_bounds(client.bounds)
+        except ValueError as e:
+            print(f"ValueError: {e}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+    def get_raster_min_max(self, raster_path):
+        """
+        :param raster_path: The file path to the raster file.
+        :return: A tuple containing the minimum and maximum values of the raster.
         """
 
-        if distinct_values:
-            if self.dropdown.value.split('_')[0] == 'admin':
-                bounds = self.layer.filter(ee.Filter.inList(self.column, distinct_values)).geometry().bounds().getInfo()
-                gdf = gpd.GeoDataFrame([{'geometry': shape(bounds)}], crs='EPSG:4326')
-                return gdf.geometry.bounds
-            elif self.dropdown.value.split('_')[0] == 'watersheds':
-                bounds = self.layer.filter(
-                    ee.Filter.inList(self.column, distinct_values)).geometry().bounds().getInfo()
-                gdf = gpd.GeoDataFrame([{'geometry': shape(bounds)}], crs='EPSG:4326')
-                return gdf.geometry.bounds
-        if 'User Uploaded Data' in self.userlayers and self.boundary_type.value == 'User Uploaded Data':
-            gdf = gpd.GeoDataFrame.from_features(self.userlayers['User Uploaded Data'].data)
-            dissolved_gdf = gdf.dissolve()
-            self.geometry = dissolved_gdf.geometry.iloc[0]
-            return dissolved_gdf.geometry.bounds
+        dataset = gdal.Open(raster_path)
+        band = dataset.GetRasterBand(1)  # Assumes the raster has only one band
+        min_val = band.GetMinimum()
+        max_val = band.GetMaximum()
+        nodata_val = band.GetNoDataValue()
 
-        elif self.draw_layer and self.boundary_type.value == 'User Defined':
-            if feature:
-                if isinstance(feature, ee.Feature):
-                    feature_info = feature.getInfo()  # This converts the GEE Feature to a Python dictionary
-                    geometry = feature_info['geometry']
-                gdf = gpd.GeoDataFrame([{'geometry': shape(geometry)}], crs='EPSG:4326')
-                self.geometry = gdf.geometry.iloc[0]
-                return gdf.geometry.bounds
+        band_data = band.ReadAsArray()
 
-    def get_map_and_output(self):
-        """
+        # Check if 9999 is in the data
+        if 9999 in band_data:
+            # Mask the data to ignore values of 9999 or higher
+            masked_data = np.ma.masked_where(band_data >= 9999, band_data)
 
-        :return: A tuple containing the map object `self` and the output attribute `self.out`.
+            # Find the maximum value in the masked data
+            next_highest_val = masked_data.max()
 
-        """
-        return self, self.out
+            # Set max_val to the next highest value
+            max_val = next_highest_val
+
+        # If the minimum and maximum values are not natively provided by the raster band
+        if min_val is None or max_val is None:
+            min_val, max_val = band.ComputeRasterMinMax(True)
+
+        dataset = None  # Close the dataset
+        return min_val, max_val, nodata_val
 
     ##############################################################################
     #####################################MODIS API################################
@@ -1361,33 +1642,36 @@ class JupyterAPI(geemap.Map):
 
         return tiles_covered
 
+
 ##GLOFAS COMPONENTS##
-JupyterAPI.create_glofas_dropdown = create_glofas_dropdown
 JupyterAPI.create_widgets_for_glofas = create_widgets_for_glofas
-JupyterAPI.on_single_or_date_range_change = on_single_or_date_range_change
+JupyterAPI.create_glofas_dropdown = create_glofas_dropdown
 JupyterAPI.on_glofas_option_change = on_glofas_option_change
+JupyterAPI.on_single_or_date_range_change = on_single_or_date_range_change
 JupyterAPI.update_glofas_container = update_glofas_container
-JupyterAPI.download_glofas_data = download_glofas_data
 JupyterAPI.get_glofas_parameters = get_glofas_parameters
+JupyterAPI.download_glofas_data = download_glofas_data
+JupyterAPI.process_glofas_api = process_glofas_api
 
 ##EARTH ENGINE COMPONENTS##
+JupyterAPI.create_widgets_gee = create_widgets_gee
 JupyterAPI.on_gee_search_button_clicked = on_gee_search_button_clicked
 JupyterAPI.on_gee_layer_selected = on_gee_layer_selected
 JupyterAPI.on_single_or_range_dates_change = on_single_or_range_dates_change
-JupyterAPI.create_widgets_gee = create_widgets_gee
-JupyterAPI.process_gee_api = process_gee_api
 JupyterAPI.gather_gee_parameters = gather_gee_parameters
+JupyterAPI.process_gee_api = process_gee_api
 
 ##MODIS FLOOD COMPONENTS##
+JupyterAPI.create_widgets_for_modis_nrt = create_widgets_for_modis_nrt
 JupyterAPI.on_single_or_date_range_change_modis_nrt = on_single_or_date_range_change_modis_nrt
 JupyterAPI.get_modis_nrt_dates = get_modis_nrt_dates
-JupyterAPI.create_widgets_for_modis_nrt = create_widgets_for_modis_nrt
-JupyterAPI.process_modis_nrt_api = process_modis_nrt_api
 JupyterAPI.gather_modis_nrt_parameters = gather_modis_nrt_parameters
+JupyterAPI.process_modis_nrt_api = process_modis_nrt_api
 
 ##WORLDPOP COMPONENTS##
 JupyterAPI.create_widgets_for_worldpop = create_widgets_for_worldpop
+JupyterAPI.process_worldpop_api = process_worldpop_api
+JupyterAPI.gather_worldpop_parameters = gather_worldpop_parameters
 
 ##GLOBAL FLOOD DATABASE COMPONENTS##
 JupyterAPI.create_widgets_for_global_flood_db = create_widgets_for_global_flood_db
-
