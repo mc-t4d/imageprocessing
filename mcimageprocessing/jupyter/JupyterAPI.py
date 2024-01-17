@@ -1,54 +1,33 @@
-import os
 import subprocess
-import tempfile
 
-import cdsapi
-import requests
 import ee
-import geemap
 import geopandas as gpd
 import ipyfilechooser as fc
-from bs4 import BeautifulSoup
 import ipywidgets as widgets
 import localtileserver
 import pandas as pd
 import numpy as np
 import pygrib
-from ipywidgets import DatePicker
 import json
-import datetime
-import rasterio
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Point
 from pyproj import Proj, transform
 from IPython.display import HTML
-from ipywidgets import Output, Layout
+from ipywidgets import Output
 from ipyleaflet import GeoJSON
 import ipyleaflet
-from mcimageprocessing.simplified.widget_creation_components.glofas import *
-from mcimageprocessing.simplified.widget_creation_components.gee import *
-from mcimageprocessing.simplified.widget_creation_components.modis_flood_nrt import *
-from mcimageprocessing.simplified.widget_creation_components.worldpop import *
-from mcimageprocessing.simplified.widget_creation_components.global_flood_db import *
-import rioxarray
+from mcimageprocessing.jupyter.widget_creation_components.modis_flood_nrt import *
+from mcimageprocessing.jupyter.widget_creation_components.worldpop import *
+from mcimageprocessing.jupyter.widget_creation_components.global_flood_db import *
 from shapely.geometry import shape
-from osgeo import gdal, ogr
-from shapely.geometry import Polygon, MultiPolygon
-from ipywidgets import VBox
+from shapely.geometry import MultiPolygon
 from osgeo import gdal
 import geojson
 from rasterio.features import geometry_mask
-from rasterio.mask import mask as riomask
-from shapely.geometry import shape
 from tqdm.notebook import tqdm as notebook_tqdm
-from ipywidgets import Text, FileUpload, VBox, jslink, Stack, HBox
+from ipywidgets import VBox
 from shapely.geometry import shape
-import pkg_resources
 import warnings
-import re
 from IPython.display import display
-
-from mcimageprocessing.simplified.GloFasAPI import CDSAPI
-from mcimageprocessing.simplified.earthengine import EarthEngineManager
 
 # Define custom CSS
 custom_css = """
@@ -155,18 +134,18 @@ class JupyterAPI(geemap.Map):
         self.added_layers = {}
         self.glofas_dict = {
             "products": {
-                'cems-glofas-seasonal': {
-                    "system_version": ['operational', 'version_3_1', 'version_2_2'],
-                    'hydrological_model': ['lisflood'],
-                    "variable": "river_discharge_in_the_last_24_hours",
-                    "leadtime_hour": list(range(24, 5161, 24)),
-                    "year": list(range(2019, datetime.date.today().year + 1)),
-                    "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-                              "11", "12"],
-                    # "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                    # "area": [10.95, -90.95, -30.95, -29.95],
-                    "format": "grib"
-                },
+                # 'cems-glofas-seasonal': {
+                #     "system_version": ['operational', 'version_3_1', 'version_2_2'],
+                #     'hydrological_model': ['lisflood'],
+                #     "variable": "river_discharge_in_the_last_24_hours",
+                #     "leadtime_hour": list(range(24, 5161, 24)),
+                #     "year": list(range(2019, datetime.date.today().year + 1)),
+                #     "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
+                #               "11", "12"],
+                #     # "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                #     # "area": [10.95, -90.95, -30.95, -29.95],
+                #     "format": "grib"
+                # },
                 'cems-glofas-forecast': {
                     "system_version": ['operational', 'version_3_1', 'version_2_1'],
                     'hydrological_model': ['lisflood', 'htessel_lisflood'],
@@ -182,20 +161,20 @@ class JupyterAPI(geemap.Map):
                     # "area": [10.95, -90.95, -30.95, -29.95],
                     "format": "grib"
                 },
-                'cems-glofas-reforecast': {
-                    "system_version": ['version_4_0', 'version_3_1', 'version_2_2'],
-                    'hydrological_model': ['lisflood', 'htessel_lisflood'],
-                    'product_type': [
-                        'control_forecast', 'ensemble_perturbed_forecasts',
-                    ],
-                    "leadtime_hour": list(range(24, 1105, 24)),
-                    "year": list(range(1999, datetime.date.today().year + 1)),
-                    "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-                              "11", "12"],
-                    "day": list(range(24, 32)),
-                    # "area": [10.95, -90.95, -30.95, -29.95],
-                    "format": "grib"
-                }
+                # 'cems-glofas-reforecast': {
+                #     "system_version": ['version_4_0', 'version_3_1', 'version_2_2'],
+                #     'hydrological_model': ['lisflood', 'htessel_lisflood'],
+                #     'product_type': [
+                #         'control_forecast', 'ensemble_perturbed_forecasts',
+                #     ],
+                #     "leadtime_hour": list(range(24, 1105, 24)),
+                #     "year": list(range(1999, datetime.date.today().year + 1)),
+                #     "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
+                #               "11", "12"],
+                #     "day": list(range(24, 32)),
+                #     # "area": [10.95, -90.95, -30.95, -29.95],
+                #     "format": "grib"
+                # }
             }
         }
 
@@ -442,18 +421,6 @@ class JupyterAPI(geemap.Map):
                                 'Zambia': {'GAUL': 270, 'ISO3': 'ZMB', 'ISO2': 'ZM'},
                                 'Zimbabwe': {'GAUL': 271, 'ISO3': 'ZWE', 'ISO2': 'ZW'}}
 
-        self.nrt_band_options = {'Water Counts 1-Day 250m Grid_Water_Composite': 0,
-                                 'Water Counts CS 1-Day 250m Grid_Water_Composite': 1,
-                                 'Valid Counts 1-Day 250m Grid_Water_Composite': 2,
-                                 'Valid Counts CS 1-Day 250m Grid_Water_Composite': 3,
-                                 'Flood 1-Day 250m Grid_Water_Composite': 4,
-                                 'Flood 1-Day CS 250m Grid_Water_Composite': 5,
-                                 'Water Counts 2-Day 250m Grid_Water_Composite': 6,
-                                 'Valid Counts 2-Day 250m Grid_Water_Composite': 7,
-                                 'Flood 2-Day 250m Grid_Water_Composite': 8,
-                                 'Water Counts 3-Day 250m Grid_Water_Composite': 9,
-                                 'Valid Counts 3-Day 250m Grid_Water_Composite': 10,
-                                 'Flood 3-Day 250m Grid_Water_Composite': 11}
 
     def create_dropdown(self, dropdown_options, description, default_value):
         """
@@ -496,7 +463,8 @@ class JupyterAPI(geemap.Map):
                                                   'Google Earth Engine': 'gee',
                                                   'MODIS NRT Flood Data': 'modis_nrt',
                                                   'WorldPop': 'worldpop',
-                                                  'Global Flood Database': 'global_flood_database'}, 'Select API:',
+                                                  'Global Flood Database': 'global_flood_database'},
+                                                 'Select API:',
                                                  'glofas')
         # self.dropdown_api.layout.width = 'auto'
 
@@ -557,14 +525,6 @@ class JupyterAPI(geemap.Map):
 
         self.userlayers = {}
 
-        self.modis_proj = Proj("+proj=sinu +R=6371007.181 +nadgrids=@null +wktext")
-
-        # MODIS tile size in meters
-        self.modis_tile_size = 1111950
-
-        self.modis_download_token = '''eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbF9hZGRyZXNzIjoibmlja0BrbmRjb25zdWx0aW5nLm9yZyIsImlzcyI6IkFQUyBPQXV0aDIgQXV0aGVudGljYXRvciIsImlhdCI6MTcwNDY5NDk1NSwibmJmIjoxNzA0Njk0OTU1LCJleHAiOjE4NjIzNzQ5NTUsInVpZCI6Im5oc3VyZjYwIiwidG9rZW5DcmVhdG9yIjoibmhzdXJmNjAifQ.OFsGT01-7VmQUXKhKZUx_GK3AQ5RMz3oSI9AdJmYDlQ'''
-
-        self.modis_nrt_api_root_url = 'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/archives/allData/61/MCDWD_L3_NRT/'
 
         self.create_sub_folder = widgets.Checkbox(
             value=True,
@@ -802,10 +762,12 @@ class JupyterAPI(geemap.Map):
                     self.userlayers['User Uploaded Data'] = geojson_layer
                 except Exception as e:
                     with self.out:
+                        self.out.clear_output()
                         print(f"Error adding layer: {e}")
 
         except Exception as e:
             with self.out:
+                self.out.clear_output()
                 print(f"Error processing files: {e}")
 
     def convert_to_cog(self, input_path, output_path):
@@ -1079,7 +1041,7 @@ class JupyterAPI(geemap.Map):
         if new_value == 'glofas':
             self.glofas_options = self.create_glofas_dropdown([x for x in self.glofas_dict['products'].keys()],
                                                               description='Select GloFas Product:',
-                                                              default_value='cems-glofas-seasonal')
+                                                              default_value='cems-glofas-forecast')
             self.glofas_options.layout.width = 'auto'
             self.glofas_options.observe(self.on_glofas_option_change, names='value')
             self.on_glofas_option_change({'new': self.glofas_options.value})
@@ -1191,15 +1153,6 @@ class JupyterAPI(geemap.Map):
             self.instruction_text.layout.display = 'none'
             self.upload_widget.layout.display = 'none'
 
-    def convert_to_date(self, date_string):
-        # Extract the year and the day of the year from the string
-        year = int(date_string[:4])
-        day_of_year = int(date_string[4:])
-
-        # Calculate the date by adding the day of the year to the start of the year
-        date = datetime.datetime(year, 1, 1) + datetime.timedelta(days=day_of_year - 1)
-
-        return date
 
     def ensure_multipolygon(self, geometry):
         """
@@ -1437,7 +1390,6 @@ class JupyterAPI(geemap.Map):
                     if boundary_type == 'Predefined Boundaries':
                         distinct_values = self.process_drawn_features([feature])
                         feature = self.download_feature_geometry(distinct_values)
-                        print(distinct_values)
                     else:  # User Defined
                         distinct_values = None
                         # Assuming feature is the geometry itself in this case
@@ -1503,7 +1455,6 @@ class JupyterAPI(geemap.Map):
         """
         with self.out:
             geometries = self.determine_geometries_to_process()
-            print(len(geometries))
             for index, (geometry, distinct_values) in enumerate(geometries):
                 if self.dropdown_api.value == 'glofas':
                     self.process_glofas_api(geometry, distinct_values, index)
@@ -1604,43 +1555,6 @@ class JupyterAPI(geemap.Map):
         dataset = None  # Close the dataset
         return min_val, max_val, nodata_val
 
-    ##############################################################################
-    #####################################MODIS API################################
-    ##############################################################################
-
-    def calculate_modis_tile_index(self, x, y):
-        """Calculate MODIS tile indices (h, v) for given sinusoidal coordinates."""
-        h = int((x + 20015109.354) // self.modis_tile_size)
-        v = int((10007554.677 - y) // self.modis_tile_size)  # Adjust for Northern Hemisphere
-        return h, v
-
-    def get_modis_tile(self, geometry):
-        """
-        Calculate which MODIS tiles the given geometry (point, bbox list, or DataFrame) falls into.
-        :param geometry: Shapely Point, bounding box list, or DataFrame with bbox columns.
-        :return: Set of tiles (h, v) the geometry falls into.
-        """
-        tiles_covered = set()
-
-        if isinstance(geometry, Point):
-            x, y = transform(Proj(proj='latlong'), self.modis_proj, geometry.x, geometry.y)
-            tiles_covered.add(self.calculate_modis_tile_index(x, y))
-        elif isinstance(geometry, list) and len(geometry) == 4:
-            for corner in [(geometry[0], geometry[1]), (geometry[0], geometry[3]),
-                           (geometry[2], geometry[1]), (geometry[2], geometry[3])]:
-                x, y = transform(Proj(proj='latlong'), self.modis_proj, *corner)
-                tiles_covered.add(self.calculate_modis_tile_index(x, y))
-        elif isinstance(geometry, pd.DataFrame):
-            bbox = geometry.iloc[0]  # Assuming you want to process the first row
-            for corner in [(bbox['minx'], bbox['miny']), (bbox['minx'], bbox['maxy']),
-                           (bbox['maxx'], bbox['miny']), (bbox['maxx'], bbox['maxy'])]:
-                x, y = transform(Proj(proj='latlong'), self.modis_proj, *corner)
-                tiles_covered.add(self.calculate_modis_tile_index(x, y))
-        else:
-            raise TypeError(
-                "Input must be a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.")
-
-        return tiles_covered
 
 
 ##GLOFAS COMPONENTS##
@@ -1672,6 +1586,8 @@ JupyterAPI.process_modis_nrt_api = process_modis_nrt_api
 JupyterAPI.create_widgets_for_worldpop = create_widgets_for_worldpop
 JupyterAPI.process_worldpop_api = process_worldpop_api
 JupyterAPI.gather_worldpop_parameters = gather_worldpop_parameters
+JupyterAPI.download_and_split = download_and_split
+JupyterAPI.mosaic_images = mosaic_images
 
 ##GLOBAL FLOOD DATABASE COMPONENTS##
 JupyterAPI.create_widgets_for_global_flood_db = create_widgets_for_global_flood_db

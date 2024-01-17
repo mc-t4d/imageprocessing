@@ -5,7 +5,7 @@ from ipywidgets import DatePicker
 from ipywidgets import VBox, HBox
 import itertools
 
-from mcimageprocessing.simplified.GloFasAPI import CDSAPI
+from mcimageprocessing.programmatic.APIs.GloFasAPI import CDSAPI
 
 
 def create_glofas_dropdown(self, dropdown_options, description, default_value):
@@ -141,6 +141,7 @@ def on_single_or_date_range_change(self, change, glofas_option: str):
             min=datetime.date(min_year, min_month, 1),  # Minimum value
             max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
         )
+
         self.glofas_date_vbox.children = [self.date_picker]
 
     else:
@@ -364,7 +365,7 @@ def process_glofas_api(self, geometry, distinct_values, index):
                             glofas_params['system_version'], glofas_params['hydrological_model'], glofas_params['product_type'] = comb
                             file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
                             self.process_and_clip_raster(file_path, geometry, glofas_params)
-                            return  # If successful, exit the loop and function
+                            return
                         except Exception as e:
                             print(e)
                             if "no data is available within your requested subset" not in str(e):

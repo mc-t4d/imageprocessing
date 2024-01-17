@@ -5,7 +5,7 @@ __email__ = 'nick@kndconsulting.org'
 __version__ = '0.1.0'
 
 
-from . import simplified
+from . import jupyter
 
-__all__ = ['simplified'] + simplified.__all__
+__all__ = ['jupyter'] + jupyter.__all__
 

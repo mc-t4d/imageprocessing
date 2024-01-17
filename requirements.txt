@@ -34,12 +34,14 @@ cloudpickle==3.0.0
 colour==0.1.5
 comm==0.2.0
 contourpy==1.2.0
+cryptography==41.0.7
 cycler==0.12.1
 dask==2023.12.1
 debugpy==1.8.0
 decorator==5.1.1
 defusedxml==0.7.1
 distributed==2023.12.1
+docutils==0.20.1
 earthengine-api==0.1.378
 eccodes==1.6.1
 eccodes-python==0.9.9
@@ -91,7 +93,9 @@ ipytree==0.2.2
 ipywidgets==8.1.1
 isoduration==20.11.0
 itsdangerous==2.1.2
+jaraco.classes==3.3.0
 jedi==0.19.1
+jeepney==0.8.0
 Jinja2==3.1.2
 json-e==4.5.3
 json5==0.9.14
@@ -110,6 +114,7 @@ jupyterlab==4.0.8
 jupyterlab-pygments==0.2.2
 jupyterlab-widgets==3.0.9
 jupyterlab_server==2.25.1
+keyring==24.3.0
 kiwisolver==1.4.5
 large-image==1.26.3
 large-image-source-rasterio==1.26.3
@@ -117,13 +122,15 @@ llvmlite==0.41.1
 localtileserver==0.7.2
 locket==1.0.0
 lz4==4.3.2
+markdown-it-py==3.0.0
 MarkupSafe==2.1.3
 matplotlib==3.8.2
 matplotlib-inline==0.1.6
-mcimageprocessing @ file:///home/dowhn/Documents/consulting_work/knd_consulting/mercy_corps/mcimageprocessing
+mdurl==0.1.2
 metview==1.15.0
 mistune==3.0.2
 modis-tools==1.1.3
+more-itertools==10.2.0
 mpl-toolkits.clifford==0.0.3
 msgpack==1.0.7
 nbclient==0.9.0
@@ -132,6 +139,7 @@ nbformat==5.9.2
 nc-time-axis==1.4.1
 nest-asyncio==1.5.8
 netCDF4==1.6.5
+nh3==0.2.15
 notebook==7.0.6
 notebook_shim==0.2.3
 numba==0.58.1
@@ -151,6 +159,7 @@ parso==0.8.3
 partd==1.4.1
 pexpect==4.8.0
 Pillow==10.1.0
+pkginfo==1.9.6
 platformdirs==4.0.0
 plotly==5.18.0
 pluggy==1.3.0
@@ -187,17 +196,21 @@ qtconsole==5.5.1
 QtPy==2.4.1
 rasterio==1.3.9
 ratelim==0.1.6
+readme-renderer==42.0
 referencing==0.31.0
 requests==2.31.0
+requests-toolbelt==1.0.0
 rfc3339-validator==0.1.4
+rfc3986==2.0.0
 rfc3986-validator==0.1.1
+rich==13.7.0
 rioxarray==0.15.0
 rpds-py==0.12.0
 rsa==4.9
 scipy==1.11.4
 scooby==0.9.2
 seaborn==0.13.0
-selenium==4.16.0
+SecretStorage==3.3.3
 Send2Trash==1.8.2
 server-thread==0.2.0
 Shapely==1.8.5.post1
@@ -220,6 +233,7 @@ traittypes==0.2.1
 trimesh==4.0.5
 trio==0.23.2
 trio-websocket==0.11.1
+twine==4.0.2
 types-python-dateutil==2.8.19.14
 typing_extensions==4.8.0
 tzdata==2023.3

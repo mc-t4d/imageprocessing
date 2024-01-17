@@ -50,7 +50,7 @@ class EarthEngineManager(BaseModel):
             'min': lambda ic: ic.min(),
             'sum': lambda ic: ic.reduce(ee.Reducer.sum()),
             'first': lambda ic: ic.sort('system:time_start', False).first(),
-            'last': lambda ic: ic.sort('system:time_start', False).last()
+            # 'last': lambda ic: ic.sort('system:time_start', False).last()
         }
         return values
 
@@ -602,3 +602,15 @@ class EarthEngineManager(BaseModel):
             del wb['Sheet']
 
         return wb
+
+    def get_image_sum(self, img, geometry, scale):
+        # Define the reducers for each statistic you want to calculate
+        reducers = ee.Reducer.sum()
+
+        # Apply the reducers to the image
+        stats = img.reduceRegion(reducer=reducers, geometry=geometry, scale=scale, maxPixels=1e12)
+
+        sum_dict = stats.get('population').getInfo()
+
+        return sum_dict
+

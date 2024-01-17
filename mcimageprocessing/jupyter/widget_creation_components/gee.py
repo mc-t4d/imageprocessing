@@ -1,11 +1,10 @@
 import ee
 import geemap
 import pkg_resources
-from ipywidgets import HBox
 from ipywidgets import Layout
 
-from mcimageprocessing.simplified.earthengine import EarthEngineManager
-from mcimageprocessing.simplified.widget_creation_components.glofas import *
+from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
+from mcimageprocessing.jupyter.widget_creation_components.glofas import *
 
 ee_auth_path = pkg_resources.resource_filename('mcimageprocessing', 'ee_auth_file.json')
 
@@ -24,6 +23,7 @@ def on_gee_search_button_clicked(self, b):
     # For now, it's just a print statement.
     assets = geemap.search_ee_data(self.gee_layer_search_widget.value)
     with self.out:
+        self.out.clear_output()
         print("Button clicked: Searching for", self.gee_layer_search_widget.value)
     self.gee_layer_search_results_dropdown.options = {x['title']: x['id'] for x in assets}
 
@@ -224,6 +224,7 @@ def process_gee_api(self, geometry, distinct_values, index):
     with self.out:
         gee_params = self.gather_gee_parameters()
         with self.out:
+            self.out.clear_output()
             print(gee_params)
         geometry = self.ee_ensure_geometry(geometry)
         if gee_params['multi_date'] == False:
@@ -287,6 +288,7 @@ def process_gee_api(self, geometry, distinct_values, index):
                 if gee_params['statistics_only']:
                     all_stats_info = all_stats.getInfo()
                     with self.out:
+                        self.out.clear_output()
                         print(all_stats_info)
 
             elif gee_params['aggregation_period'] == 'Yearly':

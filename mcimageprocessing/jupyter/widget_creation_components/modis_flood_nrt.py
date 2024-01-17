@@ -5,8 +5,10 @@ import requests
 from bs4 import BeautifulSoup
 from osgeo import gdal
 
-from mcimageprocessing.simplified.widget_creation_components.gee import *
+from mcimageprocessing.jupyter.widget_creation_components.gee import *
+from mcimageprocessing.programmatic.APIs.ModisNRT import ModisNRT
 
+modis_api = ModisNRT()
 
 def on_single_or_date_range_change_modis_nrt(self, change):
     """
@@ -22,12 +24,10 @@ def on_single_or_date_range_change_modis_nrt(self, change):
 
     if single_or_date_range_value == 'Single Date':
         # Create the DatePicker widget with constraints
-        self.date_picker_modis_nrt = DatePicker(
+        self.date_picker_modis_nrt = widgets.Dropdown(
+            options=[(f"{x.year}-{x.month}-{x.day}", x) for x in self.modis_nrt_available_dates],
             description='Select Date:',
             disabled=False,
-            value=max(self.modis_nrt_available_dates),  # Default value
-            min=min(self.modis_nrt_available_dates),  # Minimum value
-            max=max(self.modis_nrt_available_dates)  # Maximum value (assumes 31 days in max month)
         )
         self.modis_nrt_date_vbox.children = [self.date_picker_modis_nrt]
 
@@ -79,7 +79,7 @@ def create_widgets_for_modis_nrt(self):
     :return: A list of widgets specific to the selected GloFas option
     """
     with self.out:
-        self.modis_nrt_available_dates = self.get_modis_nrt_dates()
+        self.modis_nrt_available_dates = modis_api.get_modis_nrt_dates()
 
         self.single_or_date_range_modis_nrt = widgets.ToggleButtons(
             options=['Single Date', 'Date Range', 'All Available Images'],
@@ -89,7 +89,7 @@ def create_widgets_for_modis_nrt(self):
         )
 
         self.modis_nrt_band_selection = widgets.Dropdown(
-            options=[x for x in self.nrt_band_options.keys()],
+            options=[x for x in modis_api.nrt_band_options.keys()],
             description='Band:',
             disabled=False,
             value='Flood 3-Day 250m Grid_Water_Composite',
@@ -104,6 +104,46 @@ def create_widgets_for_modis_nrt(self):
             names='value'
         )
 
+        self.calculate_population = widgets.Checkbox(
+            value=False,
+            description='Calculate Population in Flood Area: ',
+            disabled=False,
+            indent=False
+        )
+
+        self.population_source = widgets.Dropdown(
+            options=['WorldPop', 'GPWv4'],
+            description='Population Source:',
+            disabled=True,
+            value='WorldPop',
+            style={'description_width': 'initial'},
+        )
+
+        self.population_source_variable =  widgets.Dropdown(
+            options=['Total Population', "Age-Sex Breakdown"],
+            description='Population Variable:',
+            disabled=True,
+            value='Total Population',
+            style={'description_width': 'initial'},
+        )
+
+        self.population_source_year = widgets.Dropdown(
+            options=[x for x in range(2000, 2021)],
+            description='Population Year:',
+            disabled=True,
+            value=2020,
+            style={'description_width': 'initial'},
+        )
+
+        self.population_source_grid = widgets.Accordion([widgets.TwoByTwoLayout(
+            top_left=self.calculate_population,
+            top_right=self.population_source,
+            bottom_left=self.population_source_variable,
+            bottom_right=self.population_source_year
+        )])
+
+        self.population_source_grid.set_title(0, 'Population Options')
+
         self.end_of_vbox_items = widgets.Accordion([widgets.TwoByTwoLayout(
             top_left=self.create_sub_folder,
             top_right=self.clip_to_geometry,
@@ -114,8 +154,8 @@ def create_widgets_for_modis_nrt(self):
         self.end_of_vbox_items.set_title(0, 'Options')
 
         # Return a list of widgets
-        return [self.modis_nrt_band_selection, self.single_or_date_range_modis_nrt, self.modis_nrt_date_vbox, self.filechooser,
-                self.end_of_vbox_items]
+        return [self.modis_nrt_band_selection, self.single_or_date_range_modis_nrt, self.modis_nrt_date_vbox,
+                self.filechooser, self.population_source_grid, self.end_of_vbox_items]
 
 def process_modis_nrt_api(self, geometry, distinct_values, index):
     """
@@ -145,96 +185,50 @@ def process_modis_nrt_api(self, geometry, distinct_values, index):
 
     Finally, the method calls another method 'process_and_clip_raster' to process and clip the merged GeoTIFF file based on the provided geometry and MODIS NRT API parameters.
     """
-    bbox = self.get_bounding_box(distinct_values=distinct_values, feature=geometry)
-    modis_nrt_params = self.gather_modis_nrt_parameters()
+
     with self.out:
-        print(modis_nrt_params)
-    if modis_nrt_params['create_sub_folder']:
-        folder = f"{modis_nrt_params['folder_path']}/{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
-        os.mkdir(folder)
+        bbox = self.get_bounding_box(distinct_values=distinct_values, feature=geometry)
+        modis_nrt_params = self.gather_modis_nrt_parameters()
 
-        modis_nrt_params['folder_path'] = folder
-    tiles = self.get_modis_tile(bbox)
-    with self.out:
-        print(f'Processing tiles: {tiles}')
-    matching_files = []
-    for tile in tiles:
-        h = f"{tile[0]:02d}"
-        v = f"{tile[1]:02d}"
-        year = modis_nrt_params['date'].year
-        doy = f"{modis_nrt_params['date'].timetuple().tm_yday:03d}"
-        base_url_folder = f"{self.modis_nrt_api_root_url}{year}/{doy}/"
-        file_pattern = rf"MCDWD_L3_NRT\.A{year}{doy}\.h{h}v{v}\.061\.\d+\.hdf"
+        if modis_nrt_params['create_sub_folder']:
+            folder = f"{modis_nrt_params['folder_path']}/{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
+            os.mkdir(folder)
 
-        response = requests.get(base_url_folder)
-        html_content = response.text
+            modis_nrt_params['folder_path'] = folder
+        tiles = modis_api.get_modis_tile(bbox)
+        with self.out:
+            self.out.clear_output()
+            print(f'Processing tiles: {tiles}')
+        matching_files = modis_api.get_modis_nrt_file_list(tiles, modis_nrt_params)
 
-        soup = BeautifulSoup(html_content, 'html.parser')
+        hdf_files_to_process = []
+        tif_list = []
+        start=1
+        for url in matching_files:
+            modis_api.download_and_process_modis_nrt(url, modis_nrt_params['folder_path'], hdf_files_to_process, subdataset=self.modis_nrt_band_selection.value, tif_list=tif_list)
+            start += 1
 
-        links = soup.find_all('a')
-
-        # Check if the request was successful
-        for link in links:
-            href = link.get('href')
-            if re.search(file_pattern, href):
-                matching_files.append(href)
-
-    headers = {
-        'Authorization': f'Bearer {self.modis_download_token}'
-    }
-    hdf_files_to_process = []
-    tif_list = []
-    for url in matching_files:
-        response = requests.get(url, headers=headers, stream=True)
-        if response.status_code == 200:
-            filename = f"{modis_nrt_params['folder_path']}{url.split('/')[-1]}"  # Extracts the filename
-            with open(filename, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            hdf_files_to_process.append(filename)
-            datasets = []
-            subdataset_index = self.nrt_band_options[self.modis_nrt_band_selection.value]
-            for hdf_file in hdf_files_to_process:
-                # Open the HDF file
-                hdf_dataset = gdal.Open(hdf_file, gdal.GA_ReadOnly)
-                subdatasets = hdf_dataset.GetSubDatasets()
-
-            for hdf_file in hdf_files_to_process:
-                hdf_dataset = gdal.Open(hdf_file, gdal.GA_ReadOnly)
-                subdatasets = hdf_dataset.GetSubDatasets()
-
-                # Select a subdataset
-                print(subdatasets)
-                subdataset = subdatasets[subdataset_index][0]
-
-                # Open the subdataset
-                ds = gdal.Open(subdataset, gdal.GA_ReadOnly)
-
-                # Define output path for the GeoTIFF
-                output_tiff = hdf_file.replace('.hdf', '.tif')
-
-                tif_list.append(output_tiff)
-
-                # Convert to GeoTIFF
-                gdal.Translate(output_tiff, ds)
-
-                # Close the dataset
-                ds = None
-
-    else:
-        print(f"Failed to download {url}. Status code: {response.status_code}")
-
-    merged_output = f'{folder}merged.tif'
-    gdal.Warp(merged_output, tif_list)
-    for file in tif_list + hdf_files_to_process:
-        if modis_nrt_params['keep_individual_tiles']:
-            pass
-        else:
-            try:
-                os.remove(file)
-            except FileNotFoundError:
+        merged_output = f'{folder}merged.tif'
+        modis_api.merge_tifs(tif_list, merged_output)
+        for file in tif_list + hdf_files_to_process:
+            if modis_nrt_params['keep_individual_tiles']:
                 pass
-    self.process_and_clip_raster(merged_output, geometry, modis_nrt_params)
+            else:
+                try:
+                    os.remove(file)
+                except FileNotFoundError:
+                    pass
+        self.process_and_clip_raster(merged_output, geometry, modis_nrt_params)
+        with self.out:
+            self.out.clear_output()
+            print('Processing Complete!')
+        clipped_output = f'{folder}merged_clipped.tif'
+        if modis_nrt_params['calculate_population']:
+            with self.out:
+                self.out.clear_output()
+                pop_impacted = modis_api.calculate_population_in_flood_area(clipped_output)
+                print(pop_impacted)
+
 
 def gather_modis_nrt_parameters(self):
     """
@@ -255,6 +249,7 @@ def gather_modis_nrt_parameters(self):
     clip_to_geometry = self.clip_to_geometry.value
     keep_individual_tiles = self.keep_individual_tiles.value
     add_image_to_map = self.add_image_to_map.value
+    calculate_population = self.calculate_population.value
     if date_type == 'Single Date':
         date = self.date_picker_modis_nrt.value
         return {
@@ -264,7 +259,8 @@ def gather_modis_nrt_parameters(self):
             'create_sub_folder': create_sub_folder,
             'clip_to_geometry': clip_to_geometry,
             'keep_individual_tiles': keep_individual_tiles,
-            'add_to_map': add_image_to_map
+            'add_to_map': add_image_to_map,
+            'calculate_population': calculate_population
         }
     elif date_type == 'Date Range':
         start_date = self.date_picker_modis_nrt.children[0].value
@@ -277,6 +273,8 @@ def gather_modis_nrt_parameters(self):
             'create_sub_folder': create_sub_folder,
             'clip_to_geometry': clip_to_geometry,
             'keep_individual_tiles': keep_individual_tiles,
-            'add_to_map': add_image_to_map
+            'add_to_map': add_image_to_map,
+            'calculate_population': calculate_population
         }
-    pass
+    else:
+        pass
