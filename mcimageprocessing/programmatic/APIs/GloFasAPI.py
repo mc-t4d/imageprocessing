@@ -7,10 +7,13 @@ import ipywidgets as widgets
 from ipywidgets import DatePicker
 from ipywidgets import VBox, HBox
 import itertools
+from mcimageprocessing import config_manager
 
 class CDSAPI:
     def __init__(self):
-        self.client = cdsapi.Client()
+        url = config_manager.config['KEYS']['GloFas']['url']
+        key = config_manager.config['KEYS']['GloFas']['key']
+        self.client = cdsapi.Client(url=url, key=key)
 
         self.glofas_dict = {
             "products": {

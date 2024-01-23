@@ -1,0 +1,9 @@
+KEYS:
+  GEE:
+    client_email: "your-client-email@ee-your-project.iam.gserviceaccount.com"
+    private_key: "your-private-key"
+  GloFas:
+    url: "your-glofas-url"
+    key: "your-glofas-key"
+  MODIS_NRT:
+    token: "your-modis-nrt-token

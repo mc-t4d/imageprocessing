@@ -372,7 +372,7 @@ def process_glofas_api(self, geometry, distinct_values, index):
                                 break  # Exit the loop if a different error occurs
 
             # Handle the case where no combination was successful
-            print("No suitable data could be found for any combination.")
+                    print("No suitable data could be found for any combination.")
 
 
 

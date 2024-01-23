@@ -12,6 +12,7 @@ from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 from shapely.geometry import shape
+from mcimageprocessing import config_manager
 
 
 import os
@@ -74,15 +75,11 @@ class EarthEngineManager(BaseModel):
         :return: The path to the authentication file.
         :rtype: str
         """
-        with open(v, "r") as f:
-            ee_auth_json = f.read().strip()
-
-        ee_auth = json.loads(ee_auth_json)
 
         # Initialize Earth Engine credentials
         credentials = ee.ServiceAccountCredentials(
-            email=ee_auth['client_email'],
-            key_data=ee_auth['private_key']
+            email=config_manager.config['KEYS']['GEE']['client_email'],
+            key_data=config_manager.config['KEYS']['GEE']['private_key']
         )
 
         ee.Initialize(credentials)

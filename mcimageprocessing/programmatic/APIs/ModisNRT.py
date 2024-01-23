@@ -21,6 +21,7 @@ import os
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.shared_functions.shared_utils import process_and_clip_raster
 import pkg_resources
+from mcimageprocessing import config_manager
 
 ee_auth_path = pkg_resources.resource_filename('mcimageprocessing', 'ee_auth_file.json')
 
@@ -70,7 +71,7 @@ class ModisNRT:
 
     def __init__(self):
         self.modis_tile_size = 1111950.5196666667  # MODIS sinusoidal tile size in meters
-        self.modis_download_token = '''eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbF9hZGRyZXNzIjoibmlja0BrbmRjb25zdWx0aW5nLm9yZyIsImlzcyI6IkFQUyBPQXV0aDIgQXV0aGVudGljYXRvciIsImlhdCI6MTcwNDY5NDk1NSwibmJmIjoxNzA0Njk0OTU1LCJleHAiOjE4NjIzNzQ5NTUsInVpZCI6Im5oc3VyZjYwIiwidG9rZW5DcmVhdG9yIjoibmhzdXJmNjAifQ.OFsGT01-7VmQUXKhKZUx_GK3AQ5RMz3oSI9AdJmYDlQ'''
+        self.modis_download_token = config_manager.config['KEYS']['MODIS_NRT']['token']  # Token for MODIS NRT download
         self.modis_nrt_api_root_url = 'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/archives/allData/61/MCDWD_L3_NRT/'
         self.headers = {'Authorization': f'Bearer {self.modis_download_token}'}  # Token for MODIS NRT download
         self.modis_proj = Proj("+proj=sinu +R=6371007.181 +nadgrids=@null +wktext")

@@ -110,3 +110,4 @@ ENV/
 
 
 /jupyter_testing/
+/mcimageprocessing/config/config.yaml
