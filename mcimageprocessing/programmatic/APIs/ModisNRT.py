@@ -1,5 +1,6 @@
 import pandas as pd
 
+from typing import Union, Set, List, Tuple, Dict, Optional
 from shapely.geometry import Point
 from pyproj import Proj, transform
 import re
@@ -7,14 +8,18 @@ import requests
 from bs4 import BeautifulSoup
 import datetime
 from osgeo import ogr, osr, gdal
+from shapely.geometry.base import BaseGeometry
 import rasterio
 import numpy as np
 from shapely.geometry import shape
 import geopandas as gpd
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from rasterio.features import shapes
 import ee
 import json
+import os
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
+from mcimageprocessing.programmatic.shared_functions.shared_utils import process_and_clip_raster
 import pkg_resources
 
 ee_auth_path = pkg_resources.resource_filename('mcimageprocessing', 'ee_auth_file.json')
@@ -84,7 +89,7 @@ class ModisNRT:
                                  'Flood 3-Day 250m Grid_Water_Composite': 11}
 
 
-    def calculate_modis_tile_index(self, x, y):
+    def calculate_modis_tile_index(self, x: float, y: float) -> tuple[int, int]:
         """
         Calculate MODIS tile index based on the given x and y coordinates.
 
@@ -96,7 +101,7 @@ class ModisNRT:
         v = int((10007554.677 - y) // self.modis_tile_size)  # Adjust for Northern Hemisphere
         return h, v
 
-    def get_modis_tile(self, geometry):
+    def get_modis_tile(self, geometry: Union[Point, list, pd.DataFrame]) -> Set[tuple[int, int]]:
         """
         :param geometry: The input geometry can be either a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.
         :return: A set of Modis tiles covered by the given geometry.
@@ -123,7 +128,8 @@ class ModisNRT:
 
         return tiles_covered
 
-    def get_modis_nrt_file_list(self, tiles, modis_nrt_params):
+    def get_modis_nrt_file_list(self, tiles: List[Tuple[int, int]], modis_nrt_params: Dict[str, datetime.datetime]) -> \
+    List[str]:
         """
         :param tiles: A list of tuples representing the MODIS tiles to retrieve files for. Each tuple should contain the horizontal (h) and vertical (v) coordinates of the tile.
         :param modis_nrt_params: A dictionary containing the parameters for the MODIS Near Real-Time (NRT) data. This dictionary should include the 'date' key with a datetime object representing
@@ -158,7 +164,7 @@ class ModisNRT:
 
         return matching_files
 
-    def process_hdf_file(self, hdf_file, subdataset_index, tif_list=None):
+    def process_hdf_file(self, hdf_file: str, subdataset_index: int, tif_list: Optional[List[str]] = None) -> None:
         """
         Process an HDF file and convert a subdataset to GeoTIFF format.
 
@@ -194,7 +200,8 @@ class ModisNRT:
         if tif_list is not None:
             tif_list.append(output_tiff)
 
-    def download_and_process_modis_nrt(self, url, folder_path, hdf_files_to_process, subdataset, tif_list=None):
+    def download_and_process_modis_nrt(self, url: str, folder_path: str, hdf_files_to_process: List[str],
+                                       subdataset: str, tif_list: Optional[List[str]] = None) -> None:
         """
         :param geometry: The input geometry can be either a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.
         :param modis_nrt_params: A dictionary containing the parameters for the MODIS Near Real-Time (NRT) data. This dictionary should include the 'date' key with a datetime object representing
@@ -220,10 +227,9 @@ class ModisNRT:
             subdataset_index = self.nrt_band_options[subdataset]
 
             for hdf_file in hdf_files_to_process:
-
                 self.process_hdf_file(hdf_file, subdataset_index, tif_list=tif_list)
 
-    def merge_tifs(self, tif_list, output_tif):
+    def merge_tifs(self, tif_list: List[str], output_tif: str) -> None:
         """
         Merge a list of GeoTIFF files into a single GeoTIFF.
 
@@ -233,7 +239,7 @@ class ModisNRT:
         """
         gdal.Warp(output_tif, tif_list)
 
-    def get_modis_nrt_dates(self):
+    def get_modis_nrt_dates(self) -> List[datetime.datetime]:
         response = requests.get(
             'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/61/MCDWD_L3_NRT?fields=all&formats=json')
         json_response = response.json()['content']
@@ -247,7 +253,7 @@ class ModisNRT:
                 dates.append(self.convert_to_date(f'{year}{date["name"]}'))
         return dates
 
-    def convert_to_date(self, date_string):
+    def convert_to_date(self, date_string: str) -> datetime.datetime:
         # Extract the year and the day of the year from the string
         year = int(date_string[:4])
         day_of_year = int(date_string[4:])
@@ -257,7 +263,7 @@ class ModisNRT:
 
         return date
 
-    def calculate_population_in_flood_area(self, raster_path):
+    def calculate_population_in_flood_area(self, raster_path: str) -> str:
         with rasterio.open(raster_path) as src:
             band = src.read(1)  # Read the first band
 
@@ -295,9 +301,69 @@ class ModisNRT:
 
         return f'Population impacted: {"{:,}".format(round(ee_instance.get_image_sum(image, geometry, scale)))}'
 
-    def shapely_to_ee(self, geometry, crs='EPSG:4326'):
+    def shapely_to_ee(self, geometry: BaseGeometry, crs: str = 'EPSG:4326') -> ee.Geometry:
         """Convert a shapely geometry to a GEE geometry."""
         geojson = gpd.GeoSeries([geometry]).set_crs(crs).to_json()
         geojson_dict = json.loads(geojson)
         ee_geometry = ee.Geometry(geojson_dict['features'][0]['geometry'])
         return ee_geometry
+
+    def process_modis_nrt_api(self, geometry: Any, distinct_values: Any, index: int, params: dict, bbox) -> None:
+        modis_nrt_params = params
+
+        folder = self.create_sub_folder(modis_nrt_params)
+        tiles = self.get_tiles(bbox)
+        matching_files = self.find_matching_files(tiles, modis_nrt_params)
+
+        hdf_files_to_process, tif_list = self.download_and_process_files(matching_files, modis_nrt_params)
+        merged_output = self.merge_files(tif_list, folder)
+
+        self.cleanup_files(tif_list, hdf_files_to_process, modis_nrt_params)
+        self.finalize_processing(merged_output, geometry, modis_nrt_params)
+
+    def get_tiles(self, bbox: Any) -> List[Any]:
+        tiles = self.get_modis_tile(bbox)
+        print(f'Processing tiles: {tiles}')
+        return tiles
+
+    def find_matching_files(self, tiles: List[Any], modis_nrt_params: Dict[str, Any]) -> List[str]:
+        return self.get_modis_nrt_file_list(tiles, modis_nrt_params)
+
+    def download_and_process_files(self, matching_files: List[str], modis_nrt_params: Dict[str, Any]) -> (List[str], List[str]):
+        hdf_files_to_process = []
+        tif_list = []
+        for url in matching_files:
+            self.download_and_process_modis_nrt(url, modis_nrt_params['folder_path'], hdf_files_to_process, subdataset=modis_nrt_params['nrt_band'], tif_list=tif_list)
+        return hdf_files_to_process, tif_list
+
+    def finalize_processing(self, merged_output: str, geometry: Any, modis_nrt_params: Dict[str, Any]) -> None:
+        process_and_clip_raster(merged_output, geometry, modis_nrt_params, ee_instance)
+        print('Processing Complete!')
+        if modis_nrt_params['calculate_population']:
+            clipped_output = f'{modis_nrt_params["folder_path"]}merged_clipped.tif'
+            pop_impacted = self.calculate_population_in_flood_area(clipped_output)
+            print(pop_impacted)
+
+    def cleanup_files(self, tif_list: List[str], hdf_files_to_process: List[str], modis_nrt_params: Dict[str, Any]) -> None:
+        if not modis_nrt_params['keep_individual_tiles']:
+            for file in tif_list + hdf_files_to_process:
+                try:
+                    os.remove(file)
+                except FileNotFoundError:
+                    pass
+
+    def merge_files(self, tif_list: List[str], folder: str) -> str:
+        merged_output = os.path.join(folder, 'merged.tif')
+        self.merge_tifs(tif_list, merged_output)
+        return merged_output
+
+    def create_sub_folder(self, modis_nrt_params: Dict[str, Any]) -> str:
+        if modis_nrt_params['create_sub_folder']:
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            print(modis_nrt_params['folder_path'])
+            print(timestamp)
+            folder = os.path.join(modis_nrt_params['folder_path'], timestamp)
+            os.makedirs(folder, exist_ok=True)
+            modis_nrt_params['folder_path'] = folder
+        return modis_nrt_params['folder_path']
+

@@ -1,7 +1,10 @@
 import ipywidgets as widgets
 from ipywidgets import Layout
+from typing import List, Dict, Any
 import ee
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
+from mcimageprocessing.programmatic.APIs.WorldPop import WorldPop
+from mcimageprocessing.programmatic.shared_functions.shared_utils import mosaic_images
 import pkg_resources
 import os
 import rasterio
@@ -11,7 +14,7 @@ ee_auth_path = pkg_resources.resource_filename('mcimageprocessing', 'ee_auth_fil
 
 ee_instance = EarthEngineManager(authentication_file=ee_auth_path)
 
-def create_widgets_for_worldpop(self):
+def create_widgets_for_worldpop(self) -> List[widgets.Widget]:
     """
     :param self: the instance of the class calling this method
     :return: a list of widgets for creating WorldPop data visualizations
@@ -101,7 +104,7 @@ def create_widgets_for_worldpop(self):
 
         return widget_list
 
-def gather_worldpop_parameters(self):
+def gather_worldpop_parameters(self) -> Dict[str, Any]:
     """
     :param self: The current object instance.
     :return: A dictionary containing the parameters for gathering world population data.
@@ -131,55 +134,9 @@ def gather_worldpop_parameters(self):
         'folder_output': self.filechooser.value,
     }
 
-def download_and_split(self, image, original_geometry, scale, split_count=1, params=None, band=None):
-    """Attempt to download the image, splitting the geometry if necessary."""
-    file_names = []
-    try:
-        geom_list = ee_instance.split_and_sort_geometry(original_geometry, split_count)
-        for index, geom in enumerate(geom_list):
-            url = ee_instance.get_image_download_url(img=image, region=geom, scale=scale)
-            file_name = f"{band}_{str(params['year'])}_{split_count}_{index}.tif".replace('-', '_').replace('/', '_').replace(' ', '_')
-            file_name = f"{params['folder_output']}/{file_name}"
-            ee_instance.download_file_from_url(url=url, destination_path=file_name)
-            file_names.append(file_name)
-        if split_count == 1 and len(file_names) == 1:
-            # Download successful without splitting, no need to mosaic
-            return file_names, True
-    except Exception as e:
-        if "Total request size" in str(e):
-            print(f"Splitting geometry into {split_count * 2} parts and trying again.")
-            # Increase split count and try again
-            return self.download_and_split(image, original_geometry, scale, split_count * 2, params, band=band)
-        else:
-            print(f'Unexpected error: {e}')
 
 
-    return file_names, False
-
-
-
-def mosaic_images(self, file_names, output_filename='mosaic.tif'):
-    """Mosaic images and save as a single file."""
-    src_files_to_mosaic = []
-    for fn in file_names:
-        src = rasterio.open(fn)
-        src_files_to_mosaic.append(src)
-
-    mosaic, out_trans = merge(src_files_to_mosaic)
-    out_meta = src.meta.copy()
-    out_meta.update({"driver": "GTiff",
-                     "height": mosaic.shape[1],
-                     "width": mosaic.shape[2],
-                     "transform": out_trans})
-
-    with rasterio.open(f"{output_filename}", "w", **out_meta) as dest:
-        dest.write(mosaic)
-
-    for fn in file_names:
-        os.remove(fn)
-
-
-def process_worldpop_api(self, geometry, distinct_values, index):
+def process_worldpop_data(self, geometry: Any, distinct_values: Any, index: int) -> None:
     """
     Method to process WorldPop API data for given parameters.
 
@@ -190,64 +147,9 @@ def process_worldpop_api(self, geometry, distinct_values, index):
     :return: None
     """
     with self.out:
-        worldpop_params = self.gather_worldpop_parameters()
-        geometry = self.ee_ensure_geometry(geometry)
-
-        if worldpop_params['datatype'] == 'Residential Population':
-            band = 'population'
-            image, geometry, scale = ee_instance.get_image(multi_date=True, start_date=f'{worldpop_params["year"]}-01-01', end_date=f'{worldpop_params["year"]}-12-31',
-                                                           image_collection='WorldPop/GP/100m/pop', band=band,
-                                                           geometry=geometry, aggregation_method='max')
-
-            file_names, download_successful = self.download_and_split(image, geometry, scale, params=worldpop_params,
-                                                                      band='population')
-
-            if not download_successful:
-                output_filename = f"mosaic_{band}.tif"
-                output_filename = f"{worldpop_params['folder_output']}/{output_filename}"
-                self.mosaic_images(file_names, output_filename)
-
-            else:
-                # Use the single downloaded file as the final output
-                print(f"Downloaded {file_names[0]} successfully without needing to mosaic.")
-
-            if worldpop_params['add_image_to_map']:
-                self.add_ee_layer(image, {}, 'WorldPop')
-        elif worldpop_params['datatype'] == 'Age and Sex Structures':
-            if worldpop_params['statistics_only']:
-                all_stats = ee.Dictionary()
-            for band in self.worldpop_agesex_bands:
-                image, geometry, scale = ee_instance.get_image(multi_date=True,
-                                                               start_date=f'2020-01-01',
-                                                               end_date=f'2020-12-31',
-                                                               image_collection='WorldPop/GP/100m/pop_age_sex_cons_unadj',
-                                                               band=band, geometry=geometry, aggregation_method='max')
-
-                if worldpop_params['statistics_only']:
-                    stats = ee_instance.calculate_statistics(image, geometry, band)  # This should be a server-side object
-                    print(stats)
-                    all_stats = all_stats.set(band, stats)
-                    continue
-
-                file_names, download_successful = self.download_and_split(image, geometry, scale, params=worldpop_params, band=band)
+        WorldPop.process_worldpop_api(self, geometry, distinct_values, index, worldpop_params=gather_worldpop_parameters(self))
 
 
 
-                if not download_successful:
-                    output_filename = f"mosaic_{band}.tif"
-                    output_filename = f"{worldpop_params['folder_output']}/{output_filename}"
-                    self.mosaic_images(file_names, output_filename)
-
-                else:
-                    # Use the single downloaded file as the final output
-                    print(f"Downloaded {file_names[0]} successfully without needing to mosaic.")
-
-            if worldpop_params['statistics_only']:
-                all_stats_info = all_stats.getInfo()
-                with self.out:
-                    print(all_stats_info)
-
-        else:
-            pass
 
 

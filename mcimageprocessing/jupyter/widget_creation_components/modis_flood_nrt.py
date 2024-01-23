@@ -5,12 +5,14 @@ import requests
 from bs4 import BeautifulSoup
 from osgeo import gdal
 
+from typing import Dict, Any, List
 from mcimageprocessing.jupyter.widget_creation_components.gee import *
 from mcimageprocessing.programmatic.APIs.ModisNRT import ModisNRT
+from mcimageprocessing.programmatic.shared_functions.shared_utils import process_and_clip_raster
 
 modis_api = ModisNRT()
 
-def on_single_or_date_range_change_modis_nrt(self, change):
+def on_single_or_date_range_change_modis_nrt(self, change: Dict[str, Any]) -> Any:
     """
     Handles the change event when the option for single date or date range is changed.
 
@@ -57,7 +59,7 @@ def on_single_or_date_range_change_modis_nrt(self, change):
 
     return single_or_date_range_value
 
-def get_modis_nrt_dates(self):
+def get_modis_nrt_dates(self) -> List[datetime.date]:
     response = requests.get(
         'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/61/MCDWD_L3_NRT?fields=all&formats=json')
     json_response = response.json()['content']
@@ -71,7 +73,7 @@ def get_modis_nrt_dates(self):
             dates.append(self.convert_to_date(f'{year}{date["name"]}'))
     return dates
 
-def create_widgets_for_modis_nrt(self):
+def create_widgets_for_modis_nrt(self) -> List[widgets.Widget]:
     """
     Create widgets specific to GloFas Data Type 2
 
@@ -157,7 +159,7 @@ def create_widgets_for_modis_nrt(self):
         return [self.modis_nrt_band_selection, self.single_or_date_range_modis_nrt, self.modis_nrt_date_vbox,
                 self.filechooser, self.population_source_grid, self.end_of_vbox_items]
 
-def process_modis_nrt_api(self, geometry, distinct_values, index):
+def process_modis_nrt_api(self, geometry: Any, distinct_values: Any, index: int, bbox) -> None:
     """
     :param geometry: The geometry of the area of interest.
     :param distinct_values: A boolean indicating whether distinct values should be used.
@@ -186,51 +188,104 @@ def process_modis_nrt_api(self, geometry, distinct_values, index):
     Finally, the method calls another method 'process_and_clip_raster' to process and clip the merged GeoTIFF file based on the provided geometry and MODIS NRT API parameters.
     """
 
+    modis_nrt_params = self.gather_modis_nrt_parameters()
+
+    if modis_nrt_params['create_sub_folder']:
+        folder = f"{modis_nrt_params['folder_path']}/{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
+        os.mkdir(folder)
+
+        modis_nrt_params['folder_path'] = folder
+    tiles = modis_api.get_modis_tile(bbox)
     with self.out:
+        self.out.clear_output()
+        print(f'Processing tiles: {tiles}')
+    matching_files = modis_api.get_modis_nrt_file_list(tiles, modis_nrt_params)
+
+    hdf_files_to_process = []
+    tif_list = []
+    start=1
+    for url in matching_files:
+        modis_api.download_and_process_modis_nrt(url, modis_nrt_params['folder_path'], hdf_files_to_process, subdataset=self.modis_nrt_band_selection.value, tif_list=tif_list)
+        start += 1
+
+    merged_output = f'{folder}merged.tif'
+    modis_api.merge_tifs(tif_list, merged_output)
+    for file in tif_list + hdf_files_to_process:
+        if modis_nrt_params['keep_individual_tiles']:
+            pass
+        else:
+            try:
+                os.remove(file)
+            except FileNotFoundError:
+                pass
+    process_and_clip_raster(merged_output, geometry, modis_nrt_params, ee_instance)
+
+    clipped_output = f'{folder}merged_clipped.tif'
+    if modis_nrt_params['calculate_population']:
+        with self.out:
+            self.out.clear_output()
+            pop_impacted = modis_api.calculate_population_in_flood_area(clipped_output)
+            print(pop_impacted)
+
+    def process_modis_nrt_api(self, geometry: Any, distinct_values: Any, index: int) -> None:
         bbox = self.get_bounding_box(distinct_values=distinct_values, feature=geometry)
         modis_nrt_params = self.gather_modis_nrt_parameters()
 
-        if modis_nrt_params['create_sub_folder']:
-            folder = f"{modis_nrt_params['folder_path']}/{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
-            os.mkdir(folder)
+        folder = self.create_sub_folder(modis_nrt_params)
+        tiles = self.get_tiles(bbox)
+        matching_files = self.find_matching_files(tiles, modis_nrt_params)
 
-            modis_nrt_params['folder_path'] = folder
+        hdf_files_to_process, tif_list = self.download_and_process_files(matching_files, modis_nrt_params)
+        merged_output = self.merge_files(tif_list, folder)
+
+        self.cleanup_files(tif_list, hdf_files_to_process, modis_nrt_params)
+        self.finalize_processing(merged_output, geometry, modis_nrt_params)
+
+    def get_tiles(self, bbox: Any) -> List[Any]:
         tiles = modis_api.get_modis_tile(bbox)
-        with self.out:
-            self.out.clear_output()
-            print(f'Processing tiles: {tiles}')
-        matching_files = modis_api.get_modis_nrt_file_list(tiles, modis_nrt_params)
+        print(f'Processing tiles: {tiles}')
+        return tiles
 
+    def find_matching_files(self, tiles: List[Any], modis_nrt_params: Dict[str, Any]) -> List[str]:
+        return modis_api.get_modis_nrt_file_list(tiles, modis_nrt_params)
+
+    def download_and_process_files(self, matching_files: List[str], modis_nrt_params: Dict[str, Any]) -> (List[str], List[str]):
         hdf_files_to_process = []
         tif_list = []
-        start=1
         for url in matching_files:
             modis_api.download_and_process_modis_nrt(url, modis_nrt_params['folder_path'], hdf_files_to_process, subdataset=self.modis_nrt_band_selection.value, tif_list=tif_list)
-            start += 1
+        return hdf_files_to_process, tif_list
 
-        merged_output = f'{folder}merged.tif'
-        modis_api.merge_tifs(tif_list, merged_output)
-        for file in tif_list + hdf_files_to_process:
-            if modis_nrt_params['keep_individual_tiles']:
-                pass
-            else:
+    def finalize_processing(self, merged_output: str, geometry: Any, modis_nrt_params: Dict[str, Any]) -> None:
+        self.process_and_clip_raster(merged_output, geometry, modis_nrt_params)
+        print('Processing Complete!')
+        if modis_nrt_params['calculate_population']:
+            clipped_output = f'{folder}merged_clipped.tif'
+            pop_impacted = modis_api.calculate_population_in_flood_area(clipped_output)
+            print(pop_impacted)
+
+    def cleanup_files(self, tif_list: List[str], hdf_files_to_process: List[str], modis_nrt_params: Dict[str, Any]) -> None:
+        if not modis_nrt_params['keep_individual_tiles']:
+            for file in tif_list + hdf_files_to_process:
                 try:
                     os.remove(file)
                 except FileNotFoundError:
                     pass
-        self.process_and_clip_raster(merged_output, geometry, modis_nrt_params)
-        with self.out:
-            self.out.clear_output()
-            print('Processing Complete!')
-        clipped_output = f'{folder}merged_clipped.tif'
-        if modis_nrt_params['calculate_population']:
-            with self.out:
-                self.out.clear_output()
-                pop_impacted = modis_api.calculate_population_in_flood_area(clipped_output)
-                print(pop_impacted)
 
+    def merge_files(self, tif_list: List[str], folder: str) -> str:
+        merged_output = os.path.join(folder, 'merged.tif')
+        modis_api.merge_tifs(tif_list, merged_output)
+        return merged_output
 
-def gather_modis_nrt_parameters(self):
+    def create_sub_folder(self, modis_nrt_params: Dict[str, Any]) -> str:
+        if modis_nrt_params['create_sub_folder']:
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            folder = os.path.join(modis_nrt_params['folder_path'], timestamp)
+            os.makedirs(folder, exist_ok=True)
+            modis_nrt_params['folder_path'] = folder
+        return modis_nrt_params['folder_path']
+
+def gather_modis_nrt_parameters(self) -> Dict[str, Any]:
     """
     Gathers the parameters for the MODIS NRT processing.
 
@@ -250,6 +305,7 @@ def gather_modis_nrt_parameters(self):
     keep_individual_tiles = self.keep_individual_tiles.value
     add_image_to_map = self.add_image_to_map.value
     calculate_population = self.calculate_population.value
+    nrt_band = self.modis_nrt_band_selection.value
     if date_type == 'Single Date':
         date = self.date_picker_modis_nrt.value
         return {
@@ -260,7 +316,8 @@ def gather_modis_nrt_parameters(self):
             'clip_to_geometry': clip_to_geometry,
             'keep_individual_tiles': keep_individual_tiles,
             'add_to_map': add_image_to_map,
-            'calculate_population': calculate_population
+            'calculate_population': calculate_population,
+            'nrt_band': nrt_band
         }
     elif date_type == 'Date Range':
         start_date = self.date_picker_modis_nrt.children[0].value
@@ -274,7 +331,8 @@ def gather_modis_nrt_parameters(self):
             'clip_to_geometry': clip_to_geometry,
             'keep_individual_tiles': keep_individual_tiles,
             'add_to_map': add_image_to_map,
-            'calculate_population': calculate_population
+            'calculate_population': calculate_population,
+            'nrt_band': nrt_band
         }
     else:
         pass

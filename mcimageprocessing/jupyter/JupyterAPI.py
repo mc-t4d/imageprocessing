@@ -588,9 +588,9 @@ class JupyterAPI(geemap.Map):
 
         # Add the main widget container to the display
         self.add_widget(self.inner_widget_container,
-                        layout=Layout(justify_content='center', max_height='40vh', overflow='auto'))
+                        layout=Layout(justify_content='center', max_height='30vh', overflow='auto'))
 
-    def create_dropdown(self, dropdown_options, description, default_value):
+    def create_dropdown(self, dropdown_options: list, description: str, default_value):
         """
         Create a dropdown widget with the given options, description, and default value.
 
@@ -644,36 +644,6 @@ class JupyterAPI(geemap.Map):
 
         # Create a GeoDataFrame from the shape
         return gpd.GeoDataFrame([{'geometry': geometry_shape}], crs='EPSG:4326')
-
-    def inspect_grib_file(self, file_path):
-        """
-        Inspects a GRIB file at the given file path and prints information about each message in the file.
-
-        :param file_path: The path to the GRIB file.
-        :return: None
-        """
-        try:
-            # Open the GRIB file
-            grib_file = pygrib.open(file_path)
-
-            # Count the number of messages
-            num_messages = grib_file.messages
-
-            for i in range(1, num_messages + 1):
-                # Read each message
-                message = grib_file.message(i)
-
-                try:
-                    # Attempt to read the data array
-                    data = message.values
-                except Exception as e:
-                    # Handle cases where data can't be read
-                    print(f"  - An error occurred when reading data: {e}")
-
-                print("")
-
-        except Exception as e:
-            print(f"An overall error occurred: {e}")
 
     # Replace 'your_grib_file.grib' with the path to your actual GRIB file
 
@@ -770,7 +740,7 @@ class JupyterAPI(geemap.Map):
                 self.out.clear_output()
                 print(f"Error processing files: {e}")
 
-    def convert_to_cog(self, input_path, output_path):
+    def convert_to_cog(self, input_path: str, output_path: str):
         """
         Convert a GeoTIFF to a COG (Cloud-Optimized GeoTIFF) using gdal_translate.
 
@@ -791,7 +761,7 @@ class JupyterAPI(geemap.Map):
         ]
         subprocess.run(cmd, check=True)
 
-    def convert_grib_to_geotiff(self, grib_path, geotiff_path):
+    def convert_grib_to_geotiff(self, grib_path: str, geotiff_path: str):
         """
         Converts a GRIB file to a standard GeoTIFF using gdal_translate.
 
@@ -900,7 +870,7 @@ class JupyterAPI(geemap.Map):
             self.inspect_grib_file(file_path)
 
         # Convert Earth Engine geometry to shapely geometry
-        geometry = self.ee_geometry_to_shapely(geometry)
+        geometry = ee_instance.ee_geometry_to_shapely(geometry)
 
         # Convert to MultiPolygon if needed
         if isinstance(geometry, dict):
@@ -1179,27 +1149,6 @@ class JupyterAPI(geemap.Map):
         else:
             return geometry
 
-    def ee_geometry_to_shapely(self, geometry):
-        """
-        Convert an Earth Engine Geometry, Feature, or GeoJSON to a Shapely Geometry object.
-
-        :param geometry: An Earth Engine Geometry, Feature, or GeoJSON dictionary.
-        :return: A Shapely Geometry object.
-
-        """
-        # Check if the geometry is an Earth Engine Geometry or Feature
-        if isinstance(geometry, ee.Geometry) or isinstance(geometry, ee.Feature):
-            # Convert Earth Engine object to GeoJSON
-            geo_json = geometry.getInfo()
-            if 'geometry' in geo_json:  # If it's a Feature, extract the geometry part
-                geo_json = geo_json['geometry']
-            # Convert GeoJSON to a Shapely Geometry
-            return shape(geo_json)
-        elif isinstance(geometry, dict):  # Directly convert from GeoJSON if it's a dictionary
-            return shape(geometry)
-        else:
-            # If it's neither, assume it's already a Shapely Geometry or compatible
-            return geometry
 
     def on_button_click(self, b):
         """
@@ -1278,174 +1227,8 @@ class JupyterAPI(geemap.Map):
         # Handle parameter file logic here
         pass
 
-    def download_feature_geometry(self, distinct_values):
-        """
-        Downloads the geometry for each distinct value from the specified feature layer and stores it in self.geometry.
 
-        :param distinct_values: A list of distinct values for filtering the feature layer.
-        :return: None
-        """
-        if not distinct_values:
-            print("No distinct values provided.")
-            return
 
-        feature_type_prefix = self.dropdown.value.split('_')[0]
-
-        if feature_type_prefix not in ['watersheds', 'admin']:
-            print("Invalid feature type.")
-            return
-
-        all_geometries = []
-
-        for value in distinct_values:
-            feature = self.layer.filter(ee.Filter.eq(self.column, value)).first()
-            if not feature:
-                print("No feature found for value:", value)
-                continue
-
-            geometry = feature.geometry()
-            if not geometry:
-                print("No geometry for value:", value)
-                continue
-
-            geometry_type = geometry.type().getInfo()
-
-            if geometry_type == 'Polygon':
-                all_geometries.append(geometry.coordinates().getInfo())
-            elif geometry_type == 'MultiPolygon':
-                for poly in geometry.coordinates().getInfo():
-                    all_geometries.append(poly)
-            elif geometry_type == 'GeometryCollection':
-                self.process_geometry_collection(geometry, all_geometries)
-
-        if all_geometries:
-            try:
-                dissolved_geometry = ee.Geometry.MultiPolygon(all_geometries).dissolve()
-                feature = ee.Feature(dissolved_geometry)
-            except ee.EEException as e:
-                print("Error creating dissolved geometry:", e)
-        else:
-            print("No valid geometries to dissolve.")
-
-        if feature and self.dropdown_api.value in ['glofas', 'modis_nrt']:
-            self.geometry = feature.geometry().getInfo()
-            with open('geometry.geojson', "w") as file:
-                json.dump(self.geometry, file)
-            return self.geometry
-        else:
-            self.geometry = feature.geometry()
-            return self.geometry
-
-    def process_geometry_collection(self, geometry_collection, all_geometries):
-        """
-        Processes a geometry collection and appends the coordinates of polygons and multipolygons to a list.
-
-        :param geometry_collection: A geometry collection object.
-        :param all_geometries: A list to store the coordinates of polygons and multipolygons.
-        :return: None
-        """
-        geometries = geometry_collection.geometries().getInfo()
-        for geom in geometries:
-            geom_type = geom['type']
-            if geom_type == 'Polygon':
-                all_geometries.append(geom['coordinates'])
-            elif geom_type == 'MultiPolygon':
-                for poly in geom['coordinates']:
-                    all_geometries.append(poly)
-
-    def process_drawn_features(self, drawn_features):
-        """
-        Process the drawn features.
-
-        :param drawn_features: A list of drawn features.
-        :type drawn_features: list[ee.Feature or ee.Geometry]
-        :return: A list of distinct values from the filtered layer.
-        :rtype: list
-        """
-        all_distinct_values = []
-        for feature in drawn_features:
-
-            if isinstance(feature, ee.Feature) or isinstance(feature, ee.Geometry):
-                drawn_geom = feature.geometry()
-                bounding = drawn_geom.bounds()
-                filtered_layer = self.layer.filterBounds(bounding)
-                distinct_values = filtered_layer.aggregate_array(self.column).distinct().getInfo()
-                all_distinct_values.extend(distinct_values)
-        return list(set(all_distinct_values))
-
-    def determine_geometries_to_process(self, override_boundary_type=None):
-        """
-        Determine the geometries to process based on the boundary type and user inputs.
-
-        :return: A list of tuples representing the geometries to process. Each tuple contains a feature and distinct values.
-        """
-        with self.out:
-            geometries = []
-            if override_boundary_type:
-                boundary_type = override_boundary_type
-            else:
-                boundary_type = self.boundary_type.value
-            if boundary_type in ['Predefined Boundaries', 'User Defined']:
-                for feature in self.draw_features:
-                    if boundary_type == 'Predefined Boundaries':
-                        distinct_values = self.process_drawn_features([feature])
-                        feature = self.download_feature_geometry(distinct_values)
-                    else:  # User Defined
-                        distinct_values = None
-                        # Assuming feature is the geometry itself in this case
-                    geometries.append((feature, distinct_values))
-            elif boundary_type == 'User Uploaded Data' and 'User Uploaded Data' in self.userlayers:
-                feature = self.userlayers['User Uploaded Data'].data
-                geometries.append((feature, None))
-            return geometries
-
-    def ee_ensure_geometry(self, geometry):
-        """
-        Ensures that the input geometry is a valid Earth Engine Geometry or Feature.
-
-        :param geometry: The input geometry to be validated.
-        :type geometry: ee.Geometry or ee.Feature
-        :return: The valid Earth Engine Geometry.
-        :rtype: ee.Geometry
-        :raises ValueError: If the input geometry is neither an ee.Geometry nor an ee.Feature.
-        """
-        if isinstance(geometry, ee.Feature):
-            geometry = geometry.geometry()
-            return geometry
-        elif isinstance(geometry, ee.Geometry):
-            return geometry
-        else:
-            raise ValueError("Invalid geometry type. Must be an Earth Engine Geometry or Feature.")
-
-    def convert_geojson_to_ee(self, geojson_obj):
-        """
-        Converts a GeoJSON object to Earth Engine feature or geometry.
-
-        :param geojson_obj: A GeoJSON object.
-        :return: A converted Earth Engine feature or geometry.
-
-        Raises:
-            ValueError: If the GeoJSON type is unsupported.
-
-        Example usage:
-            geojson = {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [0, 0]
-                }
-            }
-            ee_object = convert_geojson_to_ee(geojson)
-        """
-        if geojson_obj['type'] == 'FeatureCollection':
-            return ee.FeatureCollection(geojson_obj['features'])
-        elif geojson_obj['type'] == 'Feature':
-            geometry = geojson_obj['geometry']
-            return ee.Feature(geometry)
-        elif geojson_obj['type'] in ['Polygon', 'MultiPolygon', 'Point', 'LineString', 'MultiPoint', 'MultiLineString']:
-            return ee.Geometry(geojson_obj)
-        else:
-            raise ValueError("Unsupported GeoJSON type")
 
     def process_based_on_api_selection(self):
         """
@@ -1454,106 +1237,33 @@ class JupyterAPI(geemap.Map):
         :return: None
         """
         with self.out:
-            geometries = self.determine_geometries_to_process()
+            geometries = ee_instance.determine_geometries_to_process(layer=self.layer, column=self.column,
+                                                                     dropdown_api=self.dropdown_api.value,
+                                                                     boundary_type=self.boundary_type.value,
+                                                                     draw_features=self.draw_features,
+                                                                     userlayers=self.userlayers,
+                                                                     boundary_layer=self.dropdown.value)
             for index, (geometry, distinct_values) in enumerate(geometries):
                 if self.dropdown_api.value == 'glofas':
                     self.process_glofas_api(geometry, distinct_values, index)
                 elif self.dropdown_api.value == 'gee':
                     self.process_gee_api(geometry, distinct_values, index)
                 elif self.dropdown_api.value == 'modis_nrt':
-                    self.process_modis_nrt_api(geometry, distinct_values, index)
+                    bbox = self.get_bounding_box(distinct_values, geometry)
+                    modis_api = ModisNRT()
+                    params = self.gather_modis_nrt_parameters()
+                    modis_api.process_modis_nrt_api(geometry, distinct_values, index, params, bbox)
                 elif self.dropdown_api.value == 'worldpop':
-                    self.process_worldpop_api(geometry, distinct_values, index)
+                    worldpop_instance = WorldPop()
+                    params = self.gather_worldpop_parameters()
+                    image_or_stats = worldpop_instance.process_worldpop_api(geometry=geometry, distinct_values=distinct_values, index=index, worldpop_params=params)
+                    if params['add_image_to_map'] and isinstance(image_or_stats, ee.Image):
+                        self.add_ee_layer(image_or_stats, {}, 'WorldPop')
                 else:
                     print('No valid API selected!')
 
-    def process_and_clip_raster(self, file_path, geometry, params=None):
-        """
-        Process and clip a raster file.
 
-        :param file_path: The file path of the raster file to be processed and clipped.
-        :return: None
-        """
-        min_val, max_val, no_data_val = self.get_raster_min_max(file_path)
-        if min_val == -9999:
-            min_val = 0
 
-        vis_params = {
-            'min': min_val,
-            'max': max_val,
-            'palette': 'viridis',
-            'nodata': no_data_val
-        }
-        if params['clip_to_geometry']:
-            raster_path = self.clip_raster(file_path, geometry)
-        else:
-            raster_path = file_path
-        if params['add_to_map']:
-            self.add_clipped_raster_to_map(raster_path, vis_params=vis_params)
-
-    def add_clipped_raster_to_map(self, raster_path, vis_params=None):
-        """
-        Adds a clipped raster to the map.
-
-        :param raster_path: A string specifying the path to the raster file.
-        :param vis_params: Optional dictionary specifying the visualization parameters for the raster. Default is an empty dictionary.
-        :return: None
-
-        Example usage:
-
-            add_clipped_raster_to_map('/path/to/raster.tif', vis_params={'min': 0, 'max': 255})
-
-        This method creates a `localtileserver.TileClient` object using the given raster path. It then uses the `localtileserver.get_leaflet_tile_layer` method to obtain the Leaflet tile layer
-        * for the raster, applying the visualization parameters if provided. The resulting tile layer is added to the map using the `add_layer` method. Finally, the map adjusts its bounds to
-        * fit the bounds of the raster using the `fit_bounds` method.
-
-        If a ValueError occurs during the process, it will be caught and printed as an error message. Any other exceptions will also be caught and printed.
-
-        Note: This method assumes that the necessary dependencies (`localtileserver`) are installed and importable.
-        """
-        if vis_params is None:
-            vis_params = {}
-        try:
-            client = localtileserver.TileClient(raster_path)
-            tile_layer = localtileserver.get_leaflet_tile_layer(client, **vis_params)
-            self.add_layer(tile_layer)
-            self.fit_bounds(client.bounds)
-        except ValueError as e:
-            print(f"ValueError: {e}")
-        except Exception as e:
-            print(f"An error occurred: {e}")
-
-    def get_raster_min_max(self, raster_path):
-        """
-        :param raster_path: The file path to the raster file.
-        :return: A tuple containing the minimum and maximum values of the raster.
-        """
-
-        dataset = gdal.Open(raster_path)
-        band = dataset.GetRasterBand(1)  # Assumes the raster has only one band
-        min_val = band.GetMinimum()
-        max_val = band.GetMaximum()
-        nodata_val = band.GetNoDataValue()
-
-        band_data = band.ReadAsArray()
-
-        # Check if 9999 is in the data
-        if 9999 in band_data:
-            # Mask the data to ignore values of 9999 or higher
-            masked_data = np.ma.masked_where(band_data >= 9999, band_data)
-
-            # Find the maximum value in the masked data
-            next_highest_val = masked_data.max()
-
-            # Set max_val to the next highest value
-            max_val = next_highest_val
-
-        # If the minimum and maximum values are not natively provided by the raster band
-        if min_val is None or max_val is None:
-            min_val, max_val = band.ComputeRasterMinMax(True)
-
-        dataset = None  # Close the dataset
-        return min_val, max_val, nodata_val
 
 
 
@@ -1584,10 +1294,7 @@ JupyterAPI.process_modis_nrt_api = process_modis_nrt_api
 
 ##WORLDPOP COMPONENTS##
 JupyterAPI.create_widgets_for_worldpop = create_widgets_for_worldpop
-JupyterAPI.process_worldpop_api = process_worldpop_api
 JupyterAPI.gather_worldpop_parameters = gather_worldpop_parameters
-JupyterAPI.download_and_split = download_and_split
-JupyterAPI.mosaic_images = mosaic_images
 
 ##GLOBAL FLOOD DATABASE COMPONENTS##
 JupyterAPI.create_widgets_for_global_flood_db = create_widgets_for_global_flood_db

@@ -11,6 +11,8 @@ from openpyxl import Workbook
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
+from shapely.geometry import shape
+
 
 import os
 import geemap
@@ -523,85 +525,6 @@ class EarthEngineManager(BaseModel):
 
             return admin_units_dict.getInfo()
 
-    def create_excel(self, datatype='EE', indicator=None, admin_level=0, destination=None):
-        admin_levels = self.get_admin_units(level=admin_level)
-
-        # Define the structure of the workbook sheets
-        sheet_names = {
-            'PrimaryFilters': {
-                'colnames': ['Admin0', 'StartDate', 'EndDate', 'AggregationMethod', 'Frequency', 'Admin1'],
-                'colletters': ['A', 'B', 'C', 'D', 'E', 'F']
-            },
-            'Options': {
-                'colnames': ['Admin0 Options'],
-                'colletters': ['A'],
-                'list_location': {
-                    'Admin0': admin_levels
-                }
-            }
-        }
-
-        wb = Workbook()
-
-        # Create sheets and set column headers
-        for sheet, properties in sheet_names.items():
-            wb.create_sheet(sheet)
-            current_sheet = wb[sheet]
-            for col_name, col_letter in zip(properties['colnames'], properties['colletters']):
-                current_sheet[f"{col_letter}1"] = col_name
-
-        # Populate the 'Options' sheet
-        options_sheet = wb['Options']
-        for idx, option in enumerate(admin_levels, start=2):  # Start at row 2
-            options_sheet[f"A{idx}"] = option
-
-        # Add data validation to 'PrimaryFilters'
-        primary_filters_sheet = wb['PrimaryFilters']
-
-        dv = DataValidation(type="list", formula1=f"Options!$A$2:$A${len(admin_levels) + 1}",
-                            showDropDown=False, showInputMessage=True, errorStyle="stop", showErrorMessage=True)
-
-        for row in range(2, 500):  # Assuming you want to apply this to all possible rows
-            dv.add(primary_filters_sheet[f"{get_column_letter(1)}{row}"])
-
-        primary_filters_sheet.add_data_validation(dv)
-
-        dv_date = DataValidation(type="date",
-                                 operator="between",
-                                 formula1=min(self.ee_dates),
-                                 formula2=max(self.ee_dates),
-                                 showInputMessage=True,
-                                 showErrorMessage=True,
-                                 errorTitle="Invalid input",
-                                 error="Enter a date between {} and {}".format(min(self.ee_dates), max(self.ee_dates)),
-                                 promptTitle="Enter Date",
-                                 prompt=f"Enter a date in format: YYYY-MM-DD. Date must be between {min(self.ee_dates)} and {max(self.ee_dates)}")
-
-        # Apply to each cell in the relevant columns ('StartDate'-'B', 'EndDate'-'C')
-        for col in ['B', 'C']:
-            dv_date.add(f"{col}2:{col}500")  # Apply to a range instead of individual cells
-
-        primary_filters_sheet.add_data_validation(dv_date)
-
-        # Data validation for Aggregation Method column
-        agg_methods = ['None', 'mode', 'median', 'mean', 'max', 'min', 'sum', 'first', 'last']
-        dv_agg = DataValidation(type="list", formula1='"{}"'.format(','.join(agg_methods)),
-                                showDropDown=False, showInputMessage=True, errorStyle="stop", showErrorMessage=True)
-        dv_agg.add(f"D2:D500")  # Assuming 'AggregationMethod' is in column D
-        primary_filters_sheet.add_data_validation(dv_agg)
-
-        # Data validation for Frequency column
-        frequencies = ['None', 'Monthly', 'Yearly']
-        dv_freq = DataValidation(type="list", formula1='"{}"'.format(','.join(frequencies)),
-                                 showDropDown=False, showInputMessage=True, errorStyle="stop", showErrorMessage=True)
-        dv_freq.add(f"E2:E500")  # Assuming 'Frequency' is in column E
-        primary_filters_sheet.add_data_validation(dv_freq)
-
-        # Remove the default 'Sheet' created by openpyxl
-        if 'Sheet' in wb.sheetnames:
-            del wb['Sheet']
-
-        return wb
 
     def get_image_sum(self, img, geometry, scale):
         # Define the reducers for each statistic you want to calculate
@@ -614,3 +537,219 @@ class EarthEngineManager(BaseModel):
 
         return sum_dict
 
+    def ee_ensure_geometry(self, geometry):
+        """
+        Ensures that the input geometry is a valid Earth Engine Geometry or Feature.
+
+        :param geometry: The input geometry to be validated.
+        :type geometry: ee.Geometry or ee.Feature
+        :return: The valid Earth Engine Geometry.
+        :rtype: ee.Geometry
+        :raises ValueError: If the input geometry is neither an ee.Geometry nor an ee.Feature.
+        """
+        if isinstance(geometry, ee.Feature):
+            geometry = geometry.geometry()
+            return geometry
+        elif isinstance(geometry, ee.Geometry):
+            return geometry
+        else:
+            raise ValueError("Invalid geometry type. Must be an Earth Engine Geometry or Feature.")
+
+    def convert_geojson_to_ee(self, geojson_obj):
+        """
+        Converts a GeoJSON object to Earth Engine feature or geometry.
+
+        :param geojson_obj: A GeoJSON object.
+        :return: A converted Earth Engine feature or geometry.
+
+        Raises:
+            ValueError: If the GeoJSON type is unsupported.
+
+        Example usage:
+            geojson = {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [0, 0]
+                }
+            }
+            ee_object = convert_geojson_to_ee(geojson)
+        """
+        if geojson_obj['type'] == 'FeatureCollection':
+            return ee.FeatureCollection(geojson_obj['features'])
+        elif geojson_obj['type'] == 'Feature':
+            geometry = geojson_obj['geometry']
+            return ee.Feature(geometry)
+        elif geojson_obj['type'] in ['Polygon', 'MultiPolygon', 'Point', 'LineString', 'MultiPoint', 'MultiLineString']:
+            return ee.Geometry(geojson_obj)
+        else:
+            raise ValueError("Unsupported GeoJSON type")
+
+    def process_drawn_features(self, drawn_features, layer, column):
+        """
+        Process the drawn features.
+
+        :param drawn_features: A list of drawn features.
+        :type drawn_features: list[ee.Feature or ee.Geometry]
+        :return: A list of distinct values from the filtered layer.
+        :rtype: list
+        """
+        all_distinct_values = []
+        for feature in drawn_features:
+
+            if isinstance(feature, ee.Feature) or isinstance(feature, ee.Geometry):
+                drawn_geom = feature.geometry()
+                bounding = drawn_geom.bounds()
+                filtered_layer = layer.filterBounds(bounding)
+                distinct_values = filtered_layer.aggregate_array(column).distinct().getInfo()
+                all_distinct_values.extend(distinct_values)
+        return list(set(all_distinct_values))
+
+    def process_geometry_collection(self, geometry_collection, all_geometries):
+        """
+        Processes a geometry collection and appends the coordinates of polygons and multipolygons to a list.
+
+        :param geometry_collection: A geometry collection object.
+        :param all_geometries: A list to store the coordinates of polygons and multipolygons.
+        :return: None
+        """
+        geometries = geometry_collection.geometries().getInfo()
+        for geom in geometries:
+            geom_type = geom['type']
+            if geom_type == 'Polygon':
+                all_geometries.append(geom['coordinates'])
+            elif geom_type == 'MultiPolygon':
+                for poly in geom['coordinates']:
+                    all_geometries.append(poly)
+
+    def download_feature_geometry(self, distinct_values, feature_type_prefix=None, column=None, layer=None, dropdown_api=None):
+        """
+        Downloads the geometry for each distinct value from the specified feature layer and stores it in self.geometry.
+
+        :param distinct_values: A list of distinct values for filtering the feature layer.
+        :return: None
+        """
+        if not distinct_values:
+            print("No distinct values provided.")
+            return
+
+        if feature_type_prefix not in ['watersheds', 'admin']:
+            print("Invalid feature type.")
+            return
+
+        all_geometries = []
+
+        for value in distinct_values:
+            feature = layer.filter(ee.Filter.eq(column, value)).first()
+            if not feature:
+                print("No feature found for value:", value)
+                continue
+
+            geometry = feature.geometry()
+            if not geometry:
+                print("No geometry for value:", value)
+                continue
+
+            geometry_type = geometry.type().getInfo()
+
+            if geometry_type == 'Polygon':
+                all_geometries.append(geometry.coordinates().getInfo())
+            elif geometry_type == 'MultiPolygon':
+                for poly in geometry.coordinates().getInfo():
+                    all_geometries.append(poly)
+            elif geometry_type == 'GeometryCollection':
+                self.process_geometry_collection(geometry, all_geometries)
+
+        if all_geometries:
+            try:
+                dissolved_geometry = ee.Geometry.MultiPolygon(all_geometries).dissolve()
+                feature = ee.Feature(dissolved_geometry)
+            except ee.EEException as e:
+                print("Error creating dissolved geometry:", e)
+        else:
+            print("No valid geometries to dissolve.")
+
+        if feature and dropdown_api in ['glofas', 'modis_nrt']:
+            geometry = feature.geometry().getInfo()
+            with open('geometry.geojson', "w") as file:
+                json.dump(geometry, file)
+            return geometry
+        else:
+            geometry = feature.geometry()
+            return geometry
+
+    def download_and_split(self, image, original_geometry, scale, split_count=1, params=None, band=None):
+        """Attempt to download the image, splitting the geometry if necessary."""
+        file_names = []
+        try:
+            geom_list = self.split_and_sort_geometry(original_geometry, split_count)
+            for index, geom in enumerate(geom_list):
+                url = self.get_image_download_url(img=image, region=geom, scale=scale)
+                file_name = f"{band}_{str(params['year'])}_{split_count}_{index}.tif".replace('-', '_').replace('/',
+                                                                                                                '_').replace(
+                    ' ', '_')
+                file_name = f"{params['folder_output']}/{file_name}"
+                self.download_file_from_url(url=url, destination_path=file_name)
+                file_names.append(file_name)
+            if split_count == 1 and len(file_names) == 1:
+                # Download successful without splitting, no need to mosaic
+                return file_names, True
+        except Exception as e:
+            if "Total request size" in str(e):
+                print(f"Splitting geometry into {split_count * 2} parts and trying again.")
+                # Increase split count and try again
+                return self.download_and_split(image, original_geometry, scale, split_count * 2, params, band=band)
+            else:
+                print(f'Unexpected error: {e}')
+
+        return file_names, False
+
+    def ee_geometry_to_shapely(self, geometry):
+        """
+        Convert an Earth Engine Geometry, Feature, or GeoJSON to a Shapely Geometry object.
+
+        :param geometry: An Earth Engine Geometry, Feature, or GeoJSON dictionary.
+        :return: A Shapely Geometry object.
+
+        """
+        # Check if the geometry is an Earth Engine Geometry or Feature
+        if isinstance(geometry, ee.Geometry) or isinstance(geometry, ee.Feature):
+            # Convert Earth Engine object to GeoJSON
+            geo_json = geometry.getInfo()
+            if 'geometry' in geo_json:  # If it's a Feature, extract the geometry part
+                geo_json = geo_json['geometry']
+            # Convert GeoJSON to a Shapely Geometry
+            return shape(geo_json)
+        elif isinstance(geometry, dict):  # Directly convert from GeoJSON if it's a dictionary
+            return shape(geometry)
+        else:
+            # If it's neither, assume it's already a Shapely Geometry or compatible
+            return geometry
+
+    def determine_geometries_to_process(self, override_boundary_type=None, layer=None, column=None, dropdown_api=None,
+                                        boundary_type=None, draw_features=None, userlayers=None, boundary_layer=None):
+        """
+        Determine the geometries to process based on the boundary type and user inputs.
+
+        :return: A list of tuples representing the geometries to process. Each tuple contains a feature and distinct values.
+        """
+        geometries = []
+        if override_boundary_type:
+            boundary_type = override_boundary_type
+        else:
+            boundary_type = boundary_type
+        if boundary_type in ['Predefined Boundaries', 'User Defined']:
+            for feature in draw_features:
+                if boundary_type == 'Predefined Boundaries':
+                    distinct_values = self.process_drawn_features([feature], layer=layer, column=column)
+                    feature = self.download_feature_geometry(distinct_values, feature_type_prefix=boundary_layer.split('_')[0],
+                                                             column=column, layer=layer, dropdown_api=dropdown_api)
+
+                else:  # User Defined
+                    distinct_values = None
+                    # Assuming feature is the geometry itself in this case
+                geometries.append((feature, distinct_values))
+        elif boundary_type == 'User Uploaded Data' and 'User Uploaded Data' in userlayers:
+            feature = userlayers['User Uploaded Data'].data
+            geometries.append((feature, None))
+        return geometries
