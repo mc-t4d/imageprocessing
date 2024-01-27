@@ -10,11 +10,10 @@ import os
 import rasterio
 from rasterio.merge import merge
 
-ee_auth_path = pkg_resources.resource_filename('mcimageprocessing', 'ee_auth_file.json')
 
-ee_instance = EarthEngineManager(authentication_file=ee_auth_path)
+ee_instance = EarthEngineManager()
 
-def create_widgets_for_worldpop(self) -> List[widgets.Widget]:
+def create_widgets_for_gpw(self) -> List[widgets.Widget]:
     """
     :param self: the instance of the class calling this method
     :return: a list of widgets for creating WorldPop data visualizations
@@ -23,11 +22,11 @@ def create_widgets_for_worldpop(self) -> List[widgets.Widget]:
 
     The following widgets are created:
 
-    - `worldpop_data_source`: a `ToggleButtons` widget for selecting the data source, with options for 'WorldPop API' and 'Google Earth Engine'.
+    - `gpw4_data_source`: a `ToggleButtons` widget for selecting the data source, with options for 'WorldPop API' and 'Google Earth Engine'.
 
-    - `worldpop_data_type`: a `Dropdown` widget for selecting the type of WorldPop data to visualize, with options for 'Residential Population' and 'Age and Sex Structures'.
+    - `gpw4_data_type`: a `Dropdown` widget for selecting the type of WorldPop data to visualize, with options for 'Residential Population' and 'Age and Sex Structures'.
 
-    - `worldpop_year`: a `Dropdown` widget for selecting the year of the data to visualize, with options for the years from 2000 to 2020 in increments of 5.
+    - `gpw4_year`: a `Dropdown` widget for selecting the year of the data to visualize, with options for the years from 2000 to 2020 in increments of 5.
 
     - `statistics_only_check`: a `Checkbox` widget for indicating whether only image statistics should be calculated, without generating a visualization.
 
@@ -44,23 +43,18 @@ def create_widgets_for_worldpop(self) -> List[widgets.Widget]:
     """
     with self.out:
 
-        self.worldpop_data_source = widgets.ToggleButtons(
-            options=['WorldPop API', 'Google Earth Engine'],
-            disabled=False,
-            value='Google Earth Engine',
-            tooltips=['Obtain data directly from WorldPop API (more dynamic and more options)', 'Google Earth Engine (less functionality and optiosn, but potentially faster'],
-        )
-
-        self.worldpop_data_type = widgets.Dropdown(
-            options=[x for x in ['Residential Population', 'Age and Sex Structures', ]],
-            value='Residential Population',
+        self.gpw4_data_type = widgets.Dropdown(
+            options=[('Population Density', "CIESIN/GPWv411/GPW_Population_Density"),
+                     ('Population Count', "CIESIN/GPWv411/GPW_Population_Count"),
+                     ('UN-Adjusted Population Density', "CIESIN/GPWv411/GPW_UNWPP-Adjusted_Population_Density")],
+            value="CIESIN/GPWv411/GPW_Population_Density",  # Set the default value as one of the option values
             description='Results:',
             disabled=False,
             layout=Layout()
         )
 
-        self.worldpop_year = widgets.Dropdown(
-            options=[str(x) for x in range(2000, 2021, 1)],
+        self.gpw4_year = widgets.Dropdown(
+            options=[str(x) for x in range(2000, 2021, 5)],
             value="2020",
             description='Year:',
             disabled=False,
@@ -91,9 +85,8 @@ def create_widgets_for_worldpop(self) -> List[widgets.Widget]:
         self.gee_end_of_container_options.set_title(0, 'Processing Options')
 
         widget_list = [
-            self.worldpop_data_source,
-            self.worldpop_data_type,
-            self.worldpop_year,
+            self.gpw4_data_type,
+            self.gpw4_year,
             self.scale_input,
             self.filechooser,
             self.gee_end_of_container_options
@@ -104,12 +97,12 @@ def create_widgets_for_worldpop(self) -> List[widgets.Widget]:
 
         return widget_list
 
-def gather_worldpop_parameters(self) -> Dict[str, Any]:
+def gather_gpw4_parameters(self) -> Dict[str, Any]:
     """
     :param self: The current object instance.
     :return: A dictionary containing the parameters for gathering world population data.
 
-    The method gather_worldpop_parameters gathers the parameters required for gathering world population data. It returns a dictionary containing the following parameters:
+    The method gather_gpw4_parameters gathers the parameters required for gathering world population data. It returns a dictionary containing the following parameters:
     - api_source: The data source for the world population data.
     - year: The year for which the world population data is requested.
     - datatype: The data type for the world population data.
@@ -120,14 +113,14 @@ def gather_worldpop_parameters(self) -> Dict[str, Any]:
 
     Example usage:
     ```
-    parameters = gather_worldpop_parameters(self)
+    parameters = gather_gpw4_parameters(self)
     ```
     """
 
     return {
-        'api_source': self.worldpop_data_source.value,
-        'year': self.worldpop_year.value,
-        'datatype': self.worldpop_data_type.value,
+        'api_source': self.gpw4_data_source.value,
+        'year': self.gpw4_year.value,
+        'datatype': self.gpw4_data_type.value,
         'statistics_only': self.statistics_only_check.value,
         'add_image_to_map': self.add_image_to_map.value,
         'create_sub_folder': self.create_sub_folder.value,
@@ -136,7 +129,7 @@ def gather_worldpop_parameters(self) -> Dict[str, Any]:
 
 
 
-def process_worldpop_data(self, geometry: Any, distinct_values: Any, index: int) -> None:
+def process_gpw4_data(self, geometry: Any, distinct_values: Any, index: int) -> None:
     """
     Method to process WorldPop API data for given parameters.
 
@@ -147,7 +140,7 @@ def process_worldpop_data(self, geometry: Any, distinct_values: Any, index: int)
     :return: None
     """
     with self.out:
-        WorldPop.process_worldpop_api(self, geometry, distinct_values, index, worldpop_params=gather_worldpop_parameters(self))
+        WorldPop.process_gpw4_api(self, geometry, distinct_values, index, gpw4_params=gather_gpw4_parameters(self))
 
 
 

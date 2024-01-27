@@ -1,21 +1,18 @@
-import datetime
-import logging
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List
-from typing import Optional
-
-import ee
-import ipyfilechooser as fc
 import ipywidgets as widgets
-from geojson import Feature, FeatureCollection
 from ipywidgets import Layout
-
+import ee
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.shared_functions.shared_utils import mosaic_images
+import pkg_resources
+import datetime
+from typing import Any, Dict, List
+import os
+import rasterio
+from rasterio.merge import merge
+from geojson import Feature, FeatureCollection
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-
-class WorldPop:
+class GP4W:
     """
     WorldPop class
 
@@ -37,41 +34,11 @@ class WorldPop:
     - process_worldpop_api(geometry, distinct_values, index, worldpop_params=None): Method to process WorldPop API data for given parameters.
     """
 
-    data_type_options = ['Residential Population', 'Age and Sex Structures']
-    year_options = [str(x) for x in range(2000, 2021, 1)]
-    source_options = ['WorldPop API', 'Google Earth Engine']
+    def __init__(self):
 
-    def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
-        self.worldpop_agesex_bands = ['population', 'M_0', 'M_1', 'M_5', 'M_10', 'M_15', 'M_20', 'M_25', 'M_30', 'M_35',
-                                      'M_40',
-                                      'M_45', 'M_50', 'M_55', 'M_60', 'M_65', 'M_70', 'M_75', 'M_80', 'F_0',
-                                      'F_1', 'F_5', 'F_10', 'F_15', 'F_20', 'F_25', 'F_30', 'F_35', 'F_40',
-                                      'F_45', 'F_50', 'F_55', 'F_60', 'F_65', 'F_70', 'F_75', 'F_80']
+        self.ee_instance = EarthEngineManager()
 
-        self.ee_instance = ee_manager if ee_manager else EarthEngineManager()
-        self.logger = logging.getLogger(__name__)
-
-    def _validate_parameters(self, worldpop_params: Dict[str, Any]) -> bool:
-        required_keys = ['folder_output', 'api_source', 'year', 'datatype']
-        for key in required_keys:
-            if key not in worldpop_params:
-                self.logger.error(f"Missing required worldpop_param: {key}")
-                return False
-            if not worldpop_params[key]:
-                self.logger.error(f"worldpop_param {key} is empty or invalid.")
-                return False
-        return True
-
-    def _create_sub_folder(self, base_folder: str) -> str:
-        folder_name = os.path.join(base_folder, datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
-        try:
-            os.mkdir(folder_name)
-            return folder_name
-        except OSError as e:
-            self.logger.error(f"Failed to create subfolder: {e}")
-            return base_folder
-
-    def process_residential_population(self, geometry: Any, worldpop_params: Dict[str, Any]) -> Any:
+    def process_population_count(self, geometry: Any, worldpop_params: Dict[str, Any]) -> Any:
         """
         Process residential population based on the given parameters.
 
@@ -112,6 +79,33 @@ class WorldPop:
         self.download_and_process_image(image, geometry, scale, worldpop_params, band)
         return image
 
+    def mosaic_images(self, file_names: List[str], output_filename: str = 'mosaic.tif') -> None:
+        """
+        Merges multiple raster images into a single mosaic image.
+
+        :param file_names: List of file names of raster images to be merged.
+        :param output_filename: Output file name for the mosaic image. Defaults to 'mosaic.tif'.
+
+        :return: None
+
+        """
+        src_files_to_mosaic = []
+        for fn in file_names:
+            src = rasterio.open(fn)
+            src_files_to_mosaic.append(src)
+
+        mosaic, out_trans = merge(src_files_to_mosaic)
+        out_meta = src.meta.copy()
+        out_meta.update({"driver": "GTiff",
+                         "height": mosaic.shape[1],
+                         "width": mosaic.shape[2],
+                         "transform": out_trans})
+
+        with rasterio.open(f"{output_filename}", "w", **out_meta) as dest:
+            dest.write(mosaic)
+
+        for fn in file_names:
+            os.remove(fn)
 
     def download_and_process_image(self, image: ee.Image, geometry: Any, scale: Any, worldpop_params: Dict[str, Any],
                                    band: str) -> None:
@@ -219,122 +213,65 @@ class WorldPop:
 
         return True
 
-    def process_worldpop_api(self, geometry: Any, distinct_values: Any, index: Any, worldpop_params: Dict[str, Any] = None) -> Any:
-        if not self._validate_parameters(worldpop_params):
+    def process_worldpop_api(self, geometry: Any, distinct_values: Any, index: Any,
+                             worldpop_params: Dict[str, Any] = None) -> Any:
+        """
+        :param geometry: The geometry for which to process the WorldPop API data.
+        :param distinct_values: A dictionary of distinct values to filter the WorldPop data by.
+        :param index: The index to retrieve from the filtered WorldPop data.
+        :param worldpop_params: Optional parameters for the WorldPop API request.
+        :return: The processed WorldPop data or a message indicating no valid data type provided.
+
+        This method processes the WorldPop API data based on the given parameters. It validates the parameters, creates a sub-folder if required, ensures the geometry is in the correct format
+        *, and then processes the data based on the requested data type.
+
+        If the 'datatype' parameter in 'worldpop_params' is set to 'Residential Population', it calls the 'process_residential_population' method and returns the processed image. If the 'statistics
+        *_only' parameter in 'worldpop_params' is set to True, it also saves the statistics as a JSON file in the folder output.
+
+        If the 'datatype' parameter in 'worldpop_params' is set to 'Age and Sex Structures', it calls the 'process_age_and_sex_structures' method and returns the processed statistics. If the
+        * 'statistics_only' parameter in 'worldpop_params' is set to True, it also saves the statistics as a JSON file in the folder output.
+
+        If 'worldpop_params' is not provided or if no valid 'datatype' value is provided, it returns a message indicating no valid data type provided.
+
+        If no valid 'worldpop_params' value is provided, it prints a message indicating so.
+        """
+
+        print(worldpop_params)
+
+        if not self.validate_parameters(worldpop_params):
             return
 
-        if worldpop_params.get('create_sub_folder'):
-            worldpop_params['folder_output'] = self._create_sub_folder(worldpop_params['folder_output'])
+        if worldpop_params['create_sub_folder']:
+            worldpop_params['folder_output'] = f"{worldpop_params['folder_output']}/{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            os.mkdir(worldpop_params['folder_output'])
 
         geometry = self.ee_instance.ee_ensure_geometry(geometry)
 
-        if 'datatype' in worldpop_params:
+        if worldpop_params and 'datatype' in worldpop_params:
             if worldpop_params['datatype'] == 'Residential Population':
-                return self._process_datatype_residential_population(geometry, worldpop_params)
+                image = self.process_residential_population(geometry, worldpop_params)
+                if worldpop_params['statistics_only']:
+                    with open(f"{worldpop_params['folder_output']}/statistics.json", 'w') as f:
+                        f.write(str(image))
+                    return image
+                return image
+
             elif worldpop_params['datatype'] == 'Age and Sex Structures':
-                return self._process_datatype_age_and_sex_structures(geometry, worldpop_params)
+                statistics = self.process_age_and_sex_structures(geometry, worldpop_params)
+                if worldpop_params['statistics_only']:
+                    with open(f"{worldpop_params['folder_output']}/statistics.json", 'w') as f:
+                        f.write(str(statistics))
+
+                    print(statistics)
+                    return statistics
+                else:
+                    return statistics
+
             else:
-                self.logger.error('No valid data type provided.')
+                return 'No valid data type provided.'
+
+
         else:
-            self.logger.error("No valid worldpop_params provided.")
+            print("No valid worldpop_params provided.")
 
-    def _process_datatype_residential_population(self, geometry, worldpop_params):
-        image = self.process_residential_population(geometry, worldpop_params)
-        if worldpop_params['statistics_only']:
-            self._save_statistics(worldpop_params['folder_output'], image)
-        return image
-
-    def _process_datatype_age_and_sex_structures(self, geometry, worldpop_params):
-        statistics = self.process_age_and_sex_structures(geometry, worldpop_params)
-        if worldpop_params['statistics_only']:
-            self._save_statistics(worldpop_params['folder_output'], statistics)
-        return statistics
-
-    def _save_statistics(self, folder_output: str, data: Any):
-        try:
-            with open(os.path.join(folder_output, 'statistics.json'), 'w') as f:
-                f.write(str(data))
-        except IOError as e:
-            self.logger.error(f"Error saving statistics: {e}")
-
-
-class WorldPopNotebookInterface(WorldPop):
-    def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
-        super().__init__(ee_manager)  # Initialize the base WorldPop class
-        self.out = widgets.Output()  # For displaying logs, errors, etc.
-        # Initialize widgets
-        self.create_widgets_for_worldpop()
-
-    def create_widgets_for_worldpop(self) -> List[widgets.Widget]:
-        self.worldpop_data_source = widgets.ToggleButtons(
-            options=self.source_options,
-            disabled=False,
-            value=self.source_options[1],  # Default to 'Google Earth Engine'
-            tooltips=['Obtain data directly from WorldPop API', 'Google Earth Engine'],
-        )
-        self.worldpop_data_type = widgets.Dropdown(
-            options=self.data_type_options,
-            value=self.data_type_options[0],  # Default to 'Residential Population'
-            description='Data Type:',
-            disabled=False,
-            layout=Layout(width='auto')
-        )
-        self.worldpop_year = widgets.Dropdown(
-            options=self.year_options,
-            value=self.year_options[-1],  # Default to the last year
-            description='Year:',
-            disabled=False,
-            layout=Layout(width='auto')
-        )
-        self.statistics_only_check = widgets.Checkbox(
-            value=False,
-            description='Image Statistics Only (dictionary)',
-            disabled=False,
-            indent=False
-        )
-        self.scale_input = widgets.Text(
-            value='default',
-            placeholder='Scale',
-            description='Scale:',
-            disabled=True,
-            layout=Layout()
-        )
-        self.add_image_to_map = widgets.Checkbox(description='Add Image to Map')
-        self.create_sub_folder = widgets.Checkbox(description='Create Sub-folder')
-        self.filechooser = fc.FileChooser(os.getcwd(), show_only_dirs=True)
-        self.gee_end_of_container_options = widgets.Accordion(
-            [widgets.TwoByTwoLayout(
-                top_left=self.statistics_only_check, top_right=self.add_image_to_map,
-                bottom_right=self.create_sub_folder
-            )])
-        self.gee_end_of_container_options.set_title(0, 'Processing Options')
-        self.widget_list = [
-            self.worldpop_data_source,
-            self.worldpop_data_type,
-            self.worldpop_year,
-            self.scale_input,
-            self.filechooser,
-            self.gee_end_of_container_options
-        ]
-        return self.widget_list
-
-    def gather_worldpop_parameters(self) -> Dict[str, Any]:
-        # Ensure that you're accessing the correct attribute for the file chooser
-        folder_output = self.filechooser.selected or self.filechooser.value
-        print(folder_output)  # Debugging: Print the value to ensure it's correct
-
-        # Return the parameters as a dictionary
-        return {
-            'api_source': self.worldpop_data_source.value,
-            'year': self.worldpop_year.value,
-            'datatype': self.worldpop_data_type.value,
-            'statistics_only': self.statistics_only_check.value,
-            'add_image_to_map': self.add_image_to_map.value,
-            'create_sub_folder': self.create_sub_folder.value,
-            'folder_output': folder_output,
-        }
-
-    def process_worldpop_data(self, geometry: Any, distinct_values: Any, index: int) -> None:
-        with self.out:
-            super().process_worldpop_api(geometry, distinct_values, index, worldpop_params=self.gather_worldpop_parameters())
 
