@@ -56,8 +56,10 @@ def process_and_clip_raster(file_path, geometry, params=None, ee_instance=None):
     }
     if params['clip_to_geometry']:
         raster_path = clip_raster(file_path, geometry, ee_instance)
+        return raster_path
     else:
         raster_path = file_path
+        return raster_path
     # if params['add_to_map']:
     #     add_clipped_raster_to_map(map_object, raster_path, vis_params=vis_params)
 
@@ -167,21 +169,25 @@ def clip_raster(file_path, geometry, ee_instance):
     if file_path.endswith('.grib'):
         inspect_grib_file(file_path)
 
+
     # Convert Earth Engine geometry to shapely geometry
     geometry = ee_instance.ee_geometry_to_shapely(geometry)
 
+
     # Convert to MultiPolygon if needed
-    if isinstance(geometry, dict):
-        try:
-            geometry = shape(geometry['geometries'][1])
-        except KeyError:
-            geometry = shape(geometry)
-    if not isinstance(geometry, MultiPolygon):
-        geometry = MultiPolygon([geometry])
+    try:
+        if isinstance(geometry, dict):
+            try:
+                geometry = shape(geometry['geometries'][1])
+            except KeyError:
+                geometry = shape(geometry)
+        if not isinstance(geometry, MultiPolygon):
+            geometry = MultiPolygon([geometry])
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
     # Create a GeoDataFrame
     gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs="EPSG:4326")
-
     # Open the raster file with rasterio
     with rasterio.open(file_path) as src:
 

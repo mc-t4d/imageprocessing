@@ -21,7 +21,7 @@ import json
 import os
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.APIs.WorldPop import WorldPop
-from mcimageprocessing.programmatic.shared_functions.shared_utils import process_and_clip_raster
+from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
 import pkg_resources
 from mcimageprocessing import config_manager
 import ipyfilechooser as fc
@@ -33,7 +33,7 @@ from bs4 import BeautifulSoup
 from osgeo import gdal
 
 from typing import Dict, Any, List
-from mcimageprocessing.programmatic.shared_functions.shared_utils import process_and_clip_raster
+from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
 
 # Initialize Earth Engine credentials
 # credentials = ee.ServiceAccountCredentials(
@@ -303,7 +303,6 @@ class ModisNRT:
 
         multi_geom = ee.Geometry.MultiPolygon(list(ee_geometries))
 
-        print(population_data_type, year, population_data_source)
 
         if population_data_source == 'Google Earth Engine':
 
@@ -323,7 +322,7 @@ class ModisNRT:
 
                 image = worldpop.process_worldpop_api(multi_geom, None, None, worldpop_params)
 
-                return f'Population impacted: {"{:,}".format(round(ee_instance.get_image_sum(image, multi_geom, 100)))}'
+                return f'Population impacted: {"{:,}".format(round(self.ee_instance.get_image_sum(image, multi_geom, 100)))}'
 
                 # return f'Population impacted: {image}'
 
@@ -365,20 +364,19 @@ class ModisNRT:
         ee_geometry = ee.Geometry(geojson_dict['features'][0]['geometry'])
         return ee_geometry
 
-    def process_modis_nrt_api(self, geometry: Any, distinct_values: Any, index: int, params: dict, bbox) -> None:
-        modis_nrt_params = params
-
-        print(modis_nrt_params)
-
-        folder = self.create_sub_folder(modis_nrt_params)
-        tiles = self.get_tiles(bbox)
-        matching_files = self.find_matching_files(tiles, modis_nrt_params)
-
-        hdf_files_to_process, tif_list = self.download_and_process_files(matching_files, modis_nrt_params)
-        merged_output = self.merge_files(tif_list, folder)
-
-        self.cleanup_files(tif_list, hdf_files_to_process, modis_nrt_params)
-        self.finalize_processing(merged_output, geometry, modis_nrt_params)
+    # def process_modis_nrt_api(self, geometry: Any, distinct_values: Any, index: int, params: dict, bbox) -> None:
+    #     modis_nrt_params = params
+    #
+    #
+    #     folder = self.create_sub_folder(modis_nrt_params)
+    #     tiles = self.get_tiles(bbox)
+    #     matching_files = self.find_matching_files(tiles, modis_nrt_params)
+    #
+    #     hdf_files_to_process, tif_list = self.download_and_process_files(matching_files, modis_nrt_params)
+    #     merged_output = self.merge_files(tif_list, folder)
+    #
+    #     self.cleanup_files(tif_list, hdf_files_to_process, modis_nrt_params)
+    #     self.finalize_processing(merged_output, geometry, modis_nrt_params)
 
     def get_tiles(self, bbox: Any) -> List[Any]:
         tiles = self.get_modis_tile(bbox)
@@ -396,7 +394,7 @@ class ModisNRT:
         return hdf_files_to_process, tif_list
 
     def finalize_processing(self, merged_output: str, geometry: Any, modis_nrt_params: Dict[str, Any]) -> None:
-        process_and_clip_raster(merged_output, geometry, modis_nrt_params, ee_instance)
+        process_and_clip_raster(merged_output, geometry, modis_nrt_params, self.ee_instance)
         print('Processing Complete!')
         if modis_nrt_params['calculate_population']:
             clipped_output = f'{modis_nrt_params["folder_path"]}/merged_clipped.tif'
@@ -459,8 +457,8 @@ class ModisNRTNotebookInterface(ModisNRT):
 
         elif single_or_date_range_value == 'Date Range':
             # Create the DatePicker widgets with constraints
-            self.date_picker_modis_nrt = HBox([
-                DatePicker(
+            self.date_picker_modis_nrt = widgets.HBox([
+                widgets.DatePicker(
                     description='Select Start Date:',
                     disabled=False,
                     value=min(self.modis_nrt_available_dates),  # Default value
@@ -468,7 +466,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                     max=max(self.modis_nrt_available_dates)  # Maximum value (assumes 31 days in max month)
                 ),
 
-                DatePicker(
+                widgets.DatePicker(
                     description='Select End Date:',
                     disabled=False,
                     value=max(self.modis_nrt_available_dates),  # Default value
@@ -600,7 +598,7 @@ class ModisNRTNotebookInterface(ModisNRT):
             return [self.modis_nrt_band_selection, self.single_or_date_range_modis_nrt, self.modis_nrt_date_vbox,
                     self.filechooser, self.population_source_grid, self.end_of_vbox_items]
 
-    def process_modis_nrt_api(self, geometry: Any, distinct_values: Any, index: int, bbox) -> None:
+    def process_api(self, geometry: Any, distinct_values: Any, index: int, bbox, params=None) -> None:
         """
         :param geometry: The geometry of the area of interest.
         :param distinct_values: A boolean indicating whether distinct values should be used.
@@ -629,15 +627,17 @@ class ModisNRTNotebookInterface(ModisNRT):
         Finally, the method calls another method 'process_and_clip_raster' to process and clip the merged GeoTIFF file based on the provided geometry and MODIS NRT API parameters.
         """
 
-        modis_nrt_params = self.gather_modis_nrt_parameters()
+        modis_nrt_params = self.gather_parameters()
 
         print(modis_nrt_params)
+
 
         if modis_nrt_params['create_sub_folder']:
             folder = f"{modis_nrt_params['folder_path']}/{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
             os.mkdir(folder)
 
             modis_nrt_params['folder_path'] = folder
+            print(modis_nrt_params['folder_path'])
         tiles = self.get_modis_tile(bbox)
         with self.out:
             self.out.clear_output()
@@ -661,17 +661,22 @@ class ModisNRTNotebookInterface(ModisNRT):
                     os.remove(file)
                 except FileNotFoundError:
                     pass
-        process_and_clip_raster(merged_output, geometry, modis_nrt_params, ee_instance)
-
+        try:
+            process_and_clip_raster(merged_output, geometry, modis_nrt_params, self.ee_instance)
+        except Exception as e:
+            print(f"{e}")
         clipped_output = f'{folder}merged_clipped.tif'
-        if modis_nrt_params['calculate_population']:
-            with self.out:
-                self.out.clear_output()
-                pop_impacted = self.calculate_population_in_flood_area(clipped_output, modis_nrt_params['year'])
-                print(pop_impacted)
+        return f'{folder}merged_clipped.tif'
+        # if modis_nrt_params['calculate_population']:
+        #     with self.out:
+        #         self.out.clear_output()
+        #         pop_impacted = self.calculate_population_in_flood_area(clipped_output, modis_nrt_params['year'])
+        #         print(pop_impacted)
 
 
-    def gather_modis_nrt_parameters(self) -> Dict[str, Any]:
+
+
+    def gather_parameters(self) -> Dict[str, Any]:
         """
         Gathers the parameters for the MODIS NRT processing.
 
@@ -682,7 +687,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                  - 'create_sub_folder': True if output should be saved in a sub-folder, False otherwise.
                  - 'clip_to_geometry': True if the output should be clipped to a provided geometry, False otherwise.
                  - 'keep_individual_tiles': True if individual tiles should be saved, False otherwise.
-                 - 'add_to_map': True if the processed image should be added to the map, False otherwise.
+                 - 'add_image_to_map': True if the processed image should be added to the map, False otherwise.
         """
 
         population_source = 'Google Earth Engine' if self.population_source.value == 'WorldPop' else 'GPWv4'
@@ -695,7 +700,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                 'create_sub_folder': self.create_sub_folder.value,
                 'clip_to_geometry': self.clip_to_geometry.value,
                 'keep_individual_tiles': self.keep_individual_tiles.value,
-                'add_to_map': self.add_image_to_map.value,
+                'add_image_to_map': self.add_image_to_map.value,
                 'calculate_population': self.calculate_population.value,
                 'nrt_band': self.modis_nrt_band_selection.value,
                 'population_year': self.population_source_year.value,
@@ -713,7 +718,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                 'create_sub_folder': self.create_sub_folder.value,
                 'clip_to_geometry': self.clip_to_geometry.value,
                 'keep_individual_tiles': self.keep_individual_tiles.value,
-                'add_to_map': self.add_image_to_map.value,
+                'add_image_to_map': self.add_image_to_map.value,
                 'calculate_population': self.calculate_population.value,
                 'nrt_band': self.modis_nrt_band_selection.value,
                 'population_year': self.population_source_year.value,

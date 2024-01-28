@@ -253,6 +253,7 @@ class EarthEngineManager(BaseModel):
             self.ee_dates = [x for x in ee_date_list]
             return self.ee_dates
 
+
     def calculate_statistics(self, img, geometry, band):
         # Define the reducers for each statistic you want to calculate
         reducers = ee.Reducer.mean().combine(
@@ -277,19 +278,7 @@ class EarthEngineManager(BaseModel):
 
         # Apply the reducers to the image
         stats = img.reduceRegion(reducer=reducers, geometry=geometry, maxPixels=1e12)
-
-        # Rename the keys in the dictionary to be more descriptive
-        stats_dict = {
-            'Mean': stats.get(band + '_mean'),
-            'Sum': stats.get(band + '_sum'),
-            'Max': stats.get(band + '_max'),
-            'Min': stats.get(band + '_min'),
-            'Standard Deviation': stats.get(band + '_stdDev'),
-            'Variance': stats.get(band + '_variance'),
-            'Median': stats.get(band + '_median')
-        }
-
-        return stats_dict
+        return stats
 
     def get_image(self,
                   multi_date: bool,
@@ -553,34 +542,44 @@ class EarthEngineManager(BaseModel):
             return admin_units_dict.getInfo()
 
 
-    def get_image_sum(self, img, geometry, scale):
+    def get_image_sum(self, img, geometry, scale, band='population'):
         # Define the reducers for each statistic you want to calculate
         reducers = ee.Reducer.sum()
 
         # Apply the reducers to the image
         stats = img.reduceRegion(reducer=reducers, geometry=geometry, scale=scale, maxPixels=1e12)
 
-        sum_dict = stats.get('population').getInfo()
+        sum_value = stats.get(band).getInfo()  # Make sure 'band' is the correct key
 
-        return sum_dict
+        return sum_value
 
     def ee_ensure_geometry(self, geometry):
         """
-        Ensures that the input geometry is a valid Earth Engine Geometry or Feature.
+        Ensures that the input geometry is a valid Earth Engine Geometry, Feature, or FeatureCollection.
+        If the input is a FeatureCollection, it dissolves it into the outer boundary.
 
         :param geometry: The input geometry to be validated.
-        :type geometry: ee.Geometry or ee.Feature
+        :type geometry: ee.Geometry, ee.Feature, or ee.FeatureCollection
         :return: The valid Earth Engine Geometry.
         :rtype: ee.Geometry
-        :raises ValueError: If the input geometry is neither an ee.Geometry nor an ee.Feature.
+        :raises ValueError: If the input is neither an ee.Geometry, ee.Feature, nor ee.FeatureCollection.
         """
+
         if isinstance(geometry, ee.Feature):
             geometry = geometry.geometry()
             return geometry
         elif isinstance(geometry, ee.Geometry):
             return geometry
+        elif isinstance(geometry, ee.FeatureCollection):
+            # Dissolve the FeatureCollection into its outer boundary
+            combined_geometry = geometry.geometry()
+            dissolved_geometry = combined_geometry.dissolve()
+            return dissolved_geometry
+        elif isinstance(geometry, dict):
+            # Assuming geojson is meant to be geometry (typo in the original code)
+            return self.ee_ensure_geometry(self.convert_geojson_to_ee(geometry))
         else:
-            raise ValueError("Invalid geometry type. Must be an Earth Engine Geometry or Feature.")
+            raise ValueError("Invalid geometry type. Must be an Earth Engine Geometry, Feature, or FeatureCollection.")
 
     def convert_geojson_to_ee(self, geojson_obj):
         """
@@ -999,7 +998,7 @@ class EarthEngineNotebookInterface(BaseModel):
 
         return widget_list
 
-    def process_gee_api(self, geometry, distinct_values, index):
+    def process_api(self, geometry, distinct_values, index):
         """
         :param geometry: The geometry to use for the GEE API request.
         :param distinct_values: Boolean indicating whether to return distinct values.
@@ -1152,7 +1151,7 @@ class EarthEngineNotebookInterface(BaseModel):
                     with self.out:
                         print(f"Downloaded {file_name}")
 
-    def gather_gee_parameters(self):
+    def gather_parameters(self):
         """
         Retrieves the parameters required for querying and processing data from Google Earth Engine.
 

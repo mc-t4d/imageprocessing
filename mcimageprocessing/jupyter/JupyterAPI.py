@@ -21,6 +21,7 @@ from mcimageprocessing.programmatic.APIs.WorldPop import WorldPopNotebookInterfa
 from mcimageprocessing.programmatic.APIs.ModisNRT import ModisNRTNotebookInterface
 from mcimageprocessing.programmatic.APIs.GloFasAPI import GloFasAPINotebookInterface
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineNotebookInterface
+from mcimageprocessing.programmatic.APIs.GPWv4 import GPWv4NotebookInterface
 from shapely.geometry import shape
 from shapely.geometry import MultiPolygon
 from osgeo import gdal
@@ -115,6 +116,7 @@ class JupyterAPI(geemap.Map):
         self.ee_instance = EarthEngineManager()
         self.glofas_class = GloFasAPINotebookInterface()
         self.gee_class = EarthEngineNotebookInterface()
+        self.gpwv4_class = GPWv4NotebookInterface()
 
         self.create_widgets()
 
@@ -183,7 +185,7 @@ class JupyterAPI(geemap.Map):
             'MODIS NRT Flood Data': 'modis_nrt',
             'WorldPop': 'worldpop',
             # 'Global Flood Database': 'global_flood_database',
-            # 'GPWv4': 'gpw4'
+            'GPWv4': 'gpwv4'
         },
             'Select API:',
             'worldpop')
@@ -217,7 +219,7 @@ class JupyterAPI(geemap.Map):
 
         max_width_value = '600px'
 
-        self.out = Output(layout=Layout(max_height='10vh', overflow_y='scroll'))
+        self.out = Output(layout=Layout(max_height='1vh', overflow_y='scroll'))
 
         self.inner_widget_container = VBox(
             [self.boundary_type, self.boundary_stack, self.dropdown_api, self.api_choice_stack,
@@ -288,7 +290,6 @@ class JupyterAPI(geemap.Map):
             description=description,
             disabled=False,
         )
-
         dropdown.observe(self.on_dropdown_change, names='value')
         return dropdown
 
@@ -406,8 +407,8 @@ class JupyterAPI(geemap.Map):
                     self.add_layer(geojson_layer,
                                    name='User Uploaded Data',
                                    vis_params={'color': 'black'})
-                    # bounds = self.calculate_bounds(geojson_content)
-                    # self.fit_bounds(bounds)
+                    bounds = self.calculate_bounds(geojson_content)
+                    self.fit_bounds(bounds)
                     self.userlayers['User Uploaded Data'] = geojson_layer
                 except Exception as e:
                     with self.out:
@@ -720,13 +721,8 @@ class JupyterAPI(geemap.Map):
                 self.api_choice_stack.children = tuple(self.worldpop_options)
                 if self.boundary_type.value == 'Predefined Boundaries':
                     self.update_boundary_options('Predefined Boundaries')
-            elif new_value == 'global_flood_database':
-                self.global_flood_db_options = self.create_widgets_for_global_flood_db()
-                self.api_choice_stack.children = tuple(self.global_flood_db_options)
-                if self.boundary_type.value == 'Predefined Boundaries':
-                    self.update_boundary_options('Predefined Boundaries')
-            elif new_value == 'gpw4':
-                self.gp4w_options = self.create_widgets_for_gpw()
+            elif new_value == 'gpwv4':
+                self.gp4w_options = self.gpwv4_class.create_widgets_for_gpwv4()
                 self.api_choice_stack.children = tuple(self.gp4w_options)
                 if self.boundary_type.value == 'Predefined Boundaries':
                     self.update_boundary_options('Predefined Boundaries')
@@ -850,6 +846,7 @@ class JupyterAPI(geemap.Map):
 
         # Assuming `distinct_values` is available after drawing and processing
 
+
     def get_bounding_box(self, distinct_values=None, feature=None):
         """
         :param distinct_values: A list of distinct values used for filtering the layer data
@@ -914,12 +911,96 @@ class JupyterAPI(geemap.Map):
         # Handle parameter file logic here
         pass
 
+    def add_image_to_map(self, image_or_stats, params, geometry):
+        with self.out:
+            if params['add_image_to_map'] and isinstance(image_or_stats, ee.Image):
+                # Get the projection of the first band
+                projection = image_or_stats.select(0).projection()
+                # Get the scale (in meters) of the projection
+                scale = projection.nominalScale()
+
+                # Calculate the min and max values of the image using dynamically obtained scale
+                stats = image_or_stats.reduceRegion(
+                    reducer=ee.Reducer.minMax(),
+                    geometry=geometry,
+                    scale=scale.getInfo(),  # Use the dynamically obtained scale
+                    maxPixels=1e9
+                )
+
+
+                # Get the computed min and max values
+                min_val = stats.getInfo()[f"{params['band']}_min"]
+                max_val = stats.getInfo()[f"{params['band']}_max"]
+
+                # Define visualization parameters using dynamic min and max
+                visParams = {
+                    'min': min_val,
+                    'max': max_val,
+                    'palette': ['440154', '21908C', 'FDE725']  # Viridis color palette
+                }
+
+                # Add EE layer with the specified visualization parameters
+                self.add_ee_layer(image_or_stats, visParams)
+            elif params['add_image_to_map'] and isinstance(image_or_stats, str):
+                vis_params = {}
+                client = localtileserver.TileClient(image_or_stats)
+                tile_layer = localtileserver.get_leaflet_tile_layer(client, **vis_params)
+                self.add_layer(tile_layer)
+                self.fit_bounds(client.bounds)
+
+
+    def process_api(self, api_class, api_name, geometry, distinct_values, index, bbox=None, additional_params=None):
+        with self.out:
+            try:
+                # additional_params is a dictionary containing any additional parameters required by gather_parameters
+                additional_params = additional_params or {}  # default to empty dict if None
+                params = api_class.gather_parameters(**additional_params)  # Unpack additional parameters
+                image_or_stats = api_class.process_api(geometry=geometry, distinct_values=distinct_values, index=index,
+                                                       params=params, bbox=bbox)
+
+                try:
+                    self.add_image_to_map(image_or_stats, params, geometry)
+                except Exception as e:
+                    print(f"Error adding image to map: {e}")
+
+                print('Added to map!')
+            except Exception as e:
+                print(f"Error processing {api_name}: {e}")
+
+    def handle_glofas(self, geometry, distinct_values, index):
+        additional_params = {
+            'glofas_product': self.glofas_options.value}  # Include any specific parameters required by the GloFAS API
+        bbox = self.get_bounding_box(distinct_values, geometry)
+        self.process_api(self.glofas_class, 'glofas', geometry, distinct_values, index, bbox=bbox, additional_params=additional_params)
+
+    def handle_gee(self, geometry, distinct_values, index):
+        self.process_api(geometry, distinct_values, index)
+
+    def handle_modis_nrt(self, geometry, distinct_values, index):
+        bbox = self.get_bounding_box(distinct_values, geometry)
+        self.process_api(self.modis_nrt_class, 'modis_nrt', geometry=geometry, distinct_values=distinct_values, index=index, bbox=bbox)
+
+    def handle_worldpop(self, geometry, distinct_values, index):
+        # No additional params required for WorldPop in this example
+        self.process_api(self.worldpop_class, 'worldpop', geometry, distinct_values, index)
+
+    def handle_gpwv4(self, geometry, distinct_values, index):
+        self.process_api(self.gpwv4_class, 'gpwv4', geometry, distinct_values, index)
+
     def process_based_on_api_selection(self):
         """
         Process based on the selected API.
 
         :return: None
         """
+        api_handlers = {
+            'glofas': self.handle_glofas,
+            'gee': self.handle_gee,
+            'modis_nrt': self.handle_modis_nrt,
+            'worldpop': self.handle_worldpop,
+            'gpwv4': self.handle_gpwv4,
+        }
+
         with self.out:
             geometries = self.ee_instance.determine_geometries_to_process(layer=self.layer, column=self.column,
                                                                           dropdown_api=self.dropdown_api.value,
@@ -928,22 +1009,9 @@ class JupyterAPI(geemap.Map):
                                                                           userlayers=self.userlayers,
                                                                           boundary_layer=self.dropdown.value)
             for index, (geometry, distinct_values) in enumerate(geometries):
-                if self.dropdown_api.value == 'glofas':
-                    self.glofas_class.process_glofas_api(geometry, distinct_values, index)
-                elif self.dropdown_api.value == 'gee':
-                    self.process_gee_api(geometry, distinct_values, index)
-                elif self.dropdown_api.value == 'modis_nrt':
-                    bbox = self.get_bounding_box(distinct_values, geometry)
-                    self.modis_nrt_class.process_modis_nrt_api(geometry, distinct_values, index, bbox)
-                elif self.dropdown_api.value == 'worldpop':
-                    params = self.worldpop_class.gather_worldpop_parameters()
-                    print(params)
-                    image_or_stats = self.worldpop_class.process_worldpop_api(geometry=geometry,
-                                                                              distinct_values=distinct_values,
-                                                                              index=index, worldpop_params=params)
-                    if params['add_image_to_map'] and isinstance(image_or_stats, ee.Image):
-                        self.add_ee_layer(image_or_stats, {}, 'WorldPop')
-                elif self.dropdown_api.value == 'gp4w':
-                    pass
+                api_handler = api_handlers.get(self.dropdown_api.value)
+                if api_handler:
+                    api_handler(geometry, distinct_values, index)
                 else:
                     print('No valid API selected!')
+

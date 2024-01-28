@@ -2,17 +2,21 @@ import cdsapi
 import os
 from mcimageprocessing import config_manager
 import datetime
+from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
+import ee
 
 import ipywidgets as widgets
 from ipywidgets import DatePicker
 from ipywidgets import VBox, HBox
 import itertools
+from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
 import ipyfilechooser as fc
 from typing import Union, Set, List, Tuple, Dict, Optional
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 
 class GloFasAPI:
-    def __init__(self):
+    def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+        self.ee_instance = ee_manager if ee_manager else EarthEngineManager()
         url = config_manager.config['KEYS']['GloFas']['url']
         key = config_manager.config['KEYS']['GloFas']['key']
         self.client = cdsapi.Client(url=url, key=key)
@@ -89,17 +93,13 @@ class GloFasAPI:
         print(f"Downloaded data to {file_path}")
         return file_path
 
-    def no_data_helper_function(self, glofas_product: str, glofas_params: dict):
+    def no_data_helper_function(self, bbox, glofas_params, geometry, index, distinct_values):
         """
-        Helper function to set no data values for a file
-        :param file_path: Path to the file
-        :param no_data_value: No data value to set
-        :return: None
+        Helper function to handle 'no data available' scenario by trying different combinations.
         """
-
-        system_version_list = self.glofas_dict['products'][glofas_product]['system_version']
-        hydrological_model_list = self.glofas_dict['products'][glofas_product]['hydrological_model']
-        product_type_list = self.glofas_dict['products'][glofas_product].get('product_type', [None])
+        system_version_list = self.glofas_dict['products'][glofas_params['glofas_product']]['system_version']
+        hydrological_model_list = self.glofas_dict['products'][glofas_params['glofas_product']]['hydrological_model']
+        product_type_list = self.glofas_dict['products'][glofas_params['glofas_product']].get('product_type', [None])
 
         all_combinations = list(itertools.product(system_version_list, hydrological_model_list, product_type_list))
 
@@ -113,12 +113,15 @@ class GloFasAPI:
                 glofas_params['system_version'], glofas_params['hydrological_model'], glofas_params[
                     'product_type'] = comb
                 file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
-                self.process_and_clip_raster(file_path, geometry, glofas_params)
-                return
+                processed_raster = process_and_clip_raster(file_path, geometry, glofas_params, self.ee_instance)
+                if processed_raster:  # Check if processing was successful
+                    return processed_raster
             except Exception as e:
                 print(e)
                 if "no data is available within your requested subset" not in str(e):
                     break  # Exit the loop if a different error occurs
+        print("No suitable data could be found for any combination.")
+        return None
 
     def download_glofas_data(self, geometry, distinct_values, index):
         pass
@@ -126,8 +129,8 @@ class GloFasAPI:
 
 class GloFasAPINotebookInterface(GloFasAPI):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+        super().__init__(ee_manager)
         self.out = widgets.Output()  # For displaying logs, errors, etc.
         # Initialize widgets
 
@@ -335,7 +338,7 @@ class GloFasAPINotebookInterface(GloFasAPI):
         #     # If the selected GloFAS product is not recognized, clear the glofas_stack
         #     self.glofas_stack.children = ()
 
-    def download_glofas_data(self, bbox, glofas_params, index, distinct_values=None):
+    def download_glofas_data(self, bbox, params, index, distinct_values=None):
         """
         :param bbox: The bounding box of the area to download Glofas data for.
         :param glofas_params: The parameters for downloading Glofas data.
@@ -346,27 +349,28 @@ class GloFasAPINotebookInterface(GloFasAPI):
         """
 
         request_parameters = {
+            'glofas_product': params.get('glofas_product'),
             'variable': 'river_discharge_in_the_last_24_hours',
             'format': 'grib',
-            'system_version': glofas_params.get('system_version'),
-            'hydrological_model': glofas_params.get('hydrological_model'),
-            'product_type': glofas_params.get('product_type', 'ensemble_perturbed_forecasts'),
-            'year': glofas_params.get('year'),
-            'month': glofas_params.get('month'),
+            'system_version': params.get('system_version'),
+            'hydrological_model': params.get('hydrological_model'),
+            'product_type': params.get('product_type', 'ensemble_perturbed_forecasts'),
+            'year': params.get('year'),
+            'month': params.get('month'),
             # Omit 'day' to use the default value or provide a specific day
-            'day': glofas_params.get('day', '01'),
-            'leadtime_hour': glofas_params.get('leadtime_hour'),
+            'day': params.get('day', '01'),
+            'leadtime_hour': params.get('leadtime_hour'),
             'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
-            'folder_location': glofas_params.get('folder_location'),
+            'folder_location': params.get('folder_location'),
         }
 
         # Construct file name based on the parameters
-        file_name = f"{self.dropdown.value}_{'userdefined' if distinct_values is None else '_'.join(str(value) for value in distinct_values)}_{index}_{glofas_params.get('year')}_{glofas_params.get('month')}_{request_parameters.get('day', '01')}.grib"
+        file_name = f"{params['glofas_product']}_{'userdefined' if distinct_values is None else '_'.join(str(value) for value in distinct_values)}_{index}_{params.get('year')}_{params.get('month')}_{request_parameters.get('day', '01')}.grib"
 
         # Download data and return the file path
-        return cds_api.download_data(self.glofas_options.value, request_parameters, file_name)
+        return self.download_data(params['glofas_product'], request_parameters, file_name)
 
-    def get_glofas_parameters(self, glofas_product):
+    def gather_parameters(self, glofas_product: str):
         """
         :param glofas_product: The type of GloFAS product.
         :return: A dictionary containing the parameters required for the given GloFAS product.
@@ -388,6 +392,7 @@ class GloFasAPINotebookInterface(GloFasAPI):
         #     'month': month,
         #     'day': day,
         #    """
+        print(glofas_product)
         date_type = self.single_or_date_range.value
         system_version = self.system_version.value.replace('.', '_').lower()
         hydrological_model = self.hydrological_model.value
@@ -407,12 +412,13 @@ class GloFasAPINotebookInterface(GloFasAPI):
         folder_location = self.filechooser.selected
         create_sub_folder = self.create_sub_folder.value
         clip_to_geometry = self.clip_to_geometry.value
-        add_to_map = self.add_image_to_map.value
+        add_image_to_map = self.add_image_to_map.value
         no_data_helper = self.no_data_helper_checklist.value
 
         if glofas_product == 'cems-glofas-seasonal':
 
             return {
+                'glofas_product': glofas_product,
                 'system_version': system_version,
                 'hydrological_model': hydrological_model,
                 'leadtime_hour': leadtime_hour,
@@ -422,12 +428,13 @@ class GloFasAPINotebookInterface(GloFasAPI):
                 'folder_location': folder_location,
                 'create_sub_folder': create_sub_folder,
                 'clip_to_geometry': clip_to_geometry,
-                'add_to_map': add_to_map,
+                'add_image_to_map': add_image_to_map,
                 'no_data_helper': no_data_helper
             }
         elif glofas_product == 'cems-glofas-forecast':
 
             return {
+                'glofas_product': glofas_product,
                 'system_version': system_version,
                 'hydrological_model': hydrological_model,
                 'product_type': product_type,
@@ -438,11 +445,12 @@ class GloFasAPINotebookInterface(GloFasAPI):
                 'folder_location': folder_location,
                 'create_sub_folder': create_sub_folder,
                 'clip_to_geometry': clip_to_geometry,
-                'add_to_map': add_to_map,
+                'add_image_to_map': add_image_to_map,
                 'no_data_helper': no_data_helper
             }
         elif glofas_product == 'cems-glofas-reforecast':
             return {
+                'glofas_product': glofas_product,
                 'system_version': system_version,
                 'hydrological_model': hydrological_model,
                 'product_type': product_type,
@@ -453,68 +461,58 @@ class GloFasAPINotebookInterface(GloFasAPI):
                 'folder_location': folder_location,
                 'create_sub_folder': create_sub_folder,
                 'clip_to_geometry': clip_to_geometry,
-                'add_to_map': add_to_map,
+                'add_image_to_map': add_image_to_map,
                 'no_data_helper': no_data_helper
             }
         else:
             print("Invalid GloFAS product.")
             return None
 
-    def process_glofas_api(self, geometry, distinct_values, index):
+    def process_api(self, geometry, distinct_values, index, bbox, params):
         """
         Process the GLOFAS API data.
-
-        :param geometry: The geometry object representing the area of interest.
-        :type geometry: <Geometry type>
-
-        :param distinct_values: The distinct values to filter the data.
-        :type distinct_values: list
-
-        :param index: The index value to select the data.
-        :type index: int
-
-        :return: None
         """
-        with self.out:
-            bbox = self.get_bounding_box(distinct_values, geometry)
-            glofas_params = self.get_glofas_parameters(self.glofas_options.value)
+        try:
+            file_path = self.download_glofas_data(bbox=bbox, params=params, index=index, distinct_values=distinct_values)
+            processed_raster = process_and_clip_raster(file_path, geometry, params, self.ee_instance)
+            return processed_raster
+        except Exception as e:
+            print(e)
+            if "no data is available within your requested subset" in str(e) and params['no_data_helper']:
+                return self.no_data_helper_function(bbox, params, geometry, index, distinct_values)
+            else:
+                print("An error occurred that couldn't be handled by the no data helper function.")
+                return None
 
-            # Initially try to download data with the current parameters
-            try:
-                file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
-                self.process_and_clip_raster(file_path, geometry, glofas_params)
-                return  # If successful, exit the function here
-            except Exception as e:
-
-            # If the initial attempt fails, try other combinations
-                if "no data is available within your requested subset" in str(e):
-                    if glofas_params['no_data_helper']:
-                        system_version_list = self.glofas_dict['products'][self.glofas_options.value]['system_version']
-                        hydrological_model_list = self.glofas_dict['products'][self.glofas_options.value]['hydrological_model']
-                        product_type_list = self.glofas_dict['products'][self.glofas_options.value].get('product_type', [None])
-
-                        # Generate all combinations
-                        all_combinations = list(itertools.product(system_version_list, hydrological_model_list, product_type_list))
-
-                        # Remove the last attempted combination
-                        last_attempted_combination = (glofas_params['system_version'], glofas_params['hydrological_model'],
-                                                      glofas_params['product_type'] if glofas_params.get('product_type') else None)
-                        all_combinations.remove(last_attempted_combination)
-
-                        # Try each remaining combination
-                        for comb in all_combinations:
-                            try:
-                                glofas_params['system_version'], glofas_params['hydrological_model'], glofas_params['product_type'] = comb
-                                file_path = self.download_glofas_data(bbox, glofas_params, index, distinct_values)
-                                self.process_and_clip_raster(file_path, geometry, glofas_params)
-                                return
-                            except Exception as e:
-                                print(e)
-                                if "no data is available within your requested subset" not in str(e):
-                                    break  # Exit the loop if a different error occurs
-
-                # Handle the case where no combination was successful
-                        print("No suitable data could be found for any combination.")
+        # If the initial attempt fails, try other combinations
+        #     if "no data is available within your requested subset" in str(e):
+        #         if params['no_data_helper']:
+        #             system_version_list = self.glofas_dict['products'][f'{params["glofas_product"]}']['system_version']
+        #             hydrological_model_list = self.glofas_dict['products'][f'{params["glofas_product"]}']['hydrological_model']
+        #             product_type_list = self.glofas_dict['products'][f'{params["glofas_product"]}'].get('product_type', [None])
+        #
+        #             # Generate all combinations
+        #             all_combinations = list(itertools.product(system_version_list, hydrological_model_list, product_type_list))
+        #
+        #             # Remove the last attempted combination
+        #             last_attempted_combination = (params['system_version'], params['hydrological_model'],
+        #                                           params['product_type'] if params.get('product_type') else None)
+        #             all_combinations.remove(last_attempted_combination)
+        #
+        #             # Try each remaining combination
+        #             for comb in all_combinations:
+        #                 try:
+        #                     params['system_version'], params['hydrological_model'], params['product_type'] = comb
+        #                     file_path = self.download_glofas_data(geometry, params, index, distinct_values)
+        #                     processed_raster = process_and_clip_raster(file_path, geometry, params)
+        #                     return processed_raster
+        #                 except Exception as e:
+        #                     print(e)
+        #                     if "no data is available within your requested subset" not in str(e):
+        #                         break  # Exit the loop if a different error occurs
+        #
+        #     # Handle the case where no combination was successful
+        #             print("No suitable data could be found for any combination.")
 
     def setup_global_variables(self):
         self.glofas_dict = {
