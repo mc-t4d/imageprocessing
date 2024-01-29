@@ -1,7 +1,6 @@
 import datetime
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 from typing import Optional
 
@@ -17,31 +16,26 @@ from mcimageprocessing.programmatic.shared_functions.utilities import mosaic_ima
 
 class WorldPop:
     """
-    WorldPop class
+    Class for processing WorldPop data.
 
-    A class for processing WorldPop data using the WorldPop API or Google Earth Engine.
+    Args:
+        ee_manager (Optional[EarthEngineManager]): An instance of EarthEngineManager (optional).
 
     Attributes:
-    - worldpop_agesex_bands (list): List of age and sex bands for WorldPop data.
-    - ee_auth_path (str): Path to the authentication file for Google Earth Engine.
-    - ee_instance (EarthEngineManager): Instance of the EarthEngineManager class for managing interactions with Google Earth Engine.
+        data_type_options (list[str]): List of valid data type options.
+        year_options (list[str]): List of valid year options.
 
-    Methods:
-    - __init__(): Initializes the class with default values.
-    - process_residential_population(geometry, params): Process Residential Population data.
-    - mosaic_images(file_names, output_filename): Mosaic images and save as a single file.
-    - download_and_process_image(image, geometry, scale, params, band): Download and process the image.
-    - process_age_and_sex_structures(geometry, params): Process Age and Sex Structures data.
-    - get_image_dates(): Get the dates of the WorldPop population data.
-    - validate_parameters(params): Validate the parameters.
-    - process_worldpop_api(geometry, distinct_values, index, params=None): Method to process WorldPop API data for given parameters.
     """
 
     data_type_options = ['Residential Population', 'Age and Sex Structures']
     year_options = [str(x) for x in range(2000, 2021, 1)]
-    source_options = ['WorldPop API', 'Google Earth Engine']
 
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+        """
+        Initialize the object.
+
+        :param ee_manager: An instance of EarthEngineManager (optional).
+        """
         self.worldpop_agesex_bands = ['population', 'M_0', 'M_1', 'M_5', 'M_10', 'M_15', 'M_20', 'M_25', 'M_30', 'M_35',
                                       'M_40', 'M_45', 'M_50', 'M_55', 'M_60', 'M_65', 'M_70', 'M_75', 'M_80', 'F_0',
                                       'F_1', 'F_5', 'F_10', 'F_15', 'F_20', 'F_25', 'F_30', 'F_35', 'F_40',
@@ -51,7 +45,13 @@ class WorldPop:
         self.logger = logging.getLogger(__name__)
 
     def _validate_parameters(self, params: Dict[str, Any]) -> bool:
-        required_keys = ['folder_output', 'api_source', 'year', 'datatype']
+        """
+        Validate parameters for the given method.
+
+        :param params: A dictionary of parameters.
+        :return: True if all required keys are present and not empty, False otherwise.
+        """
+        required_keys = ['folder_output', 'year', 'datatype']
         for key in required_keys:
             if key not in params:
                 self.logger.error(f"Missing required worldpop_param: {key}")
@@ -62,6 +62,11 @@ class WorldPop:
         return True
 
     def _create_sub_folder(self, base_folder: str) -> str:
+        """
+        :param base_folder: The base folder in which the subfolder will be created.
+        :return: The path of the created subfolder.
+
+        """
         folder_name = os.path.join(base_folder, datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
         try:
             os.mkdir(folder_name)
@@ -72,14 +77,12 @@ class WorldPop:
 
     def process_residential_population(self, geometry: Any, params: Dict[str, Any]) -> Any:
         """
-        Process residential population based on the given parameters.
+        :param geometry: The geometry representing the area of interest.
+        :param params: A dictionary containing parameters for processing the residential population.
+            - "statistics_only": A boolean indicating whether to only compute statistics or also download and process the image.
+            - "year": A string representing the year to filter the image collection.
+        :return: If "statistics_only" is True, returns a dictionary containing statistics of the residential population. Otherwise, returns the processed image.
 
-        :param geometry: The geometry to apply the process on.
-        :type geometry: Any
-        :param params: The parameters needed for the WorldPop processing.
-        :type params: Dict[str, Any]
-        :return: The processed image if statistics_only is not True, otherwise the calculated statistics.
-        :rtype: Any
         """
 
         if params['statistics_only']:
@@ -115,13 +118,14 @@ class WorldPop:
     def download_and_process_image(self, image: ee.Image, geometry: Any, scale: Any, params: Dict[str, Any],
                                    band: str) -> None:
         """
-        Downloads and processes an image.
+        Downloads and processes the given image.
 
-        :param image: The Earth Engine image to download.
-        :param geometry: The geometry to clip the image to.
-        :param scale: The scale of the image to download.
-        :param params: Additional parameters for WorldPop.
-        :param band: The band of the image to download.
+        :param image: The Earth Engine image to be downloaded and processed.
+        :param geometry: The geometry to filter the image by.
+        :param scale: The scale of the image.
+        :param params: Additional parameters for the download and processing.
+        :param band: The specific band to be processed.
+
         :return: None
         """
         file_names, download_successful = self.ee_instance.download_and_split(image, geometry, scale,
@@ -136,6 +140,15 @@ class WorldPop:
             print(f"Downloaded {file_names[0]} successfully without needing to mosaic.")
 
     def process_age_and_sex_structures(self, geometry, params):
+        """
+        Method to process age and sex structures for a given geometry.
+
+        :param geometry: The geometry of interest.
+        :param params: A dictionary of parameters.
+            - 'statistics_only': If True, calculate statistics only. If False, download and process image.
+        :return: A dictionary containing the processed age and sex statistics. If 'statistics_only' is True, the dictionary
+                 will contain statistics for each band. If 'statistics_only' is False, the method returns None.
+        """
         all_stats = {}
 
         if params['statistics_only']:
@@ -190,9 +203,8 @@ class WorldPop:
 
     def get_image_dates(self) -> List[datetime.datetime]:
         """
-        Returns the dates of the images in the given image collection.
-
-        :return: A list of dates representing the dates of the images in the image collection.
+        :return: A list of datetime objects representing the dates of the images in the image collection.
+        :rtype: List[datetime.datetime]
         """
         # Get the image collection
         image_collection = self.ee_instance.get_image_collection_dates("WorldPop/POP")
@@ -204,16 +216,12 @@ class WorldPop:
 
     def validate_parameters(self, params: Dict[str, Any]) -> bool:
         """
-        Validates the parameters for the params.
+        Validate the parameters passed to the method.
 
-        :param params: A dictionary containing the worldpop parameters.
-                                It should have the following keys:
-                                - folder_output: The output folder path.
-                                - api_source: The API source (either 'WorldPop' or 'Google Earth Engine').
-                                - year: The year.
-                                - datatype: The data type.
-
-        :return: True if all parameters are valid, False otherwise.
+        :param params: The parameters dictionary to validate.
+        :type params: dict[str, any]
+        :return: True if all the parameters are valid, False otherwise.
+        :rtype: bool
         """
         if not params['folder_output']:
             print("Please select an output folder.")
@@ -223,7 +231,7 @@ class WorldPop:
             print("The selected output folder does not exist.")
             return False
 
-        if not params['api_source'] in ['WorldPop', 'Google Earth Engine']:
+        if not params['api_source'] in ['WorldPop']:
             print("Please select a valid API source.")
             return False
 
@@ -238,7 +246,17 @@ class WorldPop:
         return True
 
     def process_api(self, geometry: Any, distinct_values: Any, index: Any, params: Dict[str, Any] = None, bbox=None) -> Any:
-        print('Processing!')
+        """
+        Process API method.
+
+        :param geometry: The geometry to process.
+        :param distinct_values: The distinct values to process.
+        :param index: The index to process.
+        :param params: Additional parameters for processing (optional).
+        :param bbox: The bounding box for processing (optional).
+        :return: The processed result.
+
+        """
         if not self._validate_parameters(params):
             return
 
@@ -252,7 +270,6 @@ class WorldPop:
                 image = self._process_datatype_residential_population(geometry, params)
                 return image
             elif params['datatype'] == 'Age and Sex Structures':
-                print(f'Processing {params["datatype"]}...')
                 return self._process_datatype_age_and_sex_structures(geometry, params)
             else:
                 self.logger.error('No valid data type provided.')
@@ -260,12 +277,30 @@ class WorldPop:
             self.logger.error("No valid params provided.")
 
     def _process_datatype_residential_population(self, geometry, params):
+        """
+        Process the datatype 'residential_population' for a given geometry and parameters.
+
+        :param geometry: The geometry for which to process the residential population data.
+        :param params: A dictionary of parameters for processing the data.
+            - 'statistics_only' (bool): If True, only statistics will be calculated and saved.
+            - 'folder_output' (str): The folder where the processed data will be saved.
+
+        :return: The processed image of residential population.
+        """
         image = self.process_residential_population(geometry, params)
         if params['statistics_only']:
             self._save_statistics(params['folder_output'], image)
         return image
 
     def _process_datatype_age_and_sex_structures(self, geometry, params):
+        """
+        Process datatype, age, and sex structures.
+
+        :param geometry: The geometry to process.
+        :param params: The parameters for processing.
+        :return: The processed statistics.
+
+        """
         try:
             statistics = self.process_age_and_sex_structures(geometry, params)
             if params['statistics_only']:
@@ -275,6 +310,14 @@ class WorldPop:
             print(e)
 
     def _save_statistics(self, folder_output: str, data: Any):
+        """
+        Save statistics data to a JSON file.
+
+        :param folder_output: The directory where the statistics file will be saved.
+        :param data: The statistics data to be saved.
+        :return: None
+        :raises IOError: If there is an error while saving the statistics file.
+        """
         try:
             with open(os.path.join(folder_output, 'statistics.json'), 'w') as f:
                 f.write(str(data))
@@ -283,19 +326,50 @@ class WorldPop:
 
 
 class WorldPopNotebookInterface(WorldPop):
+    """
+    WorldPopNotebookInterface
+    ========================
+
+    :class:`~WorldPopNotebookInterface` is a subclass of :class:`~WorldPop` class and provides an interface for interacting with the WorldPop API in a Jupyter Notebook environment.
+
+    Attributes:
+    -----------
+    - ee_manager (:class:`~EarthEngineManager`, optional): An instance of the EarthEngineManager class. Defaults to None.
+
+    Methods:
+    --------
+    __init__(ee_manager: Optional[:class:`~EarthEngineManager`] = None)
+        Initializes the WorldPopNotebookInterface class.
+
+    create_widgets_for_worldpop() -> List[:class:`~widgets.Widget`]
+        Creates and returns a list of widgets for configuring the WorldPop parameters.
+
+    gather_parameters(**kwargs) -> Dict[str, Any]
+        Gathers user-selected parameters and returns them as a dictionary.
+
+    process_api(geometry: Any, distinct_values: Any, index: int, params=None, bbox=None) -> None
+        Processes the WorldPop API with the provided parameters.
+
+    """
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+        """
+        Constructor for the class.
+
+        :param ee_manager: An instance of the EarthEngineManager class.
+                           If provided, it will be used for Earth Engine operations.
+                           If not provided, Earth Engine functions will be unavailable.
+        """
         super().__init__(ee_manager)  # Initialize the base WorldPop class
         self.out = widgets.Output()  # For displaying logs, errors, etc.
         # Initialize widgets
         self.create_widgets_for_worldpop()
 
     def create_widgets_for_worldpop(self) -> List[widgets.Widget]:
-        self.worldpop_data_source = widgets.ToggleButtons(
-            options=self.source_options,
-            disabled=False,
-            value=self.source_options[1],  # Default to 'Google Earth Engine'
-            tooltips=['Obtain data directly from WorldPop API', 'Google Earth Engine'],
-        )
+        """
+        Create and initialize widgets for configuring WorldPop data parameters.
+
+        :return: A list of widget objects.
+        """
         self.worldpop_data_type = widgets.Dropdown(
             options=self.data_type_options,
             value=self.data_type_options[0],  # Default to 'Residential Population'
@@ -333,7 +407,6 @@ class WorldPopNotebookInterface(WorldPop):
             )])
         self.gee_end_of_container_options.set_title(0, 'Processing Options')
         self.widget_list = [
-            self.worldpop_data_source,
             self.worldpop_data_type,
             self.worldpop_year,
             self.scale_input,
@@ -343,13 +416,19 @@ class WorldPopNotebookInterface(WorldPop):
         return self.widget_list
 
     def gather_parameters(self, **kwargs) -> Dict[str, Any]:
+        """
+        :param kwargs: Additional keyword arguments. No other parameters are required.
+
+        :return: A dictionary containing the gathered parameters.
+
+        """
         # Ensure that you're accessing the correct attribute for the file chooser
         folder_output = self.filechooser.selected or self.filechooser.value
         print(folder_output)  # Debugging: Print the value to ensure it's correct
 
         # Return the parameters as a dictionary
         return {
-            'api_source': self.worldpop_data_source.value,
+            'population_source': 'WorldPop',
             'year': self.worldpop_year.value,
             'datatype': self.worldpop_data_type.value,
             'statistics_only': self.statistics_only_check.value,
@@ -360,6 +439,16 @@ class WorldPopNotebookInterface(WorldPop):
         }
 
     def process_api(self, geometry: Any, distinct_values: Any, index: int, params=None, bbox=None) -> None:
+        """
+        Process API.
+
+        :param geometry: The geometry parameter.
+        :param distinct_values: The distinct_values parameter.
+        :param index: The index parameter.
+        :param params: The params parameter.
+        :param bbox: The bbox parameter.
+        :return: None.
+        """
         try:
             image = super().process_api(geometry, distinct_values, index, params=self.gather_parameters())
             print('passed!')

@@ -1,24 +1,25 @@
-import rasterio
 import os
-from rasterio.merge import merge
-import pygrib
 
-import subprocess
-
-import ee
 import geopandas as gpd
 import localtileserver
 import numpy as np
-from shapely.geometry import MultiPolygon
+import pygrib
+import rasterio
 from osgeo import gdal
-
 from rasterio.features import geometry_mask
-
+from rasterio.merge import merge
+from shapely.geometry import MultiPolygon
 from shapely.geometry import shape
 
 
 def mosaic_images(file_names, output_filename='mosaic.tif'):
-    """Mosaic images and save as a single file."""
+    """
+    Merges multiple raster files into a mosaic and saves it to an output file.
+
+    :param file_names: A list of file names of the raster files to be merged.
+    :param output_filename: The name of the output file to be created. Default is 'mosaic.tif'.
+    :return: None
+    """
     src_files_to_mosaic = []
     for fn in file_names:
         src = rasterio.open(fn)
@@ -39,10 +40,13 @@ def mosaic_images(file_names, output_filename='mosaic.tif'):
 
 def process_and_clip_raster(file_path, geometry, params=None, ee_instance=None):
     """
-    Process and clip a raster file.
-
     :param file_path: The file path of the raster file to be processed and clipped.
-    :return: None
+    :param geometry: The geometry object to be used for clipping the raster.
+    :param params: Optional parameters for controlling the processing and clipping.
+    :param ee_instance: An instance of the Earth Engine API for using Earth Engine functions.
+
+    :return: If params['clip_to_geometry'] is True, returns the file path of the clipped raster.
+             If params['clip_to_geometry'] is False, returns the original file path.
     """
     min_val, max_val, no_data_val = get_raster_min_max(file_path)
     if min_val == -9999:
@@ -65,8 +69,20 @@ def process_and_clip_raster(file_path, geometry, params=None, ee_instance=None):
 
 def get_raster_min_max(raster_path):
     """
-    :param raster_path: The file path to the raster file.
-    :return: A tuple containing the minimum and maximum values of the raster.
+    :param raster_path: The file path of the raster to be processed.
+    :return: A tuple containing the minimum value, maximum value, and nodata value of the raster.
+
+    This method retrieves the minimum value, maximum value, and nodata value of a given raster file. It assumes that the raster file has only one band.
+
+    First, the method opens the raster file using the GDAL library and gets the first band of the dataset.
+
+    Then, it checks if the band provides the minimum and maximum values. If not, it computes the minimum and maximum values using the ComputeRasterMinMax() method of the band.
+
+    Next, it reads the band data as an array.
+
+    If the band data contains values equal to 9999, it masks the data to ignore those values. It then finds the maximum value in the masked data and sets it as the new maximum value.
+
+    Finally, the method closes the dataset and returns a tuple containing the minimum value, maximum value, and nodata value of the raster.
     """
 
     dataset = gdal.Open(raster_path)
@@ -97,23 +113,16 @@ def get_raster_min_max(raster_path):
 
 def add_clipped_raster_to_map(map_object, raster_path, vis_params=None):
     """
-    Adds a clipped raster to the map.
-
-    :param raster_path: A string specifying the path to the raster file.
-    :param vis_params: Optional dictionary specifying the visualization parameters for the raster. Default is an empty dictionary.
+    :param map_object: The map object to which the clipped raster will be added.
+    :param raster_path: The file path or URL of the raster data to be added.
+    :param vis_params: Optional visualization parameters for the raster layer. Default is None.
     :return: None
 
-    Example usage:
+    This method adds a clipped raster layer to the specified map object. The raster data is loaded from the provided raster_path. If visualization parameters are not specified, default parameters
+    * will be used. Once the raster layer is created, it is added to the map object and the map view is adjusted to fit the bounds of the raster data.
 
-        add_clipped_raster_to_map('/path/to/raster.tif', vis_params={'min': 0, 'max': 255})
-
-    This method creates a `localtileserver.TileClient` object using the given raster path. It then uses the `localtileserver.get_leaflet_tile_layer` method to obtain the Leaflet tile layer
-    * for the raster, applying the visualization parameters if provided. The resulting tile layer is added to the map using the `add_layer` method. Finally, the map adjusts its bounds to
-    * fit the bounds of the raster using the `fit_bounds` method.
-
-    If a ValueError occurs during the process, it will be caught and printed as an error message. Any other exceptions will also be caught and printed.
-
-    Note: This method assumes that the necessary dependencies (`localtileserver`) are installed and importable.
+    If a ValueError is raised during the process, it will be caught and a corresponding error message will be printed. Other types of exceptions will also be caught and an error message
+    * will be printed.
     """
     if vis_params is None:
         vis_params = {}
@@ -129,10 +138,15 @@ def add_clipped_raster_to_map(map_object, raster_path, vis_params=None):
 
 def inspect_grib_file(file_path: str):
     """
-    Inspects a GRIB file at the given file path and prints information about each message in the file.
+    Inspect GRIB File
 
-    :param file_path: The path to the GRIB file.
+    :param file_path: The path to the GRIB file to be inspected.
     :return: None
+
+    This method opens the given GRIB file using the pygrib library and prints information about each message in the file. It does not return any value.
+
+    Example usage:
+        inspect_grib_file("path/to/grib/file.grib")
     """
     try:
         # Open the GRIB file
@@ -159,9 +173,12 @@ def inspect_grib_file(file_path: str):
 
 def clip_raster(file_path, geometry, ee_instance):
     """
-    :param file_path: The file path of the raster file (GRIB or TIFF) to be clipped.
-    :param geometry: The geometry to clip the raster file.
-    :return: The file path of the clipped TIFF file.
+    :param file_path: The file path of the raster file to be clipped.
+    :param geometry: The geometry to be used for clipping.
+    :param ee_instance: The Earth Engine instance used for conversion.
+
+    :return: The file path of the clipped raster file.
+
     """
 
     # Check file format and inspect if it's a GRIB file

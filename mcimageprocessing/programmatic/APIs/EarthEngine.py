@@ -1,53 +1,21 @@
-import ee
-import json
-from pydantic import BaseModel, validator, root_validator
-import datetime
-import re
-import geopandas as gpd
-import requests
-from typing import ClassVar
-from pydantic import BaseModel, Extra
 import calendar
-from openpyxl import Workbook
-from openpyxl.workbook.defined_name import DefinedName
-from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.utils import get_column_letter
-from shapely.geometry import shape
-from mcimageprocessing import config_manager
-import subprocess
+import datetime
+import json
+import os
+import re
+from typing import ClassVar
 
 import ee
-import geopandas as gpd
+import geemap
 import ipyfilechooser as fc
 import ipywidgets as widgets
-import localtileserver
-import pandas as pd
-import numpy as np
-import pygrib
-import json
-from shapely.geometry import Point
-import geemap
-from pyproj import Proj, transform
-from IPython.display import HTML
-import datetime
-from ipywidgets import Output
-from ipyleaflet import GeoJSON
-import ipyleaflet
+import requests
+from ipywidgets import Layout
+from pydantic import BaseModel, Extra
+from pydantic import root_validator
 from shapely.geometry import shape
-from shapely.geometry import MultiPolygon
-from osgeo import gdal
-import geojson
-import rasterio
-from rasterio.features import geometry_mask
-from tqdm.notebook import tqdm as notebook_tqdm
-from ipywidgets import VBox, Layout
-from shapely.geometry import shape
-import warnings
-from IPython.display import display
 
-
-import os
-import geemap
+from mcimageprocessing import config_manager
 
 
 class EarthEngineManager(BaseModel):
@@ -67,15 +35,25 @@ class EarthEngineManager(BaseModel):
 
     @root_validator(pre=True)
     def set_aggregation_functions(cls, values):
-        """
-            Set the aggregation functions for the class.
+        """Set the aggregation functions for the class.
 
-            :param values: A dictionary of aggregation functions. The keys are the names of the functions, and the values are lambda functions that take an ee.ImageCollection as input and return
-        * the aggregated value.
-            :type values: dict
-            :return: The input values parameter.
-            :rtype: dict
-            """
+        :param values: A dictionary specifying the aggregation functions.
+            The dictionary keys are the names of the aggregation functions,
+            and the values are lambda functions that execute the desired aggregation.
+            Supported aggregation functions:
+                - 'mode': Mode of the input values.
+                - 'median': Median of the input values.
+                - 'mean': Mean of the input values.
+                - 'max': Maximum value of the input values.
+                - 'min': Minimum value of the input values.
+                - 'sum': Sum of the input values.
+                - 'first': The first value of the input collection after sorting
+                  by 'system:time_start' in descending order.
+        :type values: dict
+
+        :return: The same input dictionary `values`.
+        :rtype: dict
+        """
         cls.aggregation_functions = {
             'mode': lambda ic: ic.mode(),
             'median': lambda ic: ic.median(),
@@ -90,6 +68,9 @@ class EarthEngineManager(BaseModel):
 
     @root_validator(pre=True)
     def set_vis_params(cls, values):
+        """
+
+        """
         values["vis_params"] = {'NDVI': {'min': 0, 'max': 1,
                                          'palette': ['FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718',
                                                      '74A901', '66A000', '529400', '3E8601', '207401', '056201',
@@ -98,12 +79,11 @@ class EarthEngineManager(BaseModel):
 
     def load_credentials(cls, v):
         """
-        Load Earth Engine credentials from an authentication file.
+        Initialize Earth Engine credentials using the provided ServiceAccountCredentials.
 
-        :param v: The path to the authentication file.
-        :type v: str
-        :return: The path to the authentication file.
-        :rtype: str
+        :param cls: The class object.
+        :param v: The value to be returned.
+        :return: The value passed as 'v'.
         """
 
         # Initialize Earth Engine credentials
@@ -115,60 +95,27 @@ class EarthEngineManager(BaseModel):
         ee.Initialize(credentials)
         return v
 
-    def helper_image_creation(self):
-        """
-        Helper method for image creation.
-
-        This method prompts the user to input the image collection code and validates its format.
-        If the format is invalid, a ValueError is raised.
-
-        Next, it retrieves the image collection dates using the 'get_image_collection_dates' method.
-        These dates are converted to datetime objects for further processing.
-
-        The minimum and maximum dates from the collection are determined.
-
-        The method then prompts the user to choose between a single date of imagery or using an aggregation function on a range of dates.
-        Based on the user's choice, the available image dates are printed.
-
-        :return: None
-
-        """
-        collection = input(
-            'What is the image collection you want to analyze? Please enter the image collection code, generally in'
-            'the format of \'Source/Code\' (e.g., \'COPERNICUS/S2_SR\') or \'Source/Code/Dataset\' (e.g., '
-            '\'MODIS/061/MOD13A2\')"')
-
-        pattern = r'^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+){1,2}$'
-        if not re.match(pattern, collection):
-            raise ValueError(
-                f"Invalid collection format: {collection}. Expected format: 'Source/Code' (e.g., 'COPERNICUS/S2_SR') or 'Source/Code/Dataset' (e.g., 'MODIS/061/MOD13A2')")
-
-        image_dates = self.get_image_collection_dates(collection)
-
-        day_formated = [datetime.datetime.strptime(day, '%Y-%m-%d') for day in image_dates]
-
-        min_date = min(day_formated)
-        max_date = max(day_formated)
-
-        aggregation_or_not = input(f'This collection contains images that range from {min_date.strftime("%Y-%m-%d")} - '
-                                   f'{max_date.strftime("%Y-%m-%d")}. Are you interested in (1) a single date of imagery, or (2) using an aggregation'
-                                   f'function on a range of dates? Please enter 1 or 2.')
-
-        if aggregation_or_not == 1:
-            date = input(f"Which of the following image dates do you want to retrieve? {image_dates}")
-
-        else:
-            print(f"Which of the following image dates do you want to retrieve? {image_dates}")
 
     @classmethod
     def validate_aggregation_function(cls, function):
+        """
+
+        :param function: The aggregation function to validate.
+        :return: The validated aggregation function.
+
+        """
         if function not in cls.aggregation_functions:
             raise ValueError(
                 f"Invalid aggregation function: {function}. Must be one of: {', '.join(cls.aggregation_functions.keys())}")
         return function
 
     def generate_monthly_date_ranges(self, start_date, end_date):
+        """
+        :param start_date: The start date of the date ranges to generate. Should be a datetime.date object.
+        :param end_date: The end date of the date ranges to generate. Should be a datetime.date object.
+        :return: A list of tuples, where each tuple represents a monthly date range. Each tuple contains the start date and end date of the respective month.
 
+        """
         date_ranges = []
 
         for year in range(start_date.year, end_date.year + 1):
@@ -190,6 +137,12 @@ class EarthEngineManager(BaseModel):
         return date_ranges
 
     def generate_yearly_date_ranges(self, start_date, end_date):
+        """
+        :param start_date: The start date of the date range.
+        :param end_date: The end date of the date range.
+        :return: A list of tuples, where each tuple represents the start and end dates for each year within the specified range.
+
+        """
         # Convert start and end dates from strings to date objects
         # start_date_dt = datetime.datetime.strptime(start_date, '%Y-%m-%d')
         # end_date_dt = datetime.datetime.strptime(end_date, '%Y-%m-%d')
@@ -223,6 +176,13 @@ class EarthEngineManager(BaseModel):
         return date_ranges
 
     def get_image_collection_dates(self, collection: str, min_max_only: bool = False):
+        """
+        :param collection: The name of the image collection to retrieve dates from. It should be in the format 'path/to/collection'.
+        :param min_max_only: A boolean value indicating whether to only return the minimum and maximum dates in the collection. Default is False.
+        :return: A list of dates in the image collection. If `min_max_only` is True, it will return a list with two dates, representing the minimum and maximum dates in the collection. Otherwise
+        *, it will return a list of all dates in the collection.
+
+        """
         # Regular expression to match both formats
         pattern = r'^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+){1,2}$'
 
@@ -255,6 +215,22 @@ class EarthEngineManager(BaseModel):
 
 
     def calculate_statistics(self, img, geometry, band):
+        """
+        :param img: The image on which to calculate the statistics.
+        :param geometry: The geometry within which to calculate the statistics.
+        :param band: The band of the image on which to calculate the statistics.
+        :return: The calculated statistics as a dictionary.
+
+        This method calculates various statistics for a given image within a specified geometry and band. It uses the Earth Engine reducers to calculate mean, sum, maximum, minimum, standard
+        * deviation, variance, and median.
+
+        The `img` parameter is the image object on which the statistics are calculated.
+        The `geometry` parameter is the geometry object that defines the region within which the statistics are calculated.
+        The `band` parameter is the name of the band on which the statistics are calculated.
+
+        The method returns the calculated statistics as a dictionary. The keys of the dictionary represent the statistic types ('mean', 'sum', 'max', 'min', 'stdDev', 'variance', 'median') and
+        * the values represent the computed statistics for each type.
+        """
         # Define the reducers for each statistic you want to calculate
         reducers = ee.Reducer.mean().combine(
             reducer2=ee.Reducer.sum(),
@@ -298,14 +274,22 @@ class EarthEngineManager(BaseModel):
                   statistics_only=False
                   ):
         """
-        Fetches the specified image from the Earth Engine dataset and applies the specified aggregation function.
-
-        Parameters:
-        - content (dict): Dictionary containing image fetching and processing specifications.
-
-        Returns:
-        - img (ee.Image): The processed image.
-        - nigeria (ee.Geometry): Geometry object representing Nigeria's boundary.
+        :param multi_date: Boolean indicating whether multiple dates will be used for aggregation
+        :param aggregation_period: String indicating the period over which to aggregate the images
+        :param aggregation_method: String indicating the method of aggregation to be used
+        :param start_date: String indicating the start date of the image collection
+        :param end_date: String indicating the end date of the image collection
+        :param date: String indicating the date for which to retrieve the image
+        :param create_sub_folder: Boolean indicating whether to create a subfolder for the downloaded image
+        :param scale: Scale at which to retrieve the image. Default is None.
+        :param image_collection: String indicating the Earth Engine image collection to use
+        :param add_to_map: Boolean indicating whether to add the retrieved image to the map
+        :param band: String indicating the band to retrieve from the image collection
+        :param additional_filter: Boolean indicating whether to apply an additional filter to the image collection
+        :param filter_argument: Argument to be used for additional filtering. Default is None.
+        :param geometry: Geometry object representing the region of interest
+        :param statistics_only: Boolean indicating whether to only return additional statistics about the image
+        :return: Tuple containing the retrieved image, the boundary of the region, and the nominal scale of the image
         """
 
         if multi_date:
@@ -376,11 +360,19 @@ class EarthEngineManager(BaseModel):
 
     def split_and_sort_geometry(self, geometry, num_sections):
         """
-        Splits a geometry into a specified number of sections and sorts them by area.
+        :param geometry: The geometry to be split and sorted.
+        :param num_sections: The number of sections to split the geometry into.
+        :return: A list of sorted grid cells obtained by splitting the geometry.
 
-        :param geometry: The Earth Engine Geometry to split.
-        :param num_sections: Number of sections to split into (e.g., 4 for a 2x2 grid).
-        :return: A sorted list of Earth Engine Geometries.
+        This method takes a geometry and splits it into a grid of specified number of sections. The grid cells are then sorted based on their area in descending order.
+
+        Example usage:
+        ```
+        geometry = ee.Geometry.Polygon(<coordinates>)
+        num_sections = 4
+
+        sorted_grid = split_and_sort_geometry(geometry, num_sections)
+        ```
         """
         bounds = geometry.bounds()
         coords = bounds.getInfo()['coordinates'][0]
@@ -407,8 +399,18 @@ class EarthEngineManager(BaseModel):
         return sorted_grid
 
     def get_image_download_url(self, region, scale, img, format='GEO_TIFF', crs='EPSG:4326'):
+        """
+        :param region: The region of interest for the image download. It can be either an ee.Feature or ee.Geometry object.
+        :param scale: The scale of the image. It can be either a numerical value or 'default' to use the default scale of the image.
+        :param img: The image to download.
+        :param format: The format of the downloaded image. Default is 'GEO_TIFF'.
+        :param crs: The coordinate reference system of the downloaded image. Default is 'EPSG:4326'.
+        :return: The download URL for the image.
 
-
+        This method takes in a region of interest, scale, image, format, and coordinate reference system (CRS) as parameters and returns the URL to download the image. The region can be specified
+        * as an ee.Feature or ee.Geometry object. The scale can be provided as a numerical value or 'default' to use the default scale of the image. The format parameter determines the format
+        * in which the image will be downloaded, with the default being 'GEO_TIFF'. The crs parameter specifies the CRS of the downloaded image, with the default being 'EPSG:4326'.
+        """
         if isinstance(region, ee.Feature):
             geometry = region.geometry()
         elif isinstance(region, ee.Geometry):
@@ -431,6 +433,12 @@ class EarthEngineManager(BaseModel):
 
     @staticmethod
     def download_file_from_url(url, destination_path):
+        """Download a file from the given URL.
+
+        :param url: The URL of the file to be downloaded.
+        :param destination_path: The path where the downloaded file will be saved.
+        :return: None
+        """
         response = requests.get(url, stream=True)
         response.raise_for_status()
 
@@ -439,6 +447,14 @@ class EarthEngineManager(BaseModel):
                 file.write(chunk)
 
     def img_min_max(self, img, scale, min_threshold=None, boundary=None, band=None):
+        """
+        :param img: The input image
+        :param scale: The scale at which to compute the min and max values
+        :param min_threshold: An optional threshold to exclude values below
+        :param boundary: An optional geometry to limit the computation to a specific area
+        :param band: The band to compute the min and max values for
+        :return: The minimum and maximum values of the specified band as a tuple (min_value, max_value)
+        """
         max_pixels = 1e12
 
         # If a threshold is provided, mask the image to exclude values below the threshold
@@ -459,6 +475,13 @@ class EarthEngineManager(BaseModel):
         return min_value, max_value
 
     def plot_image(self, img, vis_params):
+        """
+        Plot an image on a geemap.Map object.
+
+        :param img: The image to be plotted.
+        :param vis_params: The visualization parameters for the image.
+        :return: The geemap.Map object with the image plotted.
+        """
         center_lat = 2
         center_lon = 32
         zoomlevel = 6
@@ -469,18 +492,16 @@ class EarthEngineManager(BaseModel):
 
     def process_images(self, start_date, end_date, image_collection, band, country, aggregation_type, function):
         """
-        Automatically processes all images from specified start date to specified end date on a monthly/yearly aggregate.
-        Starts by creating date ranges according to specified aggregation type.
-        For each date range, it retrieves and processes image, then downloads the image.
-        Args:
-            start_date (str): Start date in YYYY-MM-DD format.
-            end_date (str): End date in YYYY-MM-DD format.
-            image_collection (str): Image collection code.
-            band (str): The band of the image collection to select.
-            aggregation_type (str): Monthly or Yearly.
+        Process images within a specified date range.
 
-        Returns:
-            None
+        :param start_date: The start date of the date range.
+        :param end_date: The end date of the date range.
+        :param image_collection: The collection of images to process.
+        :param band: The desired band of the images.
+        :param country: The country for which to process the images.
+        :param aggregation_type: The type of aggregation for the images (either "monthly" or "yearly").
+        :param function: The function to apply to the images.
+        :return: None
         """
         # Validate aggregation type
         if aggregation_type.lower() not in ("monthly", "yearly"):
@@ -515,6 +536,31 @@ class EarthEngineManager(BaseModel):
                 self.download_file_from_url(download_url, destination_path)
 
     def get_admin_units(self, level=0):
+        """
+        :param level: An integer representing the administrative level. Default is 0.
+        :return: A list of unique administrative units at the specified level.
+
+        This method retrieves administrative units from a dataset based on the specified level. The dataset used is FAO/GAUL_SIMPLIFIED_500m/2015, which contains administrative boundary information
+        *. The parameter 'level' specifies the desired administrative level.
+
+        If level is 0, the method returns a sorted list of unique country names found in the dataset.
+
+        If level is 1 or 2, the method creates a dictionary where each key represents a higher-level unit and its value is a list of lower-level units. The dictionary is returned as a Python
+        * dictionary.
+
+        Note: This method utilizes the Earth Engine API to interact with geospatial data.
+
+        Example usage:
+            my_object = MyClass()
+            result = my_object.get_admin_units(level=1)
+
+            # Result may look like:
+            {
+                'Country A': ['Region 1', 'Region 2'],
+                'Country B': ['Region 3', 'Region 4'],
+                ...
+            }
+        """
         # Load the dataset
         gaul_dataset = ee.FeatureCollection(f"FAO/GAUL_SIMPLIFIED_500m/2015/level{level}")
 
@@ -543,11 +589,22 @@ class EarthEngineManager(BaseModel):
 
 
     def get_image_sum(self, img, geometry, scale, band='population'):
+        """
+        :param img: The input image to calculate the sum.
+        :param geometry: The geometry to apply the calculation to.
+        :param scale: The scale to use for calculation.
+        :param band: The band to calculate the sum for. Defaults to 'population'.
+        :return: The sum value calculated for the specified band.
+        """
         # Define the reducers for each statistic you want to calculate
+        print('Processing Sum')
         reducers = ee.Reducer.sum()
+        print('Passed reducers')
 
         # Apply the reducers to the image
         stats = img.reduceRegion(reducer=reducers, geometry=geometry, scale=scale, maxPixels=1e12)
+        print('Passed stats')
+        print(stats.getInfo())
 
         sum_value = stats.get(band).getInfo()  # Make sure 'band' is the correct key
 
@@ -555,14 +612,17 @@ class EarthEngineManager(BaseModel):
 
     def ee_ensure_geometry(self, geometry):
         """
-        Ensures that the input geometry is a valid Earth Engine Geometry, Feature, or FeatureCollection.
-        If the input is a FeatureCollection, it dissolves it into the outer boundary.
+        :param geometry: The input geometry to ensure that it is a valid Earth Engine Geometry.
+        :return: Return the valid Earth Engine Geometry.
 
-        :param geometry: The input geometry to be validated.
-        :type geometry: ee.Geometry, ee.Feature, or ee.FeatureCollection
-        :return: The valid Earth Engine Geometry.
-        :rtype: ee.Geometry
-        :raises ValueError: If the input is neither an ee.Geometry, ee.Feature, nor ee.FeatureCollection.
+        Ensures that the input `geometry` is a valid Earth Engine Geometry. If the `geometry` is an
+        instance of `ee.Feature`, it extracts the geometry from the feature and returns it. If the
+        `geometry` is already an instance of `ee.Geometry`, it returns it directly. If the `geometry`
+        is an instance of `ee.FeatureCollection`, it dissolves it into its outer boundary and returns
+        the dissolved geometry. If the `geometry` is a dictionary, it assumes that it is a GeoJSON
+        geometry and converts it to an Earth Engine Geometry before ensuring its validity. If the
+        `geometry` is of any other type, it raises a `ValueError` with a specific error message
+        indicating that the geometry type must be an Earth Engine Geometry, Feature, or FeatureCollection.
         """
 
         if isinstance(geometry, ee.Feature):
@@ -583,23 +643,13 @@ class EarthEngineManager(BaseModel):
 
     def convert_geojson_to_ee(self, geojson_obj):
         """
-        Converts a GeoJSON object to Earth Engine feature or geometry.
+        Converts a GeoJSON object to Earth Engine objects.
 
-        :param geojson_obj: A GeoJSON object.
-        :return: A converted Earth Engine feature or geometry.
+        :param geojson_obj: The GeoJSON object to be converted.
+        :return: The converted Earth Engine object.
 
         Raises:
-            ValueError: If the GeoJSON type is unsupported.
-
-        Example usage:
-            geojson = {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [0, 0]
-                }
-            }
-            ee_object = convert_geojson_to_ee(geojson)
+            ValueError: If the GeoJSON type is not supported.
         """
         if geojson_obj['type'] == 'FeatureCollection':
             return ee.FeatureCollection(geojson_obj['features'])
@@ -613,13 +663,10 @@ class EarthEngineManager(BaseModel):
 
     def process_drawn_features(self, drawn_features, layer, column):
         """
-        Process the drawn features.
-
-        :param drawn_features: A list of drawn features.
-        :type drawn_features: list[ee.Feature or ee.Geometry]
-        :return: A list of distinct values from the filtered layer.
-        :rtype: list
-        """
+        :param drawn_features: A list of drawn features, each representing a geometry or a feature in Google Earth Engine.
+        :param layer: An Earth Engine asset layer to filter and retrieve distinct values from.
+        :param column: The column or property in the asset layer for which to retrieve distinct values.
+        :return: A list of distinct values from the specified column"""
         all_distinct_values = []
         for feature in drawn_features:
 
@@ -633,10 +680,10 @@ class EarthEngineManager(BaseModel):
 
     def process_geometry_collection(self, geometry_collection, all_geometries):
         """
-        Processes a geometry collection and appends the coordinates of polygons and multipolygons to a list.
+        Process a geometry collection and extract polygon and multipolygon geometries
 
-        :param geometry_collection: A geometry collection object.
-        :param all_geometries: A list to store the coordinates of polygons and multipolygons.
+        :param geometry_collection: The input geometry collection to be processed
+        :param all_geometries: List to store the extracted geometries
         :return: None
         """
         geometries = geometry_collection.geometries().getInfo()
@@ -650,10 +697,13 @@ class EarthEngineManager(BaseModel):
 
     def download_feature_geometry(self, distinct_values, feature_type_prefix=None, column=None, layer=None, dropdown_api=None):
         """
-        Downloads the geometry for each distinct value from the specified feature layer and stores it in self.geometry.
+        :param distinct_values: A list of distinct values used to filter the features.
+        :param feature_type_prefix: Optional prefix for the feature type.
+        :param column: Optional column used for filtering the features.
+        :param layer: A layer object containing the features.
+        :param dropdown_api: Optional dropdown API type.
+        :return: The geometry of the features or None if no valid geometries are found.
 
-        :param distinct_values: A list of distinct values for filtering the feature layer.
-        :return: None
         """
         if not distinct_values:
             print("No distinct values provided.")
@@ -705,7 +755,15 @@ class EarthEngineManager(BaseModel):
             return geometry
 
     def download_and_split(self, image, original_geometry, scale, split_count=1, params=None, band=None):
-        """Attempt to download the image, splitting the geometry if necessary."""
+        """
+        :param image: The image identifier.
+        :param original_geometry: The original geometry of the image.
+        :param scale: The scale of the image.
+        :param split_count: The number of splits to divide the image into (default is 1).
+        :param params: Additional parameters (default is None).
+        :param band: The band of the image (default is None).
+        :return: A list of file names and a boolean indicating if the download was successful.
+        """
         file_names = []
         try:
             geom_list = self.split_and_sort_geometry(original_geometry, split_count)
@@ -732,11 +790,21 @@ class EarthEngineManager(BaseModel):
 
     def ee_geometry_to_shapely(self, geometry):
         """
-        Convert an Earth Engine Geometry, Feature, or GeoJSON to a Shapely Geometry object.
+        Converts an Earth Engine Geometry or Feature, or a GeoJSON dictionary, to a Shapely Geometry.
 
-        :param geometry: An Earth Engine Geometry, Feature, or GeoJSON dictionary.
+        :param geometry: An Earth Engine Geometry or Feature, or a GeoJSON dictionary.
         :return: A Shapely Geometry object.
 
+        Examples:
+            # Convert an Earth Engine Geometry
+            ee_geometry_to_shapely(ee_object)
+
+            # Convert a GeoJSON dictionary
+            geo_json = {
+                "type": "Point",
+                "coordinates": [0, 0]
+            }
+            ee_geometry_to_shapely(geo_json)
         """
         # Check if the geometry is an Earth Engine Geometry or Feature
         if isinstance(geometry, ee.Geometry) or isinstance(geometry, ee.Feature):
@@ -755,9 +823,24 @@ class EarthEngineManager(BaseModel):
     def determine_geometries_to_process(self, override_boundary_type=None, layer=None, column=None, dropdown_api=None,
                                         boundary_type=None, draw_features=None, userlayers=None, boundary_layer=None):
         """
-        Determine the geometries to process based on the boundary type and user inputs.
-
-        :return: A list of tuples representing the geometries to process. Each tuple contains a feature and distinct values.
+        :param override_boundary_type: (optional) Type of boundary to override the default boundary type.
+        :type override_boundary_type: str
+        :param layer: (optional) Name of the layer to use for processing features.
+        :type layer: str
+        :param column: (optional) Name of the column to use for processing features.
+        :type column: str
+        :param dropdown_api: (optional) API to retrieve dropdown values.
+        :type dropdown_api: str
+        :param boundary_type: (optional) Type of boundary to process.
+        :type boundary_type: str
+        :param draw_features: (optional) List of features drawn by the user.
+        :type draw_features: list
+        :param userlayers: (optional) Dictionary of user uploaded layers.
+        :type userlayers: dict
+        :param boundary_layer: (optional) Layer name for user defined boundary.
+        :type boundary_layer: str
+        :return: List of geometries to process.
+        :rtype: list
         """
         geometries = []
         if override_boundary_type:
@@ -783,21 +866,34 @@ class EarthEngineManager(BaseModel):
 
 class EarthEngineNotebookInterface(BaseModel):
     class Config:
+        """
+        This class represents a configuration object.
+
+        Attributes:
+            extra (Extra): Specifies whether to allow extra fields in the configuration.
+
+        Enum:
+            Extra:
+                - allow: Allows extra fields in the configuration.
+                - disallow: Disallows extra fields in the configuration.
+        """
         extra = Extra.allow  # Allow extra fields
 
     def __init__(self, **data):
+        """Initialize the object with the given parameters.
+
+        :param data: The data used to initialize the object.
+        """
         super().__init__(**data)
         self.gee_layer_search_widget = None
         self.create_widgets_gee()
 
     def on_gee_search_button_clicked(self, b):
         """
-        Perform a search for Earth Engine data when the search button is clicked.
+        Handle the click event of the Google Earth Engine search button.
 
-        :param b: The button widget.
-        :type b: Button
+        :param b: The button object that was clicked.
         :return: None
-        :rtype: None
         """
         # Here you define what happens when the button is clicked.
         # For now, it's just a print statement.
@@ -810,11 +906,13 @@ class EarthEngineNotebookInterface(BaseModel):
 
     def on_gee_layer_selected(self, b):
         """
-        Event handler for when a Google Earth Engine layer is selected.
+        Method to handle the selection of a Google Earth Engine layer.
 
-        :param b: The input value triggered by the event.
-        :type b: Any
+        :param b: The event object triggered by the selection.
+        :type b: object
+
         :return: None
+        :rtype: None
         """
         selected_layer = self.gee_layer_search_results_dropdown.value
         self.ee_dates_min_max = self.get_image_collection_dates(selected_layer, min_max_only=True)
@@ -823,7 +921,9 @@ class EarthEngineNotebookInterface(BaseModel):
 
     def on_single_or_range_dates_change(self, change):
         """
-        :param change: The change event object
+        Method to handle changes in the selection of single or range dates.
+
+        :param change: The change event triggered by the selection.
         :return: None
         """
         if self.single_or_range_dates.value == 'Single Date':
@@ -888,9 +988,11 @@ class EarthEngineNotebookInterface(BaseModel):
 
     def create_widgets_gee(self):
         """
-        Create and return a list of widgets for the Google Earth Engine layer search functionality.
 
-        :return: A list of widgets for the Google Earth Engine layer search functionality.
+        :create_widgets_gee method creates and configures the GEE widgets used for searching layers, selecting layers, selecting bands, and setting processing options.
+
+        :return:  A list of the configured GEE widgets.
+
         """
 
         self.gee_layer_search_widget = widgets.Text(
@@ -1000,9 +1102,9 @@ class EarthEngineNotebookInterface(BaseModel):
 
     def process_api(self, geometry, distinct_values, index):
         """
-        :param geometry: The geometry to use for the GEE API request.
-        :param distinct_values: Boolean indicating whether to return distinct values.
-        :param index: The index to use for the GEE API request.
+        :param geometry: The geometry for which to retrieve the image data.
+        :param distinct_values: Whether to retrieve distinct values or not.
+        :param index: The index of the distinct value to retrieve.
         :return: None
         """
         with self.out:
@@ -1153,7 +1255,7 @@ class EarthEngineNotebookInterface(BaseModel):
 
     def gather_parameters(self):
         """
-        Retrieves the parameters required for querying and processing data from Google Earth Engine.
+        Gathers the parameters required for processing.
 
         :return: A dictionary containing the gathered parameters.
         """

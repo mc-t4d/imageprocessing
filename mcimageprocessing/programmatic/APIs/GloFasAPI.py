@@ -1,18 +1,18 @@
-import cdsapi
-import os
-from mcimageprocessing import config_manager
 import datetime
-from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
-import ee
+import itertools
+import os
+from typing import Optional
 
+import cdsapi
+import ipyfilechooser as fc
 import ipywidgets as widgets
 from ipywidgets import DatePicker
 from ipywidgets import VBox, HBox
-import itertools
-from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
-import ipyfilechooser as fc
-from typing import Union, Set, List, Tuple, Dict, Optional
+
+from mcimageprocessing import config_manager
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
+from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
+
 
 class GloFasAPI:
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):

@@ -1,39 +1,36 @@
 import subprocess
+import warnings
 
+import branca.colormap as cm
 import ee
+import geemap
+import geojson
 import geopandas as gpd
-import ipyfilechooser as fc
+import ipyleaflet
 import ipywidgets as widgets
 import localtileserver
-import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
-import pygrib
-import json
-from shapely.geometry import Point
-import geemap
-from pyproj import Proj, transform
+import rasterio
 from IPython.display import HTML
-import datetime
-from ipywidgets import Output
+from IPython.display import display
 from ipyleaflet import GeoJSON
-import ipyleaflet
-from mcimageprocessing.programmatic.APIs.WorldPop import WorldPopNotebookInterface
-from mcimageprocessing.programmatic.APIs.ModisNRT import ModisNRTNotebookInterface
-from mcimageprocessing.programmatic.APIs.GloFasAPI import GloFasAPINotebookInterface
+from ipywidgets import Output
+from ipywidgets import VBox, Layout
+from pyproj import transform
+from rasterio.features import geometry_mask
+from shapely.geometry import MultiPolygon
+from shapely.geometry import shape
+from shapely.geometry import shape
+from tqdm.notebook import tqdm as notebook_tqdm
+
+from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineNotebookInterface
 from mcimageprocessing.programmatic.APIs.GPWv4 import GPWv4NotebookInterface
-from shapely.geometry import shape
-from shapely.geometry import MultiPolygon
-from osgeo import gdal
-import geojson
-import rasterio
-from rasterio.features import geometry_mask
-from tqdm.notebook import tqdm as notebook_tqdm
-from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
-from ipywidgets import VBox, Layout
-from shapely.geometry import shape
-import warnings
-from IPython.display import display
+from mcimageprocessing.programmatic.APIs.GloFasAPI import GloFasAPINotebookInterface
+from mcimageprocessing.programmatic.APIs.ModisNRT import ModisNRTNotebookInterface
+from mcimageprocessing.programmatic.APIs.WorldPop import WorldPopNotebookInterface
 
 # Define custom CSS
 custom_css = """
@@ -68,25 +65,36 @@ NODATA_VALUE = -9999
 
 class OutputWidgetTqdm(notebook_tqdm):
     """
-    OutputWidgetTqdm class
 
-    This class is a subclass of the notebook_tqdm class. It provides a custom implementation for displaying progress using the tqdm library in Jupyter Notebook.
+    :class: OutputWidgetTqdm
 
-    Attributes:
-    - output_widget: An output widget used to display the progress bar.
+    OutputWidgetTqdm is a class that extends the `notebook_tqdm` class to redirect the progress bar display to a specified output widget.
 
     Methods:
-    - __init__(*args, **kwargs): Initializes the OutputWidgetTqdm instance. Accepts custom arguments and also the output_widget argument to extract the output widget.
-    - display(*args, **kwargs): Overrides the display method of the superclass. Redirects the display to the output widget specified in the constructor.
 
-    Note: This class requires the tqdm and ipywidgets libraries to be installed.
+    - __init__(*args, **kwargs): Initializes the OutputWidgetTqdm object. You can pass additional arguments here if needed, or pass them through to the superclass. The 'output_widget' keyword
+    * argument allows you to specify the output widget to redirect the progress bar display.
+
+    - display(*args, **kwargs): Overrides the display method to redirect the progress bar display to the specified output widget. If no 'output_widget' is specified, the progress bar will
+    * be displayed in the default output area.
 
     Example usage:
 
-    output_widget = OutputWidget()  # Instantiate the custom output widget
-    widget_tqdm = OutputWidgetTqdm(output_widget=output_widget)  # Create an instance of OutputWidgetTqdm
-    widget_tqdm.display()  # Display the progress bar in the output widget
+    ```
+    output_widget = OutputWidget()
 
+    # Create an instance of OutputWidgetTqdm and pass the output_widget
+    pbar = OutputWidgetTqdm(total=10, output_widget=output_widget)
+
+    # Display the progress bar in the output_widget
+    pbar.display()
+
+    # Update the progress
+    pbar.update(1)
+
+    # Clear the output_widget
+    output_widget.clear_output()
+    ```
     """
 
     def __init__(self, *args, **kwargs):
@@ -110,6 +118,16 @@ class JupyterAPI(geemap.Map):
     added_layers = {}
 
     def __init__(self):
+        """Initialize the NotebookInterface class.
+
+        This method initializes the NotebookInterface class by calling the __init__ method of its parent class and setting up various class variables.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        """
         super().__init__()
         self.worldpop_class = WorldPopNotebookInterface()
         self.modis_nrt_class = ModisNRTNotebookInterface()
@@ -136,24 +154,21 @@ class JupyterAPI(geemap.Map):
 
     def get_map_and_output(self):
         """
+        Returns the map and output of the method.
 
-        :return: A tuple containing the map object `self` and the output attribute `self.out`.
-
+        :return: A tuple containing the map and output.
+        :rtype: tuple
         """
         return self, self.out
 
     def create_dropdown(self, dropdown_options, description, default_value):
         """
-        Create a dropdown widget with the given options, description, and default value.
+        Create a dropdown widget with specified options, description, and default value.
 
-        :param dropdown_options: a list of options for the dropdown
-        :type dropdown_options: list
-        :param description: the description text for the dropdown
-        :type description: str
-        :param default_value: the default value for the dropdown
-        :type default_value: any
-        :return: the created dropdown widget
-        :rtype: widgets.Dropdown
+        :param dropdown_options: list of options for the dropdown widget
+        :param description: description of the dropdown widget
+        :param default_value: default value for the dropdown widget
+        :return: dropdown widget
         """
         dropdown = widgets.Dropdown(
             options=dropdown_options,
@@ -166,6 +181,11 @@ class JupyterAPI(geemap.Map):
         return dropdown
 
     def create_widgets(self):
+        """
+        Function to create and initialize widgets for the user interface.
+
+        :return: None
+        """
         self.boundary_type = widgets.ToggleButtons(
             options=['Predefined Boundaries', 'User Defined', 'User Uploaded Data', 'Parameter File'],
             disabled=False,
@@ -239,7 +259,7 @@ class JupyterAPI(geemap.Map):
 
     def setup_event_listeners(self):
         """
-        Set up event listeners for the given parameters.
+        Sets up event listeners for various UI components.
 
         :return: None
         """
@@ -251,7 +271,15 @@ class JupyterAPI(geemap.Map):
 
     def initialize_ui_state(self):
         """
-        Initializes the UI state by setting initial values and visibility for various elements.
+        Initializes the UI state by performing the following tasks:
+        - Calls the `on_dropdown_change` method with `{'new': self.dropdown.value}` as the argument
+        - Calls the `on_api_change` method with `{'new': self.dropdown_api.value}` as the argument
+        - Calls the `on_boundary_type_change` method with `{'new': self.boundary_type.value}` as the argument
+        - Calls the `on_file_upload` method with `{'new': self.upload_widget.value}` as the argument
+        - Sets the `display` property of the `instruction_text` layout to `'none'`
+        - Sets the `display` property of the `upload_widget` layout to `'none'`
+        - Calls the `on_api_change` method with `{'new': self.dropdown_api.value}` as the argument
+        - Adds the `inner_widget_container` to the display with the specified layout properties
 
         :return: None
         """
@@ -273,16 +301,12 @@ class JupyterAPI(geemap.Map):
 
     def create_dropdown(self, dropdown_options: list, description: str, default_value):
         """
-        Create a dropdown widget with the given options, description, and default value.
+        Create a dropdown widget with the provided options, description, and default value.
 
-        :param dropdown_options: a list of options for the dropdown
-        :type dropdown_options: list
-        :param description: the description text for the dropdown
-        :type description: str
-        :param default_value: the default value for the dropdown
-        :type default_value: any
-        :return: the created dropdown widget
-        :rtype: widgets.Dropdown
+        :param dropdown_options: A list of options for the dropdown widget.
+        :param description: The description of the dropdown widget.
+        :param default_value: The default value for the dropdown widget.
+        :return: The created dropdown widget.
         """
         dropdown = widgets.Dropdown(
             options=dropdown_options,
@@ -297,10 +321,9 @@ class JupyterAPI(geemap.Map):
 
     def toggle_minimize(self, b):
         """
-        Toggles the visibility of the main content and changes the button text between 'Minimize' and 'Maximize'.
+        Toggle the visibility of the main content and update the button text.
 
-        :param b: A boolean value indicating whether to minimize or maximize the content.
-        :type b: bool
+        :param b: The boolean value indicating whether to minimize or maximize the content.
         :return: None
         """
         # This function is called when the minimize button is clicked.
@@ -329,10 +352,12 @@ class JupyterAPI(geemap.Map):
 
     def calculate_bounds(self, geojson_content):
         """
-        Calculate the bounds of a given GeoJSON content.
+        Calculate the bounds (minimum and maximum coordinates) of a given GeoJSON content.
 
-        :param geojson_content: The GeoJSON content to calculate the bounds from.
-        :return: A list of two lists representing the minimum and maximum latitude and longitude coordinates respectively.
+        :param geojson_content: The GeoJSON content.
+        :type geojson_content: dict
+        :return: The bounds represented by a list of two coordinate pairs: [[min_lat, min_lon], [max_lat, max_lon]].
+        :rtype: list
         """
         # Initialize min and max coordinates
         min_lat, min_lon, max_lat, max_lon = 90, 180, -90, -180
@@ -370,10 +395,28 @@ class JupyterAPI(geemap.Map):
 
     def on_file_upload(self, change):
         """
-        Method to process uploaded files and create a GeoJSON layer.
-
-        :param change: A dictionary containing the uploaded file info.
+        :param change: A dictionary containing the information of the uploaded files.
         :return: None
+
+        The 'on_file_upload' method is responsible for processing uploaded files and adding them as a GeoJSON layer to the map. It takes in a 'change' parameter, which is a dictionary that contains
+        * the information of the uploaded files.
+
+        The method starts by retrieving the list of uploaded file info from the 'change' dictionary. Then, it iterates over each file and extracts the filename and content. The content is initially
+        * in the form of a memoryview object, which is converted to bytes and decoded to a string using 'utf-8' encoding.
+
+        Next, the string content is loaded as GeoJSON using the 'geojson.loads' function. A style dictionary is created to define the appearance of the GeoJSON layer, including the line color
+        *, fill color, border width, and fill opacity.
+
+        A GeoJSON layer is created using the 'GeoJSON' class, with the loaded geojson_content and style as parameters. This layer is then added to the map using the 'add_layer' method, with
+        * additional parameters like name and visualization parameters.
+
+        If the layer is successfully added, the 'calculate_bounds' method is used to calculate the bounding box of the GeoJSON layer. This bounding box is then used to fit the map view using
+        * the 'fit_bounds' method. Finally, the GeoJSON layer is stored in the 'userlayers' dictionary with the name 'User Uploaded Data'.
+
+        If there are any errors during the processing or adding of the files, an exception is raised and caught. The error message is then printed to the output widget.
+
+        Note: The method is part of a class and assumes the presence of certain properties and methods like 'self.add_layer', 'self.calculate_bounds', 'self.fit_bounds', 'self.userlayers', and
+        * 'self.out'.
         """
         uploaded_files = change['new']  # Get the list of uploaded file info
 
@@ -422,12 +465,10 @@ class JupyterAPI(geemap.Map):
 
     def convert_to_cog(self, input_path: str, output_path: str):
         """
-        Convert a GeoTIFF to a COG (Cloud-Optimized GeoTIFF) using gdal_translate.
+        Convert a GeoTIFF to a COG using gdal_translate
 
-        :param input_path: Full path to the input GeoTIFF file.
-        :type input_path: str
-        :param output_path: Full path to the output COG file.
-        :type output_path: str
+        :param input_path: The path to the input GeoTIFF file
+        :param output_path: The path where the COG will be saved
         :return: None
         """
         # Convert a GeoTIFF to a COG using gdal_translate
@@ -445,23 +486,9 @@ class JupyterAPI(geemap.Map):
         """
         Converts a GRIB file to a standard GeoTIFF using gdal_translate.
 
-        :param grib_path: The path to the input GRIB file.
-        :param geotiff_path: The path to save the output GeoTIFF file.
+        :param grib_path: The path to the GRIB file.
+        :param geotiff_path: The path to save the converted GeoTIFF file.
         :return: None
-
-        This method uses the `gdal_translate` command to convert the input GRIB file to a GeoTIFF file. The output GeoTIFF file will be saved at the specified `geotiff_path` location.
-
-        **Note:** The `gdal_translate` command is executed using the `subprocess.run()` method with the `check=True` parameter to ensure the conversion process completes without any errors.
-
-        Example usage:
-
-        ```python
-        # Instantiate the object
-        converter = Converter()
-
-        # Convert a GRIB file to GeoTIFF
-        converter.convert_grib_to_geotiff('/path/to/input.grib', '/path/to/output.tif')
-        ```
         """
         # Convert a GRIB file to a standard GeoTIFF using gdal_translate
         cmd = [
@@ -477,12 +504,20 @@ class JupyterAPI(geemap.Map):
         """
         Get the edge values of a raster within a specified geometry.
 
-        :param raster_array: The array representing the raster.
-        :param transform: The affine transformation matrix to transform coordinates from pixel space to world space.
-        :param shape: The shape of the output raster array.
-        :param geometry: The geometry within which to find the edge values.
-        :return: An array containing the unique edge values found within the specified geometry.
+        :param raster_array: The raster array.
+        :type raster_array: ndarray
 
+        :param transform: The affine transformation matrix of the raster array.
+        :type transform: affine.Affine
+
+        :param shape: The shape of the output raster array.
+        :type shape: tuple
+
+        :param geometry: The geometry within which to find the edge values.
+        :type geometry: shapely.geometry.*
+
+        :return: An array containing the unique edge values of the raster.
+        :rtype: ndarray
         """
         # Create a mask for the geometry
         mask = geometry_mask([geometry], transform=transform, invert=True, out_shape=shape)
@@ -493,12 +528,10 @@ class JupyterAPI(geemap.Map):
 
     def get_nodata_value(self, src):
         """
-        Method: get_nodata_value
+            Tries to retrieve the no-data value from the source metadata. If it is not set, it infers it from data statistics or common conventions.
 
-        This method is used to retrieve the no-data value from a given data source.
-
-        :param src: The data source from which to retrieve the no-data value.
-        :return: The no-data value of the source, if available. Otherwise, it infers the no-data value from data statistics or common conventions.
+            :param src: The source object containing the data.
+            :return: The no-data value.
 
         """
         # Try to get no-data value from source metadata
@@ -517,12 +550,13 @@ class JupyterAPI(geemap.Map):
 
     def create_mask(self, out_image, nodata_value):
         """
-        Method to create a mask based on a given output image and no-data value.
+        :param out_image: the output image or array
+        :param nodata_value: the known no-data value
+        :return: a mask array indicating the presence of no-data values
 
-        :param out_image: The output image to create the mask from.
-        :param nodata_value: The no-data value used to determine the mask.
-        :return: The mask created based on the output image and no-data value.
-
+        This method creates a mask array based on the provided no-data value.
+        If no no-data value is specified, a custom strategy can be used to infer it.
+        For floating-point comparisons, a tolerance is used. For integer types, a direct comparison is performed.
         """
         if nodata_value is None:
             # If no no-data value is known, you might need a custom strategy
@@ -539,9 +573,14 @@ class JupyterAPI(geemap.Map):
 
     def clip_raster(self, file_path, geometry):
         """
-        :param file_path: The file path of the raster file (GRIB or TIFF) to be clipped.
-        :param geometry: The geometry to clip the raster file.
-        :return: The file path of the clipped TIFF file.
+        Clip a raster file based on a given geometry and return the path to the clipped file.
+
+        :param file_path: The path to the raster file to be clipped.
+        :type file_path: str
+        :param geometry: The geometry to use for clipping the raster.
+        :type geometry: Union[shapely.geometry.Polygon, shapely.geometry.MultiPolygon, dict]
+        :return: The path to the clipped raster file.
+        :rtype: str
         """
 
         # Check file format and inspect if it's a GRIB file
@@ -608,25 +647,8 @@ class JupyterAPI(geemap.Map):
 
     def on_dropdown_change(self, change):
         """
-        :param change: A dictionary containing information about the dropdown change event.
+        :param change: dictionary containing the new value of the dropdown
         :return: None
-
-        This method is called when the value of a dropdown menu is changed. It takes in the `change` parameter, which is a dictionary that contains information about the change event.
-
-        The method first extracts the new value from the `change` dictionary.
-
-        It then proceeds to remove any existing layers by iterating over the `added_layers` dictionary and removing each layer from the `layers` list. It also resets the `added_layers` dictionary
-        *.
-
-        Next, it splits the new value into two parts using the underscore (_) as the delimiter.
-
-        If the first part of the new value is 'admin', it adds the states layer based on the second part of the new value. It creates a feature collection based on the specified GAUL dataset
-        * and level, and then creates an EE tile layer using the feature collection. The layer variable is updated with the new feature collection, and the column variable is set to the corresponding
-        * administrative name column. The new layer is added to the map using the `add_layer` method, and the layer is also stored in the `added_layers` dictionary.
-
-        If the first part of the new value is 'watersheds', it adds the HydroSHEDS layer based on the second part of the new value. It creates a feature collection based on the specified Hydro
-        *SHEDS dataset, and then creates an EE tile layer using the feature collection. The layer variable is updated with the new feature collection, and the column variable is set to the Hydro
-        *SHEDS ID column. The new layer is added to the map using the `add_layer` method, and the layer is also stored in the `added_layers` dictionary.
         """
         new_value = change['new']
 
@@ -658,26 +680,23 @@ class JupyterAPI(geemap.Map):
 
     def on_api_change(self, change):
         """
-        :param change: dictionary containing the change information
-            - 'new': the new value of the change
+        :param change: the change event triggered by the API selection
         :return: None
 
-        This method is called when there is a change in the API selection. The `change` parameter is a dictionary that contains information about the change. The 'new' key in the dictionary
-        * represents the new value of the change.
+        This method is called when there is a change in the API selection. It takes the 'change' parameter which contains information about the new value selected for the API.
 
-        Depending on the new value of the change, this method performs different actions. If the new value is 'glofas', it creates a dropdown menu for GloFas products and sets up the necessary
-        * event listener. It then updates the API choice stack to display the GloFas options.
+        Based on the new value, different actions are performed:
+        - If the new value is 'glofas', create the GloFas dropdown menu and update the API choices stack with the GloFas options.
+        - If the new value is 'gee', create the Google Earth Engine options and update the API choices stack.
+        - If the new value is 'modis_nrt', create the MODIS NRT options and update the API choices stack.
+        - If the new value is 'worldpop', create the WorldPop options and update the API choices stack.
+        - If the new value is 'gpwv4', create the GPWv4 options and update the API choices stack.
+        - If the new value is any other value, do nothing.
 
-        If the new value is 'gee', it creates widgets for Google Earth Engine (GEE) options. It then updates the API choice stack to display the GEE options.
+        If the boundary type selected is 'Predefined Boundaries', the boundary options are updated accordingly.
 
-        If the new value is neither 'glofas' nor 'gee', no action is taken.
-
-        Note that the commented code in the method is not executed.
-
-        Examples:
-            # Example usage
-            change = {'new': 'glofas'}
-            on_api_change(self, change)
+        Note: The code snippets that are commented out with '# self.api_choice_stack.layout.display = 'none'' and '# self.api_choice_stack.layout.display = 'block'' seem to be hiding and then
+        * showing the API choices stack, but are currently not active.
         """
         with self.out:
             print(f"API Change detected. New value: {change['new']}")
@@ -731,26 +750,60 @@ class JupyterAPI(geemap.Map):
 
     def on_boundary_type_change(self, change):
         """
-        :param change: A dictionary representing the change that occurred in the boundary type. The dictionary should have a key 'new' which points to the new boundary value.
-        :return: None
+        Function to handle a change in the boundary type.
 
-        This method updates the boundary options based on the new boundary value provided in the change dictionary. The updated options are passed to the method 'update_boundary_options'.
+        :param change: A dictionary containing the changes made to the boundary type.
+        :return: None
         """
         boundary_value = change['new']
         self.update_boundary_options(boundary_value)
 
     def update_boundary_options(self, boundary_value):
         """
-        Method Name: update_boundary_options
+        :param boundary_value: the value indicating the type of boundary selected
+        :return: None
 
-        Description: This method updates the boundary options based on the selected boundary value.
+        This method updates the options for the boundary dropdown based on the value of "boundary_value". The dropdown options are modified according to the selected boundary type.
 
-        Parameters:
-        - boundary_value (str): The selected boundary value.
+        If "boundary_value" is equal to 'Predefined Boundaries':
+        - Calls the method "on_dropdown_change" passing {'new': self.dropdown.value} as argument
+        - sets self.dropdown.layout.display to 'block'
+        - sets self.instruction_text.layout.display to 'none'
+        - sets self.upload_widget.layout.display to 'none'
+        - sets self.predefined_upload_widget.layout.display to 'none'
+        - sets self.boundary_stack.layout.display to 'block'
+        - sets self.dropdown_api.layout.display to 'block'
+        - sets self.api_choice_stack.layout.display to 'block'
 
-        Returns:
-        None
+        If "boundary_value" is either 'User Defined' or 'User Uploaded Data':
+        - Removes EE Leaflet Tile Layers with Google Earth Engine attribution
+        - If "boundary_value" is 'User Defined':
+          - sets self.dropdown.layout.display to 'none'
+          - sets self.instruction_text.layout.display to 'block'
+          - sets self.upload_widget.layout.display to 'none'
+          - sets self.predefined_upload_widget.layout.display to 'none'
+          - sets self.boundary_stack.layout.display to 'block'
+          - sets self.dropdown_api.layout.display to 'block'
+          - sets self.api_choice_stack.layout.display to 'block'
+        - If "boundary_value" is 'User Uploaded Data':
+          - sets self.dropdown.layout.display to 'none'
+          - sets self.instruction_text.layout.display to 'none'
+          - sets self.upload_widget.layout.display to 'block'
+          - sets self.predefined_upload_widget.layout.display to 'none'
+          - sets self.boundary_stack.layout.display to 'block'
+          - sets self.dropdown_api.layout.display to 'block'
+          - sets self.api_choice_stack.layout.display to 'block'
 
+        If "boundary_value" is 'Parameter File':
+        - sets self.predefined_upload_widget.layout.display to 'block'
+        - sets self.boundary_stack.layout.display to 'none'
+        - sets self.dropdown_api.layout.display to 'none'
+        - sets self.api_choice_stack.layout.display to 'none'
+
+        In any other case:
+        - sets self.dropdown.layout.display to 'none'
+        - sets self.instruction_text.layout.display to 'none'
+        - sets self.upload_widget.layout.display to 'none'
         """
         # Define how the boundary type affects the boundary dropdown options
         if boundary_value == 'Predefined Boundaries':
@@ -810,23 +863,8 @@ class JupyterAPI(geemap.Map):
 
     def ensure_multipolygon(self, geometry):
         """
-            Ensures that the given geometry is a MultiPolygon. If the geometry is a Polygon, it converts it into a MultiPolygon.
-
-            :param geometry: The geometry object to ensure as a MultiPolygon.
-            :return: The input geometry as a MultiPolygon or the original geometry if it is already a MultiPolygon.
-
-            **Example Usage**
-
-            .. code-block:: python
-
-                geometry = ee.Geometry.Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])
-                ensure_multipolygon(geometry)
-
-            **Example Output**
-
-            .. code-block:: python
-
-                <ee.Geometry.MultiPolygon object at 0x7f672fc35160>
+        :param geometry: A geometry object representing a polygon or multipolygon.
+        :return: A multipolygon geometry object containing the input geometry.
         """
         if geometry.type().getInfo() == 'Polygon':
             return ee.Geometry.MultiPolygon([geometry.coordinates()])
@@ -835,10 +873,11 @@ class JupyterAPI(geemap.Map):
 
     def on_button_click(self, b):
         """
-        Function to handle button click event.
-
-        :param b: Button object representing the clicked button.
+        :param b: A parameter representing the button that was clicked
         :return: None
+
+        This method is called when a button is clicked. It first clears the output area, and then calls the `draw_and_process` method to draw and process some data. After the drawing and processing
+        * is done, the method assumes that the variable `distinct_values` is available for further use.
         """
         with self.out:
             self.out.clear_output()  # Clear the previous output
@@ -849,21 +888,10 @@ class JupyterAPI(geemap.Map):
 
     def get_bounding_box(self, distinct_values=None, feature=None):
         """
-        :param distinct_values: A list of distinct values used for filtering the layer data
-        :param feature: An optional feature object used for defining a custom geometry
-        :return: The bounding box of the selected data
+        :param distinct_values: A list of distinct values to filter the layer by.
+        :param feature: An optional feature object to use for calculating the bounding box.
+        :return: The bounding box of the layer's filtered geometry.
 
-        This method calculates the bounding box of the selected data based on the provided parameters. If distinct_values is specified, it filters the layer data based on the values in distinct
-        *_values and returns the bounding box of the filtered data. If feature is specified, it converts the feature to a GeoDataFrame and returns the bounding box of the geometry. If neither
-        * distinct_values nor feature is provided, it returns the bounding box of the dissolved geometry of the User Uploaded Data.
-
-        Example usage:
-        ----------------
-        distinct_values = ['value1', 'value2']
-        feature = ee.Feature()
-
-        bounding_box = get_bounding_box(distinct_values, feature)
-        print(bounding_box)
         """
 
         if distinct_values:
@@ -893,7 +921,7 @@ class JupyterAPI(geemap.Map):
 
     def draw_and_process(self):
         """
-        Draw and process data based on the boundary type.
+        Draw and process the input based on the boundary type.
 
         :return: None
         """
@@ -912,8 +940,17 @@ class JupyterAPI(geemap.Map):
         pass
 
     def add_image_to_map(self, image_or_stats, params, geometry):
+        """
+        Add an image or statistics to the map.
+
+        :param image_or_stats: The image or statistics to be added to the map.
+        :param params: Parameters for visualization.
+        :param geometry: The geometry to restrict the image statistics.
+        :return: None
+        """
         with self.out:
             if params['add_image_to_map'] and isinstance(image_or_stats, ee.Image):
+                self.remove_colorbar()
                 # Get the projection of the first band
                 projection = image_or_stats.select(0).projection()
                 # Get the scale (in meters) of the projection
@@ -932,24 +969,87 @@ class JupyterAPI(geemap.Map):
                 min_val = stats.getInfo()[f"{params['band']}_min"]
                 max_val = stats.getInfo()[f"{params['band']}_max"]
 
+                viridis = plt.get_cmap('viridis')
+                number_of_colors = 10  # You can change this to get more or fewer colors
+
+                viridis_palette = [matplotlib.colors.rgb2hex(viridis(i / float(number_of_colors))) for i in
+                                   range(number_of_colors)]
+
                 # Define visualization parameters using dynamic min and max
                 visParams = {
                     'min': min_val,
                     'max': max_val,
-                    'palette': ['440154', '21908C', 'FDE725']  # Viridis color palette
+                    'palette': viridis_palette
                 }
 
                 # Add EE layer with the specified visualization parameters
                 self.add_ee_layer(image_or_stats, visParams)
+                color_bar = cm.LinearColormap(
+                    visParams['palette'],
+                    vmin=visParams['min'],
+                    vmax=visParams['max']
+                ).to_step(n=10)  # You can adjust the number of steps
+                color_bar.caption = 'Population Count per Pixel'
+                self.add_colorbar(vis_params=visParams, label='Population Count', position='bottomleft')
             elif params['add_image_to_map'] and isinstance(image_or_stats, str):
+                self.remove_colorbar()
+
+                # Process the image using localtileserver
                 vis_params = {}
                 client = localtileserver.TileClient(image_or_stats)
                 tile_layer = localtileserver.get_leaflet_tile_layer(client, **vis_params)
                 self.add_layer(tile_layer)
                 self.fit_bounds(client.bounds)
 
+                # Use rasterio to read the image data
+                with rasterio.open(image_or_stats) as src:
+                    # Read the first band (assuming the data of interest is in the first band)
+                    band1 = src.read(1)
+
+                    # Calculate min and max, ignoring NaNs
+                    min_val, max_val = np.nanmin(band1), np.nanmax(band1)
+
+                    # Determine if the data is continuous or discrete based on unique values
+                    unique_values = np.unique(band1)
+                    if len(unique_values) <= 10:  # Arbitrary threshold for discrete data
+                        # Discrete data
+                        discrete_colors = ['#FF0000', '#00FF00', '#0000FF', ...]  # Define distinct colors
+                        color_bar = cm.LinearColormap(
+                            discrete_colors,
+                            vmin=min_val,
+                            vmax=max_val
+                        ).to_step(n=len(unique_values))
+                        color_bar.caption = 'Discrete Data'
+                    else:
+                        # Continuous data
+                        continuous_colors = plt.get_cmap('viridis')
+                        continuous_palette = [matplotlib.colors.rgb2hex(continuous_colors(i / 10)) for i in
+                                              range(10)]  # Adjust the range and divisor as needed
+
+                        color_bar = cm.LinearColormap(
+                            continuous_palette,
+                            vmin=min_val,
+                            vmax=max_val
+                        ).to_step(n=10)  # You can adjust the number of steps
+                        color_bar.caption = 'Continuous Data'
+
+                    # Add the appropriate color bar
+                    self.add_colorbar(vis_params=vis_params, label=color_bar.caption, position='bottomleft')
+
 
     def process_api(self, api_class, api_name, geometry, distinct_values, index, bbox=None, additional_params=None):
+        """
+        Process the API request.
+
+        :param api_class: The API class to use for processing the request.
+        :param api_name: The name of the API.
+        :param geometry: The geometry to use for the request.
+        :param distinct_values: A flag indicating whether to retrieve distinct values.
+        :param index: The index to use for the request.
+        :param bbox: The bounding box to use for the request. (Optional)
+        :param additional_params: Additional parameters to pass to the API. (Optional)
+        :return: None
+        """
         with self.out:
             try:
                 # additional_params is a dictionary containing any additional parameters required by gather_parameters
@@ -968,28 +1068,83 @@ class JupyterAPI(geemap.Map):
                 print(f"Error processing {api_name}: {e}")
 
     def handle_glofas(self, geometry, distinct_values, index):
+        """
+        Handles GloFAS API request for a given geometry and distinct values.
+
+        :param geometry: The geometry to be used for the API request.
+        :param distinct_values: The distinct values to be used for the API request.
+        :param index: The index to be used for the API request.
+        :return: None
+        """
         additional_params = {
             'glofas_product': self.glofas_options.value}  # Include any specific parameters required by the GloFAS API
         bbox = self.get_bounding_box(distinct_values, geometry)
         self.process_api(self.glofas_class, 'glofas', geometry, distinct_values, index, bbox=bbox, additional_params=additional_params)
 
     def handle_gee(self, geometry, distinct_values, index):
+        """
+        Handle Gee Method
+
+        :param geometry: The geometry to be processed.
+        :param distinct_values: The distinct values to be used.
+        :param index: The index to be used.
+        :return: None
+
+        """
         self.process_api(geometry, distinct_values, index)
 
     def handle_modis_nrt(self, geometry, distinct_values, index):
+        """
+        Handles the Modis NRT data by calling the appropriate API.
+
+        :param geometry: The geometry of the area of interest.
+        :type geometry: <geometry data type>
+
+        :param distinct_values: The distinct values associated with the data.
+        :type distinct_values: <distinct_values data type>
+
+        :param index: The index of the data.
+        :type index: <index data type>
+
+        :return: None
+        :rtype: None
+        """
         bbox = self.get_bounding_box(distinct_values, geometry)
         self.process_api(self.modis_nrt_class, 'modis_nrt', geometry=geometry, distinct_values=distinct_values, index=index, bbox=bbox)
 
     def handle_worldpop(self, geometry, distinct_values, index):
+        """
+        Process the WorldPop data.
+
+        :param geometry: The geometry to use for filtering.
+        :type geometry: str
+
+        :param distinct_values: The distinct attribute values to filter by.
+        :type distinct_values: list
+
+        :param index: The index of the attribute to filter on.
+        :type index: int
+
+        :return: None
+        """
         # No additional params required for WorldPop in this example
         self.process_api(self.worldpop_class, 'worldpop', geometry, distinct_values, index)
 
     def handle_gpwv4(self, geometry, distinct_values, index):
+        """
+        :param geometry: The geometry for which the processing needs to be done.
+        :type geometry: <data type of geometry>
+        :param distinct_values: The distinct values required for processing.
+        :type distinct_values: <data type of distinct_values>
+        :param index: The index of the geometry.
+        :type index: <data type of index>
+        :return: None
+        """
         self.process_api(self.gpwv4_class, 'gpwv4', geometry, distinct_values, index)
 
     def process_based_on_api_selection(self):
         """
-        Process based on the selected API.
+        Process data based on the selected API.
 
         :return: None
         """

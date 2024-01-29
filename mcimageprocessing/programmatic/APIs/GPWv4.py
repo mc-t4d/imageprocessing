@@ -1,14 +1,13 @@
 import datetime
+import json
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 from typing import Optional
 
 import ee
 import ipyfilechooser as fc
 import ipywidgets as widgets
-from geojson import Feature, FeatureCollection
 from ipywidgets import Layout
 
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
@@ -17,45 +16,10 @@ from mcimageprocessing.programmatic.shared_functions.utilities import mosaic_ima
 
 class GPWv4:
     """
-    GPWv4
+    Initialize the object.
 
-    A class for processing GPWv4 (Gridded Population of the World Version 4) data.
-
-    Attributes:
-        data_type_options (List[Dict[str, str]]): A list of dictionaries containing the available data types.
-        year_options (List[str]): A list of string representations of available years.
-
-    Methods:
-        __init__(ee_manager: Optional[EarthEngineManager] = None) -> None:
-            Initializes a GPWv4 instance.
-
-        _validate_parameters(gpwv4_params: Dict[str, Any]) -> bool:
-            Validates the parameters for GPWv4.
-
-        _create_sub_folder(base_folder: str) -> str:
-            Creates a subfolder within the given base folder.
-
-        process_residential_population(geometry: Any, gpwv4_params: Dict[str, Any]) -> Any:
-            Processes residential population based on the given parameters.
-
-        download_and_process_image(image: ee.Image, geometry: Any, scale: Any, gpwv4_params: Dict[str, Any], band: str) -> None:
-            Downloads and processes an image.
-
-        validate_parameters(gpwv4_params: Dict[str, Any]) -> bool:
-            Validates the parameters for GPWv4.
-
-        process_gpwv4_api(geometry: Any, distinct_values: Any, index: Any, gpwv4_params: Dict[str, Any] = None) -> Any:
-            Processes GPWv4 data based on the given parameters.
-
-        _process_datatype_residential_population(geometry, gpwv4_params):
-            Processes residential population for the given geometry and parameters.
-
-        _process_datatype_age_and_sex_structures(geometry, gpwv4_params):
-            Processes age and sex structures for the given geometry and parameters.
-
-        _save_statistics(folder_output: str, data: Any):
-            Saves the calculated statistics to a file.
-
+    :param ee_manager: An instance of the EarthEngineManager class. If not provided, a new instance will be created.
+    :type ee_manager: Optional[EarthEngineManager]
     """
 
     data_type_options = [{"name": "Population Count", "layer": "CIESIN/GPWv411/GPW_Population_Count", 'band': 'population_count'},
@@ -64,11 +28,25 @@ class GPWv4:
     year_options = [str(x) for x in range(2000, 2021, 5)]
 
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+        """
+        Initialize the object.
 
+        :param ee_manager: An instance of the EarthEngineManager class. If not provided, a new instance will be created.
+        :type ee_manager: Optional[EarthEngineManager]
+        """
         self.ee_instance = ee_manager if ee_manager else EarthEngineManager()
         self.logger = logging.getLogger(__name__)
 
     def _validate_parameters(self, gpwv4_params: Dict[str, Any]) -> bool:
+        """
+        Validates the given gpwv4_params dictionary.
+
+        :param gpwv4_params: A dictionary containing the parameters for GPWv4.
+                            Required keys: 'folder_output', 'year', 'datatype'.
+        :type gpwv4_params: dict[str, any]
+        :return: True if all required keys are present and not empty; False otherwise.
+        :rtype: bool
+        """
         required_keys = ['folder_output', 'year', 'datatype']
         for key in required_keys:
             if key not in gpwv4_params:
@@ -80,6 +58,14 @@ class GPWv4:
         return True
 
     def _create_sub_folder(self, base_folder: str) -> str:
+        """
+        Create a new subfolder within the given base folder.
+
+        :param base_folder: The path of the base folder where the subfolder will be created.
+        :type base_folder: str
+        :return: The path of the newly created subfolder.
+        :rtype: str
+        """
         folder_name = os.path.join(base_folder, datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
         try:
             os.mkdir(folder_name)
@@ -90,56 +76,74 @@ class GPWv4:
 
     def process_gpwv4_layer(self, geometry: Any, gpwv4_params: Dict[str, Any]) -> Any:
         """
-        Process residential population based on the given parameters.
+        :param geometry: The geometry object representing the area of interest for processing.
+        :param gpwv4_params: The dictionary containing all the parameters for processing the GPWv4 layer.
+        :return: The processed image or dictionary of statistics, depending on the value of the 'statistics_only' parameter.
 
-        :param geometry: The geometry to apply the process on.
-        :type geometry: Any
-        :param gpwv4_params: The parameters needed for the WorldPop processing.
-        :type gpwv4_params: Dict[str, Any]
-        :return: The processed image if statistics_only is not True, otherwise the calculated statistics.
-        :rtype: Any
         """
 
-        if gpwv4_params['statistics_only']:
-            all_stats = ee.Dictionary()
+        try:
 
-        band = gpwv4_params['datatype']
-        image, geometry, scale = self.ee_instance.get_image(
-            multi_date=True,
-            start_date=f'{gpwv4_params["year"]}-01-01',
-            end_date=f'{gpwv4_params["year"]}-12-31',
-            image_collection=gpwv4_params['datatype'],
-            band=gpwv4_params['band'],
-            geometry=geometry,
-            aggregation_method='max')
+            print(gpwv4_params)
 
-        geojson = geometry.getInfo()
-        multipolygon_feature = Feature(geometry=geojson)
+            print("Processing residential population...")
+            if gpwv4_params['statistics_only']:
+                all_stats = ee.Dictionary()
 
-        feature_collection = FeatureCollection([multipolygon_feature])
+            if not gpwv4_params['band']:
+                band = gpwv4_params['datatype']
+            else:
+                band = gpwv4_params['band']
+            image, geometry, scale = self.ee_instance.get_image(
+                multi_date=True,
+                start_date=f'{gpwv4_params["year"]}-01-01',
+                end_date=f'{gpwv4_params["year"]}-12-31',
+                image_collection=gpwv4_params['datatype'],
+                band=gpwv4_params['band'],
+                geometry=geometry,
+                aggregation_method='first')
+            print('image processed...')
+            # print('Processing GeoJson...')
+            # geojson = geometry.getInfo()
+            # print('Creating Feature...')
+            # multipolygon_feature = Feature(geometry=geojson)
+
+
+            # feature_collection = FeatureCollection([multipolygon_feature])
 
 
 
-        if gpwv4_params['statistics_only']:
-            stats = self.ee_instance.calculate_statistics(image, geometry, band)
-            all_stats = all_stats.set(band, stats)
-            all_stats_info = all_stats.getInfo()
-            return all_stats_info
+            if gpwv4_params['statistics_only']:
+                print('Calculating Statistics...')
+                print(image.bandNames().getInfo())
+                projection = image.select(0).projection()
+                scale = projection.nominalScale()
 
-        self.download_and_process_image(image, geometry, scale, gpwv4_params, band)
-        return image
+                sum_value = self.ee_instance.get_image_sum(image, geometry, scale, band)
+
+                print(sum_value)
+                all_stats = all_stats.set(band, sum_value)
+                all_stats_info = all_stats.getInfo()
+                return all_stats_info
+
+
+            self.download_and_process_image(image, geometry, scale, gpwv4_params, band)
+            return image
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
 
     def download_and_process_image(self, image: ee.Image, geometry: Any, scale: Any, gpwv4_params: Dict[str, Any],
                                    band: str) -> None:
         """
-        Downloads and processes an image.
+        Downloads and processes an image by splitting it into tiles and optionally mosaicing them.
 
-        :param image: The Earth Engine image to download.
-        :param geometry: The geometry to clip the image to.
-        :param scale: The scale of the image to download.
-        :param gpwv4_params: Additional parameters for WorldPop.
-        :param band: The band of the image to download.
+        :param image: The image to download and process.
+        :param geometry: The geometry (region of interest) to download the image for.
+        :param scale: The scale to use for downloading the image.
+        :param gpwv4_params: Additional parameters for the download process.
+        :param band: The band of the image to download and process.
         :return: None
         """
         file_names, download_successful = self.ee_instance.download_and_split(image, geometry, scale,
@@ -155,12 +159,12 @@ class GPWv4:
 
     def validate_parameters(self, gpwv4_params: Dict[str, Any]) -> bool:
         """
-        Validates the parameters for the GPWv4 processing.
+        :param gpwv4_params: A dictionary containing the parameters for GPWv4 processing.
+            - 'folder_output': The selected output folder.
+            - 'year': The selected year.
+            - 'datatype': The selected data type.
 
-        :param gpwv4_params: The dictionary containing the GPWv4 parameters.
-        :type gpwv4_params: Dict[str, Any]
-        :return: True if all parameters are valid, False otherwise.
-        :rtype: bool
+        :return: Returns True if all parameters are valid, False otherwise.
         """
         if not gpwv4_params['folder_output']:
             print("Please select an output folder.")
@@ -181,6 +185,16 @@ class GPWv4:
         return True
 
     def process_api(self, geometry: Any, distinct_values: Any, index: Any, params: Dict[str, Any] = None, bbox=None) -> Any:
+        """
+        Perform API processing.
+
+        :param geometry: The geometry to process.
+        :param distinct_values: The distinct values.
+        :param index: The index.
+        :param params: Additional parameters (optional).
+        :param bbox: The bounding box (optional).
+        :return: The processed result.
+        """
         if not self._validate_parameters(params):
             return
 
@@ -194,12 +208,28 @@ class GPWv4:
 
 
     def _process_datatype_residential_population(self, geometry, gpwv4_params):
+        """
+        :param geometry: The geometry object containing the spatial area of interest.
+        :param gpwv4_params: The parameters for processing the GPWv4 layer.
+        :return: The processed image representing the residential population within the specified geometry.
+
+        """
         image = self.process_gpwv4_layer(geometry, gpwv4_params)
         if gpwv4_params['statistics_only']:
             self._save_statistics(gpwv4_params['folder_output'], image)
         return image
 
     def _save_statistics(self, folder_output: str, data: Any):
+        """
+        Save statistics to a JSON file.
+
+        :param folder_output: The path to the output folder where the JSON file will be saved.
+        :param data: The data to be saved as JSON.
+        :return: None
+
+        Example usage:
+            >>> _save_statistics('/path/to/output', {'stat1': 100, 'stat2': 200})
+        """
         try:
             with open(os.path.join(folder_output, 'statistics.json'), 'w') as f:
                 f.write(str(data))
@@ -208,35 +238,87 @@ class GPWv4:
 
 
 class GPWv4NotebookInterface(GPWv4):
-    """
+    """GPWv4NotebookInterface is a class that extends the base class GPWv4 and provides a user interface for interacting with the GPWv4 API in a Jupyter notebook.
 
-    This class provides an interface to interact with the GPWv4 data in Earth Engine.
+    Usage:
+    ------
 
-    Attributes:
-        ee_manager (Optional[EarthEngineManager]): An optional EarthEngineManager object to handle authentication and
-            Earth Engine tasks. Defaults to None.
+    Instantiate an instance of GPWv4NotebookInterface by providing an optional instance of EarthEngineManager as the ee_manager parameter. If no ee_manager is provided, the default Earth
+    *EngineManager will be used.
+
+    Example:
+
+        >>> interface = GPWv4NotebookInterface()
 
     Methods:
-        __init__(self, ee_manager: Optional[EarthEngineManager] = None)
-            Initializes an instance of the GPWv4NotebookInterface class.
+    --------
 
-        create_widgets_for_gpwv4(self) -> List[widgets.Widget]
-            Creates widgets for GPWv4 data selection and processing options.
+    __init__(ee_manager: Optional[EarthEngineManager] = None)
+        Initializes a new instance of GPWv4NotebookInterface.
 
-        gather_gpwv4_parameters(self) -> Dict[str, Any]
-            Gathers the selected parameters for GPWv4 data processing.
+    Parameters:
+        - ee_manager (Optional[EarthEngineManager]): An optional instance of EarthEngineManager to use.
 
-        process_gpwv4_data(self, geometry: Any, distinct_values: Any, index: int) -> None
-            Processes GPWv4 data using the selected parameters.
+    create_widgets_for_gpwv4() -> List[widgets.Widget]
+        Creates the interactive widgets for the GPWv4 API.
 
+    Returns:
+        - List[widgets.Widget]: A list of Widget objects that represent the interactive widgets.
+
+    gather_parameters() -> Dict[str, Any]
+        Gathers the parameters from the interactive widgets.
+
+    Returns:
+        - Dict[str, Any]: A dictionary of parameter name-value pairs.
+
+    process_api(geometry: Any, distinct_values: Any, index: int, params=None, bbox=None) -> None
+        Processes the GPWv4 API using the provided parameters and displays the result.
+
+    Parameters:
+        - geometry (Any): The geometry to process.
+        - distinct_values (Any): The distinct values to process.
+        - index (int): The index of the item to process.
+        - params (Optional[Dict[str, Any]]): An optional dictionary of parameter name-value pairs. If not provided, the parameters will be gathered from the interactive widgets.
+        - bbox (Optional[Any]): An optional bounding box to use for filtering the data. If not provided, no filtering will be applied.
+
+    Returns:
+        - None
     """
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+        """
+        Initializes an instance of the class.
+
+        :param ee_manager: An optional parameter of type EarthEngineManager. It represents the Earth Engine manager
+                           used for interacting with the Earth Engine Python API.
+        """
         super().__init__(ee_manager)
         self.out = widgets.Output()
         # Initialize widgets
         self.create_widgets_for_gpwv4()
 
     def create_widgets_for_gpwv4(self) -> List[widgets.Widget]:
+        """
+        Returns a list of widgets for the GPWv4 data processing tool.
+
+        The `create_widgets_for_gpwv4` method creates several widgets that are used in the GPWv4 data processing tool. These widgets allow the user to select options such as data type, year
+        *, scale, file directory, and processing options.
+
+        The method initializes each widget with default values and settings. The `gpwv4_data_type` widget is a dropdown menu that displays available data types and their corresponding layers
+        *. The `gpwv4_year` widget is also a dropdown menu that displays available years for the data.
+
+        The `statistics_only_check` widget is a checkbox that allows the user to select whether only image statistics should be generated, represented as a dictionary. The `scale_input` widget
+        * is a text box where the user can input the desired scale for the processing.
+
+        The `add_image_to_map` and `create_sub_folder` widgets are checkboxes that give the user the option to add the processed image to the map and create a sub-folder, respectively. The `
+        *filechooser` widget is a file chooser dialog that allows the user to select the directory for the processed files.
+
+        The `gee_end_of_container_options` widget is an accordion container that holds the processing options checkboxes. It is configured with a two-by-two layout, with the `statistics_only
+        *_check` widget in the top left corner, the `add_image_to_map` widget in the top right corner, and the `create_sub_folder` widget in the bottom right corner.
+
+        The method creates a list named `widget_list` which contains all the widgets created. Finally, the method returns this list.
+
+        :return: A list of widgets used in the GPWv4 data processing tool.
+        """
         with self.out:
             self.gpwv4_data_type = widgets.Dropdown(
                 options={x['name']: x['layer'] for x in self.data_type_options},
@@ -284,6 +366,12 @@ class GPWv4NotebookInterface(GPWv4):
             return self.widget_list
 
     def gather_parameters(self) -> Dict[str, Any]:
+        """
+        Gather the parameters for the method.
+
+        :return: A dictionary containing the parameters.
+        :rtype: Dict[str, Any]
+        """
         # Ensure that you're accessing the correct attribute for the file chooser
         folder_output = self.filechooser.selected or self.filechooser.value
 
@@ -299,9 +387,45 @@ class GPWv4NotebookInterface(GPWv4):
         }
 
     def process_api(self, geometry: Any, distinct_values: Any, index: int, params=None, bbox=None) -> None:
+        """
+        Process the API for a given geometry.
+
+        :param geometry: The geometry to process.
+        :type geometry: Any
+
+        :param distinct_values: The distinct values.
+        :type distinct_values: Any
+
+        :param index: The index.
+        :type index: int
+
+        :param params: The parameters.
+        :type params: Any, optional
+
+        :param bbox: The bounding box.
+        :type bbox: Any, optional
+
+        :return: None
+        """
         with self.out:
             try:
+                # Process the image
                 image = super().process_api(geometry, distinct_values, index, params=self.gather_parameters())
+
+                # Serialize the geometry to GeoJSON
+                if isinstance(geometry, ee.Geometry):
+                    geojson_geometry = geometry.getInfo()  # If geometry is an Earth Engine object
+                else:
+                    geojson_geometry = geometry  # If geometry is already in GeoJSON format
+
+                # Define the GeoJSON filename
+                geojson_filename = os.path.join(params['folder_output'], 'geometry.geojson')
+
+                # Write the GeoJSON to a file
+                with open(geojson_filename, 'w') as f:
+                    f.write(json.dumps(geojson_geometry))
+
+                print(f"Geometry saved as GeoJSON to {geojson_filename}")
                 return image
             except Exception as e:
                 print(f"An error occurred: {e}")

@@ -1,49 +1,32 @@
-import pandas as pd
-
-from typing import Union, Set, List, Tuple, Dict, Optional
-from shapely.geometry import Point
-from pyproj import Proj, transform
-import re
-import requests
-from bs4 import BeautifulSoup
 import datetime
-from osgeo import ogr, osr, gdal
-from shapely.geometry.base import BaseGeometry
-import rasterio
-import numpy as np
-from shapely.geometry import shape
-import geopandas as gpd
-import ipywidgets as widgets
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from rasterio.features import shapes
-import ee
 import json
 import os
-from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
-from mcimageprocessing.programmatic.APIs.WorldPop import WorldPop
-from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
-import pkg_resources
-from mcimageprocessing import config_manager
-import ipyfilechooser as fc
-import os
 import re
+from typing import Dict, Any, List
+from typing import Optional, Set, Tuple, Union
 
+import ee
+import geopandas as gpd
+import ipyfilechooser as fc
+import ipywidgets as widgets
+import numpy as np
+import pandas as pd
+import rasterio
 import requests
 from bs4 import BeautifulSoup
 from osgeo import gdal
+from pyproj import Proj, transform
+from rasterio.features import shapes
+from shapely.geometry import Point
+from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
 
-from typing import Dict, Any, List
+from mcimageprocessing import config_manager
+from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
+from mcimageprocessing.programmatic.APIs.GPWv4 import GPWv4
+from mcimageprocessing.programmatic.APIs.WorldPop import WorldPop
 from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
 
-# Initialize Earth Engine credentials
-# credentials = ee.ServiceAccountCredentials(
-#     email=config_manager.config['KEYS']['GEE']['client_email'],
-#     key_data=config_manager.config['KEYS']['GEE']['private_key']
-# )
-#
-# ee.Initialize(credentials)
-#
-# ee_instance = EarthEngineManager()
 
 class ModisNRT:
     """
@@ -95,17 +78,31 @@ class ModisNRT:
     population_source_year_options=[x for x in range(2000, 2021)]
 
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+        """
+        Initialize the object.
+
+        :param ee_manager: Optional parameter of type EarthEngineManager. An instance of the EarthEngineManager class. If not provided, a new instance will be created.
+        """
         self.modis_download_token = config_manager.config['KEYS']['MODIS_NRT']['token']  # Token for MODIS NRT download
         self.headers = {'Authorization': f'Bearer {self.modis_download_token}'}  # Token for MODIS NRT download
         self.ee_instance = ee_manager if ee_manager else EarthEngineManager()
+        self.worldpop_instance = WorldPop()
+        self.gpwv4_instance = GPWv4()
 
     def calculate_modis_tile_index(self, x: float, y: float) -> tuple[int, int]:
         """
-        Calculate MODIS tile index based on the given x and y coordinates.
+        Calculate the MODIS tile index for the given coordinates.
 
-        :param x: The x coordinate.
-        :param y: The y coordinate.
-        :return: The MODIS tile index as a tuple (h, v).
+        :param x: The X-coordinate of the location.
+        :param y: The Y-coordinate of the location.
+        :return: A tuple containing the horizontal and vertical indices of the MODIS tile.
+
+        Example Usage:
+            >>> x = 123456.789
+            >>> y = 987654.321
+            >>> index = calculate_modis_tile_index(x, y)
+            >>> print(index)
+            (12, 34)
         """
         h = int((x + 20015109.354) // self.modis_tile_size)
         v = int((10007554.677 - y) // self.modis_tile_size)  # Adjust for Northern Hemisphere
@@ -113,9 +110,16 @@ class ModisNRT:
 
     def get_modis_tile(self, geometry: Union[Point, list, pd.DataFrame]) -> Set[tuple[int, int]]:
         """
-        :param geometry: The input geometry can be either a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.
-        :return: A set of Modis tiles covered by the given geometry.
-        """
+            Method to calculate the MODIS tile indices covered by a given geometry.
+
+            :param geometry: The geometry for which to calculate the MODIS tile indices. Must be a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns
+        *.
+            :type geometry: Union[Point, list, pd.DataFrame]
+            :return: A set of MODIS tile indices covered by the geometry.
+            :rtype: Set[tuple[int, int]]
+            :raises TypeError: If the input geometry is not of the expected types.
+
+            """
         tiles_covered = set()
 
         if isinstance(geometry, Point):
@@ -141,11 +145,14 @@ class ModisNRT:
     def get_modis_nrt_file_list(self, tiles: List[Tuple[int, int]], modis_nrt_params: Dict[str, datetime.datetime]) -> \
     List[str]:
         """
-        :param tiles: A list of tuples representing the MODIS tiles to retrieve files for. Each tuple should contain the horizontal (h) and vertical (v) coordinates of the tile.
-        :param modis_nrt_params: A dictionary containing the parameters for the MODIS Near Real-Time (NRT) data. This dictionary should include the 'date' key with a datetime object representing
-        * the date for which the files should be retrieved.
-        :return: A list of matching file names from the MODIS NRT API.
+        :param tiles: List of tuples representing the tiles (integer values for h and v)
+        :param modis_nrt_params: Dictionary containing the necessary parameters for Modis NRT (date)
+        :return: List of matching file URLs
 
+        This method takes in a list of tiles and Modis NRT parameters and returns a list of file URLs that match the specified criteria. It loops through each tile, constructs the base URL folder
+        *, and generates a file pattern based on the year, day of year, and tile coordinates. It then sends a request to the base URL folder and parses the HTML content using BeautifulSoup.
+        * It finds all the links in the HTML content and checks if they match the file pattern. If a link matches the pattern, it is added to the list of matching files. Finally, the method
+        * prints a message and returns the list of matching file URLs.
         """
 
         matching_files = []
@@ -176,18 +183,13 @@ class ModisNRT:
 
     def process_hdf_file(self, hdf_file: str, subdataset_index: int, tif_list: Optional[List[str]] = None) -> None:
         """
-        Process an HDF file and convert a subdataset to GeoTIFF format.
+        Process HDF file and convert the selected subdataset to GeoTIFF format.
 
-        :param hdf_file: The path to the HDF file.
-        :param subdataset_index: The index of the subdataset to be processed.
-        :param tif_list: (Optional) A list to store the paths of generated GeoTIFF files.
-
+        :param hdf_file: Path to the HDF file.
+        :param subdataset_index: Index of the subdataset to be converted.
+        :param tif_list: Optional list to store the paths of the converted GeoTIFF files.
         :return: None
 
-        Example usage:
-        ```
-        process_hdf_file('input.hdf', 0, tif_list=['output.tif'])
-        ```
         """
         hdf_dataset = gdal.Open(hdf_file, gdal.GA_ReadOnly)
         subdatasets = hdf_dataset.GetSubDatasets()
@@ -250,6 +252,11 @@ class ModisNRT:
         gdal.Warp(output_tif, tif_list)
 
     def get_modis_nrt_dates(self) -> List[datetime.datetime]:
+        """
+        Returns a list of datetime objects representing the available MODIS NRT (Near Real Time) dates.
+
+        :return: A list of datetime.datetime objects representing the available MODIS NRT dates.
+        """
         response = requests.get(
             f'{self.modis_nrt_api_root_url}?fields=all&formats=json')
         json_response = response.json()['content']
@@ -264,6 +271,16 @@ class ModisNRT:
         return dates
 
     def convert_to_date(self, date_string: str) -> datetime.datetime:
+        """
+        Converts a date string to a datetime object.
+
+        :param date_string: The date string in the format "YYYYDDD", where YYYY is the year and DDD is the day of the year.
+        :return: The converted datetime object representing the given date.
+
+        Example:
+            >>> convert_to_date("2020121")
+            datetime.datetime(2020, 5, 1)
+        """
         # Extract the year and the day of the year from the string
         year = int(date_string[:4])
         day_of_year = int(date_string[4:])
@@ -273,72 +290,112 @@ class ModisNRT:
 
         return date
 
-    def calculate_population_in_flood_area(self, raster_path: str, year: int, population_data_type: str, population_data_source: str, folder_output: str) -> str:
+    def read_raster_and_create_mask(self, raster_path: str, mask_value = 3):
+        """
+        Reads a raster file and creates a binary mask based on a specified mask value.
+
+        :param raster_path: The path to the raster file.
+        :param mask_value: The value to use as the mask. Default is 3.
+        :return: A tuple containing the raster source and the binary mask.
+
+        .. note::
+            - The raster file should be in a format supported by `rasterio <https://rasterio.readthedocs.io/en/latest/>`_.
+            - The method returns ``None`` if no pixels in the raster match the specified mask value.
+
+        Example usage:
+            >>> raster_path = "path/to/raster.tif"
+            >>> mask_value = 3
+            >>> source, mask = read_raster_and_create_mask(raster_path, mask_value)
+
+        """
         with rasterio.open(raster_path) as src:
             band = src.read(1)  # Read the first band
 
-        # Create a mask where the pixel value is 3
-        mask = band == 3
+        # Create a mask where the pixel value is 3 (flood area)
+        mask = band == mask_value
         if not np.any(mask):
-            return 'No flood area detected'
+            return None, None
 
-        # Vectorize the mask
-        mask_shapes = shapes(band, mask=mask, transform=src.transform)
+        return src, mask
 
-        # Create geometries and their associated raster values
+    def vectorize_mask_and_create_geometries(self, src, mask, mask_value=3.0):
+        """
+        :param src: The raster source file to extract geometries from.
+        :param mask: A boolean numpy array representing the binary mask to apply on the raster.
+        :param mask_value: The value in the mask to consider as True. Defaults to 3.0.
+        :return: A GeoDataFrame containing the vectorized geometries and their corresponding raster values.
+        """
+        mask_shapes = shapes(src.read(1), mask=mask, transform=src.transform)
+
         geometries = []
         raster_values = []
         for geom, value in mask_shapes:
-            if value == 3.0:
+            if value == mask_value:
                 geometries.append(shape(geom))
                 raster_values.append(value)
 
-        # Create a GeoDataFrame with geometry and raster value columns
         gdf = gpd.GeoDataFrame({'geometry': geometries, 'raster_value': raster_values})
-
-        # Set the CRS from the raster
         gdf.crs = src.crs
+
+        return gdf
+
+    def calculate_population_in_flood_area(self, raster_path: str, year: int, population_data_type: str, population_data_source: str, folder_output: str) -> str:
+        """
+        :param raster_path: (str) The path to the raster file containing flood area data.
+        :param year: (int) The year for which the population data is needed.
+        :param population_data_type: (str) The type of population data source to use. Can be 'Google Earth Engine' or any other valid data source.
+        :param population_data_source: (str) The specific population data source to use. Can be 'Residential Population' or any other valid source depending on the data type.
+        :param folder_output: (str) The output folder where the results will be saved.
+        :return: (str) A string indicating the population impacted by the flood area.
+
+        """
+        src, mask = self.read_raster_and_create_mask(raster_path, mask_value=3)
+
+        if not np.any(mask):
+            return 'No flood area detected'
+
+        gdf = self.vectorize_mask_and_create_geometries(src, mask, mask_value=3.0)
 
         ee_geometries = gdf['geometry'].apply(self.shapely_to_ee)
 
         multi_geom = ee.Geometry.MultiPolygon(list(ee_geometries))
 
+        if population_data_type == 'Google Earth Engine':
 
-        if population_data_source == 'Google Earth Engine':
-
-            worldpop = WorldPop()
-
-            if population_data_type == 'Residential Population':
+            if population_data_source == 'Residential Population':
 
                 worldpop_params = {
-                    'api_source': population_data_source,
+                    'api_source': population_data_type,
                     'year': year,
-                    'datatype': population_data_type,
+                    'datatype': population_data_source,
                     'statistics_only': False,
                     'add_image_to_map': False,
                     'create_sub_folder': False,
                     'folder_output': folder_output,
+                    'band': 'population'
                 }
 
-                image = worldpop.process_worldpop_api(multi_geom, None, None, worldpop_params)
+                try:
+                    image = self.worldpop_instance.process_api(geometry=multi_geom, distinct_values=None, index=None, params=worldpop_params)
+                except Exception as e:
+                    print(f"{e}")
+
 
                 return f'Population impacted: {"{:,}".format(round(self.ee_instance.get_image_sum(image, multi_geom, 100)))}'
-
-                # return f'Population impacted: {image}'
 
 
             else:
                 worldpop_params = {
-                    'api_source': population_data_source,
+                    'api_source': population_data_type,
                     'year': year,
-                    'datatype': population_data_type,
+                    'datatype': population_data_source,
                     'statistics_only': True,
                     'add_image_to_map': False,
                     'create_sub_folder': False,
                     'folder_output': folder_output,
                 }
 
-                image = worldpop.process_worldpop_api(multi_geom, None, None, worldpop_params)
+                image = self.worldpop_instance.process_api(geometry=multi_geom, distinct_values=None, index=None, params=worldpop_params)
 
                 return f'Population impacted: {image}'
 
@@ -352,41 +409,78 @@ class ModisNRT:
             #                                                image_collection='WorldPop/GP/100m/pop', band='population',
             #                                                geometry=multi_geom, aggregation_method='max')
         else:
-            pass
+
+            gpwv4_params = {
+                'year': year,
+                'datatype': population_data_source,
+                'statistics_only': True,
+                'add_image_to_map': False,
+                'create_sub_folder': False,
+                'folder_output': folder_output,
+                'band': [option['band'] for option in self.gpwv4_instance.data_type_options if option['layer'] == population_data_source][0]
+            }
+            print(gpwv4_params)
+            self.gpwv4_instance.process_api(multi_geom, distinct_values=None, index=None, params=gpwv4_params)
 
 
-        # return f'Population impacted: {"{:,}".format(round(ee_instance.get_image_sum(image, multi_geom, 100)))}'
 
     def shapely_to_ee(self, geometry: BaseGeometry, crs: str = 'EPSG:4326') -> ee.Geometry:
-        """Convert a shapely geometry to a GEE geometry."""
+        """
+        :param geometry: The Shapely geometry object to be converted to Earth Engine Geometry.
+        :type geometry: shapely.geometry.base.BaseGeometry
+
+        :param crs: The Coordinate Reference System (CRS) of the input geometry. Defaults to 'EPSG:4326'.
+        :type crs: str
+
+        :return: The Earth Engine Geometry object created from the input Shapely geometry.
+        :rtype: ee.Geometry
+
+        """
         geojson = gpd.GeoSeries([geometry]).set_crs(crs).to_json()
         geojson_dict = json.loads(geojson)
         ee_geometry = ee.Geometry(geojson_dict['features'][0]['geometry'])
         return ee_geometry
 
-    # def process_modis_nrt_api(self, geometry: Any, distinct_values: Any, index: int, params: dict, bbox) -> None:
-    #     modis_nrt_params = params
-    #
-    #
-    #     folder = self.create_sub_folder(modis_nrt_params)
-    #     tiles = self.get_tiles(bbox)
-    #     matching_files = self.find_matching_files(tiles, modis_nrt_params)
-    #
-    #     hdf_files_to_process, tif_list = self.download_and_process_files(matching_files, modis_nrt_params)
-    #     merged_output = self.merge_files(tif_list, folder)
-    #
-    #     self.cleanup_files(tif_list, hdf_files_to_process, modis_nrt_params)
-    #     self.finalize_processing(merged_output, geometry, modis_nrt_params)
 
     def get_tiles(self, bbox: Any) -> List[Any]:
+        """
+        Get the tiles for the given bounding box.
+
+        :param bbox: The bounding box.
+        :type bbox: Any
+        :return: The list of tiles.
+        :rtype: List[Any]
+        """
         tiles = self.get_modis_tile(bbox)
         print(f'Processing tiles: {tiles}')
         return tiles
 
     def find_matching_files(self, tiles: List[Any], modis_nrt_params: Dict[str, Any]) -> List[str]:
+        """
+        Find matching files based on the given tiles and MODIS NRT parameters.
+
+        :param tiles: A list of tiles.
+        :type tiles: List[Any]
+
+        :param modis_nrt_params: A dictionary of MODIS NRT parameters.
+        :type modis_nrt_params: Dict[str, Any]
+
+        :return: A list of matching file names.
+        :rtype: List[str]
+        """
         return self.get_modis_nrt_file_list(tiles, modis_nrt_params)
 
     def download_and_process_files(self, matching_files: List[str], modis_nrt_params: Dict[str, Any]) -> (List[str], List[str]):
+        """
+        Download and process the given files.
+
+        :param matching_files: List of files to be downloaded and processed.
+        :param modis_nrt_params: Dictionary containing modis nrt parameters.
+        :type matching_files: List[str]
+        :type modis_nrt_params: Dict[str, Any]
+        :return: Tuple containing lists of hdf files to process and tif files.
+        :rtype: Tuple[List[str], List[str]]
+        """
         hdf_files_to_process = []
         tif_list = []
         for url in matching_files:
@@ -394,6 +488,29 @@ class ModisNRT:
         return hdf_files_to_process, tif_list
 
     def finalize_processing(self, merged_output: str, geometry: Any, modis_nrt_params: Dict[str, Any]) -> None:
+        """
+        :param merged_output: The path to the merged output raster file.
+        :param geometry: The geometry object representing the area of interest.
+        :param modis_nrt_params: A dictionary containing the parameters for MODIS NRT processing.
+        :return: None
+
+        This method finalizes the processing by calling the 'process_and_clip_raster' function to process and clip the merged output raster file based on the provided geometry and MODIS NRT
+        * parameters. Afterward, it prints 'Processing Complete!' to indicate the completion of the processing. If the 'calculate_population' flag is set to True in the modis_nrt_params, it
+        * calls the 'calculate_population_in_flood_area' method to calculate the population impacted by the flood in the clipped output raster file. Finally, it prints the population impacted
+        *.
+
+        Example usage:
+
+        ```
+        finalize_processing('/path/to/merged_output.tif', geometry_object, {
+            'calculate_population': True,
+            'folder_path': '/path/to/output',
+            'population_year': 2021,
+            'population_type': 'total',
+            'population_data_type': 'density'
+        })
+        ```
+        """
         process_and_clip_raster(merged_output, geometry, modis_nrt_params, self.ee_instance)
         print('Processing Complete!')
         if modis_nrt_params['calculate_population']:
@@ -403,6 +520,16 @@ class ModisNRT:
             print(pop_impacted)
 
     def cleanup_files(self, tif_list: List[str], hdf_files_to_process: List[str], modis_nrt_params: Dict[str, Any]) -> None:
+        """
+        Removes files from the given lists if `keep_individual_tiles` parameter is False.
+
+        :param tif_list: A list of TIFF file paths.
+        :param hdf_files_to_process: A list of HDF file paths.
+        :param modis_nrt_params: A dictionary of MODIS NRT parameters.
+            - 'keep_individual_tiles': A boolean indicating whether to keep individual tiles or not.
+
+        :return: None
+        """
         if not modis_nrt_params['keep_individual_tiles']:
             for file in tif_list + hdf_files_to_process:
                 try:
@@ -411,11 +538,32 @@ class ModisNRT:
                     pass
 
     def merge_files(self, tif_list: List[str], folder: str) -> str:
+        """
+        Merge the given list of TIFF files into a single merged file.
+
+        :param tif_list: List of paths to TIFF files to be merged.
+        :param folder: Folder where the merged file will be saved.
+        :return: Path to the merged TIFF file.
+
+        Example Usage:
+            tif_list = ['file1.tif', 'file2.tif', 'file3.tif']
+            folder = '/path/to/folder'
+            merged_file = merge_files(tif_list, folder)
+        """
         merged_output = os.path.join(folder, 'merged.tif')
         self.merge_tifs(tif_list, merged_output)
         return merged_output
 
     def create_sub_folder(self, modis_nrt_params: Dict[str, Any]) -> str:
+        """
+        Creates a sub-folder based on the given parameters.
+
+        :param modis_nrt_params: A dictionary containing the parameters.
+               - 'create_sub_folder' (bool): Indicates whether to create a sub-folder or not.
+               - 'folder_path' (str): The path to the main folder.
+        :return: The path of the created sub-folder.
+        :rtype: str
+        """
         if modis_nrt_params['create_sub_folder']:
             timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             print(modis_nrt_params['folder_path'])
@@ -429,6 +577,12 @@ class ModisNRT:
 class ModisNRTNotebookInterface(ModisNRT):
 
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+        """
+        Initialize the class.
+
+        :param ee_manager: An instance of the EarthEngineManager class. If not provided,
+                           a new instance will be created.
+        """
         super().__init__(ee_manager)  # Initialize the base WorldPop class
         self.out = widgets.Output()  # For displaying logs, errors, etc.
         # Initialize widgets
@@ -436,12 +590,13 @@ class ModisNRTNotebookInterface(ModisNRT):
 
     def on_single_or_date_range_change_modis_nrt(self, change: Dict[str, Any]) -> Any:
         """
-        Handles the change event when the option for single date or date range is changed.
+        Handle the change event for the single or date range dropdown in the MODIS NRT widget.
 
-        :param change: A dictionary containing information about the change event.
-        :param glofas_option: The selected Glofas option.
-        :return: None
+        :param change: The change event.
+        :type change: dict
 
+        :return: The value of the single or date range dropdown.
+        :rtype: any
         """
 
         single_or_date_range_value = change['new']
@@ -481,9 +636,43 @@ class ModisNRTNotebookInterface(ModisNRT):
 
         return single_or_date_range_value
 
+    def on_population_source_change(self, change):
+        """
+        :param change: dictionary containing the new value of the population source
+        :return: None
+        """
+        try:
+            print("Entered on_population_source_change")  # Debug print
+            new_population_source = change['new']
+            print(f"Population source changed to {new_population_source}")  # Debug print
+
+            # Update population_source_variable and population_source_year based on the new_population_source
+            if new_population_source == 'WorldPop':
+                self.population_source_variable.options = self.worldpop_instance.data_type_options
+                self.population_source_year.options = [x for x in self.worldpop_instance.year_options]
+
+            elif new_population_source == 'GPWv4':
+                self.population_source_variable.options = {x['name']: x['layer'] for x in self.gpwv4_instance.data_type_options if x['name'] != 'Population Density'}
+                self.population_source_year.options = [x for x in self.gpwv4_instance.year_options]
+
+            # Debug prints to verify the updates
+            print(f"Updated variable options: {self.population_source_variable.options}")
+            print(f"Updated year options: {self.population_source_year.options}")
+
+            # Ensure the value is set to one of the available options
+            self.population_source_variable.value = self.population_source_variable.options[0]
+            self.population_source_year.value = self.population_source_year.options[0]
+        except Exception as e:
+            print(f"Error in on_population_source_change: {e}")
+
     def get_modis_nrt_dates(self) -> List[datetime.date]:
+        """
+        Retrieves the MODIS NRT dates from the NASA API.
+
+        :return: A list of datetime.date objects representing the MODIS NRT dates.
+        """
         response = requests.get(
-            'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/61/MCDWD_L3_NRT?fields=all&formats=json')
+            f'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/61/MCDWD_L3_NRT?fields=all&formats=json')
         json_response = response.json()['content']
         years = [x['name'] for x in json_response if x['name'] != 'Recent']
         dates = []
@@ -497,10 +686,9 @@ class ModisNRTNotebookInterface(ModisNRT):
 
     def create_widgets_for_modis_nrt(self) -> List[widgets.Widget]:
         """
-        Create widgets specific to GloFas Data Type 2
+        Create widgets for MODIS NRT.
 
-        :param glofas_option: The selected GloFas option
-        :return: A list of widgets specific to the selected GloFas option
+        :return: A list of widgets.
         """
         with self.out:
             self.modis_nrt_available_dates = self.get_modis_nrt_dates()
@@ -538,7 +726,7 @@ class ModisNRTNotebookInterface(ModisNRT):
             self.population_source = widgets.Dropdown(
                 options=self.population_source_options,
                 description='Population Source:',
-                disabled=True,
+                disabled=False,
                 value='WorldPop',
                 style={'description_width': 'initial'},
             )
@@ -594,67 +782,50 @@ class ModisNRTNotebookInterface(ModisNRT):
 
             self.end_of_vbox_items.set_title(0, 'Options')
 
+            self.population_source.observe(self.on_population_source_change, names='value')
+
             # Return a list of widgets
             return [self.modis_nrt_band_selection, self.single_or_date_range_modis_nrt, self.modis_nrt_date_vbox,
                     self.filechooser, self.population_source_grid, self.end_of_vbox_items]
 
     def process_api(self, geometry: Any, distinct_values: Any, index: int, bbox, params=None) -> None:
         """
-        :param geometry: The geometry of the area of interest.
-        :param distinct_values: A boolean indicating whether distinct values should be used.
-        :param index: The index for the MODIS NRT API.
-        :return: None
+        Process API method to perform specific operations.
 
-        This method processes MODIS NRT API data for a given geometry, distinct values setting, and index. It first calculates the bounding box of the geometry using the provided distinct values
-        *. It then gathers the required parameters for the MODIS NRT API. The parameters are printed to the console.
+        :param geometry: The geometry for the operation.
+        :param distinct_values: The distinct values for the operation.
+        :param index: The index value for the operation.
+        :param bbox: The bounding box for the operation.
+        :param params: The optional parameters for the operation.
+        :return: The path of the processed file.
 
-        If the 'create_sub_folder' parameter is True, a sub-folder is created with the current timestamp as the folder name. The 'folder_path' parameter is updated accordingly.
-
-        Next, the method retrieves the MODIS tiles intersecting the bounding box. The tile numbers are printed to the console.
-
-        The method then searches for matching files for each tile based on the provided year, day of year, and tile number. The URLs of the matching files are retrieved using requests and BeautifulSoup
-        *.
-
-        The method downloads the HDF files and saves them in the specified folder path. The paths to the downloaded HDF files are stored in the 'hdf_files_to_process' list.
-
-        For each HDF file, the method opens it using GDAL and retrieves the subdatasets. It selects a subdataset and opens it. The subdataset is then converted to a GeoTIFF file. The paths to
-        * the generated GeoTIFF files are stored in the 'tif_list' list.
-
-        Upon completion of processing all HDF files, the method merges the generated GeoTIFF files into a single GeoTIFF file using GDAL.
-
-        If the 'keep_individual_tiles' parameter is True, the individual tile files are kept. Otherwise, they are deleted.
-
-        Finally, the method calls another method 'process_and_clip_raster' to process and clip the merged GeoTIFF file based on the provided geometry and MODIS NRT API parameters.
         """
 
-        modis_nrt_params = self.gather_parameters()
-
-        print(modis_nrt_params)
 
 
-        if modis_nrt_params['create_sub_folder']:
-            folder = f"{modis_nrt_params['folder_path']}/{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
+        if params['create_sub_folder']:
+            folder = f"{params['folder_path']}/{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
             os.mkdir(folder)
 
-            modis_nrt_params['folder_path'] = folder
-            print(modis_nrt_params['folder_path'])
+            params['folder_path'] = folder
+            print(params['folder_path'])
         tiles = self.get_modis_tile(bbox)
         with self.out:
             self.out.clear_output()
             print(f'Processing tiles: {tiles}')
-        matching_files = self.get_modis_nrt_file_list(tiles, modis_nrt_params)
+        matching_files = self.get_modis_nrt_file_list(tiles, params)
 
         hdf_files_to_process = []
         tif_list = []
         start=1
         for url in matching_files:
-            self.download_and_process_modis_nrt(url, modis_nrt_params['folder_path'], hdf_files_to_process, subdataset=self.modis_nrt_band_selection.value, tif_list=tif_list)
+            self.download_and_process_modis_nrt(url, params['folder_path'], hdf_files_to_process, subdataset=self.modis_nrt_band_selection.value, tif_list=tif_list)
             start += 1
 
         merged_output = f'{folder}merged.tif'
         self.merge_tifs(tif_list, merged_output)
         for file in tif_list + hdf_files_to_process:
-            if modis_nrt_params['keep_individual_tiles']:
+            if params['keep_individual_tiles']:
                 pass
             else:
                 try:
@@ -662,35 +833,63 @@ class ModisNRTNotebookInterface(ModisNRT):
                 except FileNotFoundError:
                     pass
         try:
-            process_and_clip_raster(merged_output, geometry, modis_nrt_params, self.ee_instance)
+            process_and_clip_raster(merged_output, geometry, params, self.ee_instance)
         except Exception as e:
             print(f"{e}")
         clipped_output = f'{folder}merged_clipped.tif'
+        if params['calculate_population']:
+            try:
+                pop_impacted = self.calculate_population_in_flood_area(clipped_output,
+                                                                       params['population_year'],
+                                                                       params['population_data_type'],
+                                                                       params['population_type'],
+                                                                       params['folder_path'])
+                print(pop_impacted)
+            except Exception as e:
+                print(f"{e}")
+
         return f'{folder}merged_clipped.tif'
-        # if modis_nrt_params['calculate_population']:
-        #     with self.out:
-        #         self.out.clear_output()
-        #         pop_impacted = self.calculate_population_in_flood_area(clipped_output, modis_nrt_params['year'])
-        #         print(pop_impacted)
+
 
 
 
 
     def gather_parameters(self) -> Dict[str, Any]:
         """
-        Gathers the parameters for the MODIS NRT processing.
+        :return: A dictionary containing the parameters for the method.
 
-        :return: A dictionary containing the gathered parameters:
-                 - 'date' or 'start_date' and 'end_date': The selected date(s) for processing.
-                 - 'multi_date': True if date range selected, False otherwise.
-                 - 'folder_path': The selected folder path where the output will be saved.
-                 - 'create_sub_folder': True if output should be saved in a sub-folder, False otherwise.
-                 - 'clip_to_geometry': True if the output should be clipped to a provided geometry, False otherwise.
-                 - 'keep_individual_tiles': True if individual tiles should be saved, False otherwise.
-                 - 'add_image_to_map': True if the processed image should be added to the map, False otherwise.
+        The dictionary will have the following keys and values:
+        - If `single_or_date_range_modis_nrt` is set to 'Single Date':
+            - 'date': The selected date from `date_picker_modis_nrt`
+            - 'multi_date': False
+            - 'folder_path': The selected folder path from `filechooser`
+            - 'create_sub_folder': The value of `create_sub_folder`
+            - 'clip_to_geometry': The value of `clip_to_geometry`
+            - 'keep_individual_tiles': The value of `keep_individual_tiles`
+            - 'add_image_to_map': The value of `add_image_to_map`
+            - 'calculate_population': The value of `calculate_population`
+            - 'nrt_band': The value of `modis_nrt_band_selection`
+            - 'population_year': The value of `population_source_year`
+            - 'population_type': The value of `population_source_variable`
+            - 'population_data_type': The value of `population_source`
+        - If `single_or_date_range_modis_nrt` is set to 'Date Range':
+            - 'start_date': The selected start date from `date_picker_modis_nrt`
+            - 'end_date': The selected end date from `date_picker_modis_nrt`
+            - 'multi_date': True
+            - 'folder_path': The selected folder path from `filechooser`
+            - 'create_sub_folder': The value of `create_sub_folder`
+            - 'clip_to_geometry': The value of `clip_to_geometry`
+            - 'keep_individual_tiles': The value of `keep_individual_tiles`
+            - 'add_image_to_map': The value of `add_image_to_map`
+            - 'calculate_population': The value of `calculate_population`
+            - 'nrt_band': The value of `modis_nrt_band_selection`
+            - 'population_year': The value of `population_source_year`
+            - 'population_type': The value of `population_source_variable`
+            - 'population_data_type': The value of `population_source`
+        - If `single_or_date_range_modis_nrt` is neither 'Single Date' nor 'Date Range', returns None.
+
         """
 
-        population_source = 'Google Earth Engine' if self.population_source.value == 'WorldPop' else 'GPWv4'
         if self.single_or_date_range_modis_nrt.value == 'Single Date':
             date = self.date_picker_modis_nrt.value
             return {
@@ -705,7 +904,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                 'nrt_band': self.modis_nrt_band_selection.value,
                 'population_year': self.population_source_year.value,
                 'population_type': self.population_source_variable.value,
-                'population_data_type': population_source
+                'population_data_type': self.population_source.value
             }
         elif self.single_or_date_range_modis_nrt.value == 'Date Range':
             start_date = self.date_picker_modis_nrt.children[0].value
@@ -723,7 +922,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                 'nrt_band': self.modis_nrt_band_selection.value,
                 'population_year': self.population_source_year.value,
                 'population_type': self.population_source_variable.value,
-                'population_data_type': population_source
+                'population_data_type': self.population_source.value,
             }
         else:
             pass
