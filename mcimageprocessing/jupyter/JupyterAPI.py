@@ -152,6 +152,8 @@ class JupyterAPI(geemap.Map):
 
                     # self.update_final_output()
 
+        self.progress = None
+
     def get_map_and_output(self):
         """
         Returns the map and output of the method.
@@ -201,7 +203,7 @@ class JupyterAPI(geemap.Map):
 
         self.dropdown_api = self.create_dropdown({
             'GloFas': 'glofas',
-            'Google Earth Engine': 'gee',
+            # 'Google Earth Engine': 'gee',
             'MODIS NRT Flood Data': 'modis_nrt',
             'WorldPop': 'worldpop',
             # 'Global Flood Database': 'global_flood_database',
@@ -699,29 +701,26 @@ class JupyterAPI(geemap.Map):
         * showing the API choices stack, but are currently not active.
         """
         with self.out:
-            print(f"API Change detected. New value: {change['new']}")
             new_value = change['new']
 
             # Add the appropriate layer based on the selection
             if new_value == 'glofas':
-                try:
 
-                    self.glofas_options = self.glofas_class.create_glofas_dropdown(
-                        [x for x in self.glofas_class.glofas_dict['products'].keys()],
-                        description='Select GloFas Product:',
-                        default_value='cems-glofas-forecast'
-                    )
-                    self.glofas_options.layout.width = 'auto'
-                    self.glofas_options.observe(self.glofas_class.on_glofas_option_change, names='value')
-                    self.glofas_class.on_glofas_option_change({'new': self.glofas_options.value})
-                    self.api_choice_stack.children = [self.glofas_options, self.glofas_class.glofas_stack]
-                    # self.api_choice_stack.layout.display = 'none'  # Hide and then show to force a refresh
-                    # self.api_choice_stack.layout.display = 'block'
+                self.glofas_options = self.glofas_class.create_glofas_dropdown(
+                    [x for x in self.glofas_class.glofas_dict['products'].keys()],
+                    description='Select GloFas Product:',
+                    default_value='cems-glofas-forecast'
+                )
+                self.glofas_options.layout.width = 'auto'
+                self.glofas_options.observe(self.glofas_class.on_glofas_option_change, names='value')
+                self.glofas_class.on_glofas_option_change({'new': self.glofas_options.value})
+                self.api_choice_stack.children = [self.glofas_options, self.glofas_class.glofas_stack]
+                # self.api_choice_stack.layout.display = 'none'  # Hide and then show to force a refresh
+                # self.api_choice_stack.layout.display = 'block'
 
-                    if self.boundary_type.value == 'Predefined Boundaries':
-                        self.update_boundary_options('Predefined Boundaries')
-                except Exception as e:
-                    print(f"Error setting up GloFas options: {e}")
+                if self.boundary_type.value == 'Predefined Boundaries':
+                    self.update_boundary_options('Predefined Boundaries')
+
 
             elif new_value == 'gee':
                 self.gee_options = self.gee_class.create_widgets_gee()
@@ -937,7 +936,8 @@ class JupyterAPI(geemap.Map):
         :return: None
         """
         # Handle parameter file logic here
-        pass
+        with self.out:
+            print(self.predefined_upload_widget.value)
 
     def add_image_to_map(self, image_or_stats, params, geometry):
         """
@@ -951,23 +951,29 @@ class JupyterAPI(geemap.Map):
         with self.out:
             if params['add_image_to_map'] and isinstance(image_or_stats, ee.Image):
                 self.remove_colorbar()
-                # Get the projection of the first band
-                projection = image_or_stats.select(0).projection()
-                # Get the scale (in meters) of the projection
-                scale = projection.nominalScale()
+                self.remove_legend()
+
+                if params['population_source'] == 'GPWv4':
+
+                    scale = 927.67
+                elif params['population_source'] == 'WorldPop':
+                    scale = 100
+
+                if isinstance(geometry, ee.Feature):
+                    geometry = geometry.geometry()
 
                 # Calculate the min and max values of the image using dynamically obtained scale
                 stats = image_or_stats.reduceRegion(
                     reducer=ee.Reducer.minMax(),
                     geometry=geometry,
-                    scale=scale.getInfo(),  # Use the dynamically obtained scale
+                    scale=scale,  # Use the dynamically obtained scale
                     maxPixels=1e9
                 )
-
 
                 # Get the computed min and max values
                 min_val = stats.getInfo()[f"{params['band']}_min"]
                 max_val = stats.getInfo()[f"{params['band']}_max"]
+
 
                 viridis = plt.get_cmap('viridis')
                 number_of_colors = 10  # You can change this to get more or fewer colors
@@ -989,52 +995,58 @@ class JupyterAPI(geemap.Map):
                     vmin=visParams['min'],
                     vmax=visParams['max']
                 ).to_step(n=10)  # You can adjust the number of steps
-                color_bar.caption = 'Population Count per Pixel'
-                self.add_colorbar(vis_params=visParams, label='Population Count', position='bottomleft')
+                caption = 'Population Count per Pixel'
+                self.add_colorbar(vis_params=visParams, label=caption, position='bottomleft')
             elif params['add_image_to_map'] and isinstance(image_or_stats, str):
                 self.remove_colorbar()
+                self.remove_legend()
 
                 # Process the image using localtileserver
-                vis_params = {}
                 client = localtileserver.TileClient(image_or_stats)
-                tile_layer = localtileserver.get_leaflet_tile_layer(client, **vis_params)
-                self.add_layer(tile_layer)
-                self.fit_bounds(client.bounds)
 
-                # Use rasterio to read the image data
+                # Use rasterio to read the image data and determine visualization parameters
                 with rasterio.open(image_or_stats) as src:
-                    # Read the first band (assuming the data of interest is in the first band)
-                    band1 = src.read(1)
+                    # Read the first band
+                    array = src.read(1)
+                    nodata_value = src.nodatavals[0]  # Get nodata value from the file
 
-                    # Calculate min and max, ignoring NaNs
-                    min_val, max_val = np.nanmin(band1), np.nanmax(band1)
+                    # Mask the nodata values
+                    masked_array = np.ma.masked_where(array == nodata_value, array)
 
-                    # Determine if the data is continuous or discrete based on unique values
-                    unique_values = np.unique(band1)
-                    if len(unique_values) <= 10:  # Arbitrary threshold for discrete data
-                        # Discrete data
-                        discrete_colors = ['#FF0000', '#00FF00', '#0000FF', ...]  # Define distinct colors
-                        color_bar = cm.LinearColormap(
-                            discrete_colors,
-                            vmin=min_val,
-                            vmax=max_val
-                        ).to_step(n=len(unique_values))
-                        color_bar.caption = 'Discrete Data'
+                    # Calculate min and max from the masked array
+                    min_val = masked_array.min()
+                    max_val = masked_array.max()
+
+                    unique_values = np.unique(
+                        masked_array.compressed())  # Use compressed to get only the non-masked values
+                    if len(unique_values) <= 10:  # Discrete data
+                        # Define colors and color bar for discrete data
+                        legend_keys = ['No Water', 'Surface Water', 'Recurring Flood', 'Flood']
+                        discrete_colors = ['#000000', '#00FF00',  '#FFF000', '#FF0000']
+                        vis_params = {'palette': discrete_colors, 'vmin': min_val, 'vmax': max_val, 'n_colors': 4, 'scheme':'discrete'}
+                        caption = 'Modis NRT'
+                        # Create tile layer with visualization parameters
+                        tile_layer = localtileserver.get_leaflet_tile_layer(client, **vis_params)
+                        self.add_layer(tile_layer)
+                        self.fit_bounds(client.bounds)
+
+                        self.add_legend(keys=legend_keys, colors=discrete_colors, title=caption, position='bottomleft')
                     else:
-                        # Continuous data
-                        continuous_colors = plt.get_cmap('viridis')
-                        continuous_palette = [matplotlib.colors.rgb2hex(continuous_colors(i / 10)) for i in
-                                              range(10)]  # Adjust the range and divisor as needed
+                        # Define colors and color bar for continuous data
+                        viridis = plt.get_cmap('viridis')
+                        continuous_palette = [matplotlib.colors.rgb2hex(viridis(i / 10)) for i in range(10)]
+                        vis_params = {'palette': continuous_palette, 'min': min_val, 'max': max_val}
+                        caption = 'GloFas Data'
+                        # Create tile layer with visualization parameters
+                        tile_layer = localtileserver.get_leaflet_tile_layer(client, **vis_params)
+                        self.add_layer(tile_layer)
+                        self.fit_bounds(client.bounds)
 
-                        color_bar = cm.LinearColormap(
-                            continuous_palette,
-                            vmin=min_val,
-                            vmax=max_val
-                        ).to_step(n=10)  # You can adjust the number of steps
-                        color_bar.caption = 'Continuous Data'
-
-                    # Add the appropriate color bar
-                    self.add_colorbar(vis_params=vis_params, label=color_bar.caption, position='bottomleft')
+                        # Create and add color bar
+                        color_bar = cm.LinearColormap(vis_params['palette'], vmin=vis_params['min'],
+                                                      vmax=vis_params['max']).to_step(n=10)
+                        color_bar.caption = caption
+                        self.add_colorbar(vis_params=vis_params, label=color_bar.caption, position='bottomleft')
 
 
     def process_api(self, api_class, api_name, geometry, distinct_values, index, bbox=None, additional_params=None):
@@ -1051,19 +1063,22 @@ class JupyterAPI(geemap.Map):
         :return: None
         """
         with self.out:
+
             try:
                 # additional_params is a dictionary containing any additional parameters required by gather_parameters
                 additional_params = additional_params or {}  # default to empty dict if None
                 params = api_class.gather_parameters(**additional_params)  # Unpack additional parameters
-                image_or_stats = api_class.process_api(geometry=geometry, distinct_values=distinct_values, index=index,
-                                                       params=params, bbox=bbox)
+                with self.out:
+                    pbar = notebook_tqdm(total=10, desc='Processing', leave=False)
+
+                    image_or_stats = api_class.process_api(geometry=geometry, distinct_values=distinct_values, index=index,
+                                                           params=params, bbox=bbox, pbar=pbar)
 
                 try:
                     self.add_image_to_map(image_or_stats, params, geometry)
                 except Exception as e:
                     print(f"Error adding image to map: {e}")
 
-                print('Added to map!')
             except Exception as e:
                 print(f"Error processing {api_name}: {e}")
 
@@ -1110,6 +1125,8 @@ class JupyterAPI(geemap.Map):
         :rtype: None
         """
         bbox = self.get_bounding_box(distinct_values, geometry)
+        if self.boundary_type.value == 'User Uploaded Data':
+            geometry = self.geometry
         self.process_api(self.modis_nrt_class, 'modis_nrt', geometry=geometry, distinct_values=distinct_values, index=index, bbox=bbox)
 
     def handle_worldpop(self, geometry, distinct_values, index):

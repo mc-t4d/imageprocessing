@@ -597,14 +597,11 @@ class EarthEngineManager(BaseModel):
         :return: The sum value calculated for the specified band.
         """
         # Define the reducers for each statistic you want to calculate
-        print('Processing Sum')
+
         reducers = ee.Reducer.sum()
-        print('Passed reducers')
 
         # Apply the reducers to the image
         stats = img.reduceRegion(reducer=reducers, geometry=geometry, scale=scale, maxPixels=1e12)
-        print('Passed stats')
-        print(stats.getInfo())
 
         sum_value = stats.get(band).getInfo()  # Make sure 'band' is the correct key
 

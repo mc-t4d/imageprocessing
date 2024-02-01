@@ -66,7 +66,7 @@ class GPWv4:
         :return: The path of the newly created subfolder.
         :rtype: str
         """
-        folder_name = os.path.join(base_folder, datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+        folder_name = os.path.join(base_folder, f"GPWv4_processed_on_{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}")
         try:
             os.mkdir(folder_name)
             return folder_name
@@ -84,9 +84,6 @@ class GPWv4:
 
         try:
 
-            print(gpwv4_params)
-
-            print("Processing residential population...")
             if gpwv4_params['statistics_only']:
                 all_stats = ee.Dictionary()
 
@@ -102,26 +99,13 @@ class GPWv4:
                 band=gpwv4_params['band'],
                 geometry=geometry,
                 aggregation_method='first')
-            print('image processed...')
-            # print('Processing GeoJson...')
-            # geojson = geometry.getInfo()
-            # print('Creating Feature...')
-            # multipolygon_feature = Feature(geometry=geojson)
-
-
-            # feature_collection = FeatureCollection([multipolygon_feature])
-
-
 
             if gpwv4_params['statistics_only']:
-                print('Calculating Statistics...')
-                print(image.bandNames().getInfo())
                 projection = image.select(0).projection()
                 scale = projection.nominalScale()
 
                 sum_value = self.ee_instance.get_image_sum(image, geometry, scale, band)
 
-                print(sum_value)
                 all_stats = all_stats.set(band, sum_value)
                 all_stats_info = all_stats.getInfo()
                 return all_stats_info
@@ -155,7 +139,7 @@ class GPWv4:
             output_filename = f"{gpwv4_params['folder_output']}/{output_filename}"
             mosaic_images(file_names, output_filename)
         else:
-            print(f"Downloaded {file_names[0]} successfully without needing to mosaic.")
+            pass
 
     def validate_parameters(self, gpwv4_params: Dict[str, Any]) -> bool:
         """
@@ -184,7 +168,7 @@ class GPWv4:
 
         return True
 
-    def process_api(self, geometry: Any, distinct_values: Any, index: Any, params: Dict[str, Any] = None, bbox=None) -> Any:
+    def process_api(self, geometry: Any, distinct_values: Any, index: Any, params: Dict[str, Any] = None, bbox=None, pbar=None) -> Any:
         """
         Perform API processing.
 
@@ -198,13 +182,10 @@ class GPWv4:
         if not self._validate_parameters(params):
             return
 
-        if params.get('create_sub_folder'):
-            params['folder_output'] = self._create_sub_folder(params['folder_output'])
-
 
         geometry = self.ee_instance.ee_ensure_geometry(geometry)
 
-        return self._process_datatype_residential_population(geometry, params)
+        return self._process_datatype_residential_population(geometry, params), params['folder_output']
 
 
     def _process_datatype_residential_population(self, geometry, gpwv4_params):
@@ -347,8 +328,8 @@ class GPWv4NotebookInterface(GPWv4):
                 disabled=True,
                 layout=Layout()
             )
-            self.add_image_to_map = widgets.Checkbox(description='Add Image to Map')
-            self.create_sub_folder = widgets.Checkbox(description='Create Sub-folder')
+            self.add_image_to_map = widgets.Checkbox(description='Add Image to Map', value=True)
+            self.create_sub_folder = widgets.Checkbox(description='Create Sub-folder', value=True)
             self.filechooser = fc.FileChooser(os.getcwd(), show_only_dirs=True)
             self.gee_end_of_container_options = widgets.Accordion(
                 [widgets.TwoByTwoLayout(
@@ -377,6 +358,7 @@ class GPWv4NotebookInterface(GPWv4):
 
         # Return the parameters as a dictionary
         return {
+            'population_source': 'GPWv4',
             'year': self.gpwv4_year.value,
             'datatype': self.gpwv4_data_type.value,
             'band': self.data_type_options[self.gpwv4_data_type.index]['band'],
@@ -386,7 +368,7 @@ class GPWv4NotebookInterface(GPWv4):
             'folder_output': folder_output,
         }
 
-    def process_api(self, geometry: Any, distinct_values: Any, index: int, params=None, bbox=None) -> None:
+    def process_api(self, geometry: Any, distinct_values: Any, index: int, params=None, bbox=None, pbar=None) -> None:
         """
         Process the API for a given geometry.
 
@@ -407,25 +389,46 @@ class GPWv4NotebookInterface(GPWv4):
 
         :return: None
         """
-        with self.out:
-            try:
-                # Process the image
-                image = super().process_api(geometry, distinct_values, index, params=self.gather_parameters())
 
-                # Serialize the geometry to GeoJSON
-                if isinstance(geometry, ee.Geometry):
-                    geojson_geometry = geometry.getInfo()  # If geometry is an Earth Engine object
-                else:
-                    geojson_geometry = geometry  # If geometry is already in GeoJSON format
+        try:
 
-                # Define the GeoJSON filename
-                geojson_filename = os.path.join(params['folder_output'], 'geometry.geojson')
+            pbar.update(1)
+            pbar.set_postfix_str(f"Processing...")
 
-                # Write the GeoJSON to a file
-                with open(geojson_filename, 'w') as f:
-                    f.write(json.dumps(geojson_geometry))
+            if params.get('create_sub_folder'):
+                params['folder_output'] = self._create_sub_folder(params['folder_output'])
 
-                print(f"Geometry saved as GeoJSON to {geojson_filename}")
-                return image
-            except Exception as e:
-                print(f"An error occurred: {e}")
+            params_file_path = os.path.join(params['folder_output'], 'parameters.json')
+
+            with open(params_file_path, 'w') as f:
+                json.dump(params, f)
+
+            # Process the image
+            image, output_folder = super().process_api(geometry, distinct_values, index, params=params, pbar=pbar)
+
+            # Serialize the geometry to GeoJSON
+            if isinstance(geometry, ee.Geometry):
+                geojson_geometry = geometry.getInfo()  # If geometry is an Earth Engine object
+            elif isinstance(geometry, ee.Feature):
+                geojson_geometry = geometry.getInfo()
+            elif isinstance(geometry, ee.FeatureCollection):
+                geojson_geometry = geometry.getInfo()
+            else:
+                geojson_geometry = geometry  # If geometry is already in GeoJSON format
+
+            pbar.update(7)
+            pbar.set_postfix_str(f"Saving geometry...")
+
+            # Define the GeoJSON filename
+            geojson_filename = os.path.join(params['folder_output'], 'geometry.geojson')
+
+            # Write the GeoJSON to a file
+            with open(geojson_filename, 'w') as f:
+                f.write(json.dumps(geojson_geometry))
+
+            pbar.update(2)
+            pbar.set_postfix_str(f"Finished!")
+
+            return image
+        except Exception as e:
+            print(f"An error occurred: {e}")

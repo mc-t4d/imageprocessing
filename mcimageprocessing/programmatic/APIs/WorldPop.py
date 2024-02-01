@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from typing import Optional
 
 import ee
+import json
 import ipyfilechooser as fc
 import ipywidgets as widgets
 from geojson import Feature, FeatureCollection
@@ -67,7 +68,7 @@ class WorldPop:
         :return: The path of the created subfolder.
 
         """
-        folder_name = os.path.join(base_folder, datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+        folder_name = os.path.join(base_folder, f"WorldPop_processed_on_{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}")
         try:
             os.mkdir(folder_name)
             return folder_name
@@ -85,8 +86,7 @@ class WorldPop:
 
         """
 
-        if params['statistics_only']:
-            all_stats = ee.Dictionary()
+        all_stats = ee.Dictionary()
 
         band = 'population'
         image, geometry, scale = self.ee_instance.get_image(
@@ -103,10 +103,18 @@ class WorldPop:
 
         feature_collection = FeatureCollection([multipolygon_feature])
 
+        try:
+            if params['flood_pop_calc']:
+                sum_value = self.ee_instance.get_image_sum(image, geometry, scale, band)
+                all_stats = all_stats.set(band, sum_value)  # Store the sum value in the dictionary
+                all_stats_info = all_stats.getInfo()  # This will fetch the results if 'all_stats' is an ee.Dictionary
+                return all_stats_info
+        except KeyError:
+            pass
+
         if params['statistics_only']:
             # Assuming 'image', 'geometry', 'scale', and 'band' are defined and available in this scope
             sum_value = self.ee_instance.get_image_sum(image, geometry, scale, band)
-            print(sum_value)  # Print the sum value
             all_stats = all_stats.set(band, sum_value)  # Store the sum value in the dictionary
             all_stats_info = all_stats.getInfo()  # This will fetch the results if 'all_stats' is an ee.Dictionary
             return all_stats_info
@@ -137,7 +145,7 @@ class WorldPop:
             output_filename = f"{params['folder_output']}/{output_filename}"
             mosaic_images(file_names, output_filename)
         else:
-            print(f"Downloaded {file_names[0]} successfully without needing to mosaic.")
+            pass
 
     def process_age_and_sex_structures(self, geometry, params):
         """
@@ -166,25 +174,13 @@ class WorldPop:
                     aggregation_method='max'
                 )
 
-                # Calculate statistics for the band and add it to the dictionary of all computed stats.
-                stats = self.ee_instance.calculate_statistics(image, geometry, band)
-                all_computed_stats = all_computed_stats.set(band, stats)
+                try:
+                    if params['flood_pop_calc']:
+                        sum_value = self.ee_instance.get_image_sum(image, geometry, scale, band)
+                        all_stats[band] = round(sum_value)
+                except KeyError:
+                    pass
 
-            # Now, fetch all results with a single .getInfo() call to reduce the number of requests to the server.
-            all_stats_info = all_computed_stats.getInfo()
-
-            # Process and rename the stats for each band.
-            for band, stats_info in all_stats_info.items():
-                stats_dict = {
-                    'Mean': stats_info.get(band + '_mean'),
-                    'Sum': stats_info.get(band + '_sum'),
-                    'Max': stats_info.get(band + '_max'),
-                    'Min': stats_info.get(band + '_min'),
-                    'Standard Deviation': stats_info.get(band + '_stdDev'),
-                    'Variance': stats_info.get(band + '_variance'),
-                    'Median': stats_info.get(band + '_median')
-                }
-                all_stats[band] = stats_dict  # Add the structured stats to the all_stats dictionary.
 
             return all_stats
         else:
@@ -245,7 +241,7 @@ class WorldPop:
 
         return True
 
-    def process_api(self, geometry: Any, distinct_values: Any, index: Any, params: Dict[str, Any] = None, bbox=None) -> Any:
+    def process_api(self, geometry: Any, distinct_values: Any, index: Any, params: Dict[str, Any] = None, bbox=None, pbar=None) -> Any:
         """
         Process API method.
 
@@ -257,20 +253,20 @@ class WorldPop:
         :return: The processed result.
 
         """
+
+
         if not self._validate_parameters(params):
             return
 
-        if params.get('create_sub_folder'):
-            params['folder_output'] = self._create_sub_folder(params['folder_output'])
 
         geometry = self.ee_instance.ee_ensure_geometry(geometry)
 
         if 'datatype' in params:
             if params['datatype'] == 'Residential Population':
                 image = self._process_datatype_residential_population(geometry, params)
-                return image
+                return image, params['folder_output']
             elif params['datatype'] == 'Age and Sex Structures':
-                return self._process_datatype_age_and_sex_structures(geometry, params)
+                return self._process_datatype_age_and_sex_structures(geometry, params), params['folder_output']
             else:
                 self.logger.error('No valid data type provided.')
         else:
@@ -397,8 +393,8 @@ class WorldPopNotebookInterface(WorldPop):
             disabled=True,
             layout=Layout()
         )
-        self.add_image_to_map = widgets.Checkbox(description='Add Image to Map')
-        self.create_sub_folder = widgets.Checkbox(description='Create Sub-folder')
+        self.add_image_to_map = widgets.Checkbox(description='Add Image to Map', value=True)
+        self.create_sub_folder = widgets.Checkbox(description='Create Sub-folder', value=True)
         self.filechooser = fc.FileChooser(os.getcwd(), show_only_dirs=True)
         self.gee_end_of_container_options = widgets.Accordion(
             [widgets.TwoByTwoLayout(
@@ -424,7 +420,6 @@ class WorldPopNotebookInterface(WorldPop):
         """
         # Ensure that you're accessing the correct attribute for the file chooser
         folder_output = self.filechooser.selected or self.filechooser.value
-        print(folder_output)  # Debugging: Print the value to ensure it's correct
 
         # Return the parameters as a dictionary
         return {
@@ -438,7 +433,7 @@ class WorldPopNotebookInterface(WorldPop):
             'band': 'population'
         }
 
-    def process_api(self, geometry: Any, distinct_values: Any, index: int, params=None, bbox=None) -> None:
+    def process_api(self, geometry: Any, distinct_values: Any, index: int, params=None, bbox=None, pbar=None) -> None:
         """
         Process API.
 
@@ -450,8 +445,42 @@ class WorldPopNotebookInterface(WorldPop):
         :return: None.
         """
         try:
-            image = super().process_api(geometry, distinct_values, index, params=self.gather_parameters())
-            print('passed!')
+
+            pbar.update(1)
+            pbar.set_postfix_str(f"Processing {self.worldpop_data_type.value} for {self.worldpop_year.value}...")
+
+            if params.get('create_sub_folder'):
+                params['folder_output'] = self._create_sub_folder(params['folder_output'])
+
+            params_file_path = os.path.join(params['folder_output'], 'parameters.json')
+
+            with open(params_file_path, 'w') as f:
+                json.dump(params, f)
+
+            image, output_folder = super().process_api(geometry, distinct_values, index, params=params, pbar=pbar)
+            # Serialize the geometry to GeoJSON
+            if isinstance(geometry, ee.Geometry):
+                geojson_geometry = geometry.getInfo()  # If geometry is an Earth Engine object
+            elif isinstance(geometry, ee.Feature):
+                geojson_geometry = geometry.getInfo()
+            elif isinstance(geometry, ee.FeatureCollection):
+                geojson_geometry = geometry.getInfo()
+            else:
+                geojson_geometry = geometry  # If geometry is already in GeoJSON format
+
+            pbar.update(7)
+            pbar.set_postfix_str(f"Saving geometry...")
+
+            # Define the GeoJSON filename
+            geojson_filename = os.path.join(params['folder_output'], 'geometry.geojson')
+
+            # Write the GeoJSON to a file
+            with open(geojson_filename, 'w') as f:
+                f.write(json.dumps(geojson_geometry))
+
+            pbar.update(2)
+            pbar.set_postfix_str(f"Finished!")
+
             return image
         except Exception as e:
             print(e)

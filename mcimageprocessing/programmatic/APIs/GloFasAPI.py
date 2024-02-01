@@ -2,6 +2,12 @@ import datetime
 import itertools
 import os
 from typing import Optional
+import ee
+import json
+from contextlib import redirect_stdout
+import io
+import logging
+import warnings
 
 import cdsapi
 import ipyfilechooser as fc
@@ -23,18 +29,18 @@ class GloFasAPI:
 
         self.glofas_dict = {
             "products": {
-                # 'cems-glofas-seasonal': {
-                #     "system_version": ['operational', 'version_3_1', 'version_2_2'],
-                #     'hydrological_model': ['lisflood'],
-                #     "variable": "river_discharge_in_the_last_24_hours",
-                #     "leadtime_hour": list(range(24, 5161, 24)),
-                #     "year": list(range(2019, datetime.date.today().year + 1)),
-                #     "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-                #               "11", "12"],
-                #     # "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                #     # "area": [10.95, -90.95, -30.95, -29.95],
-                #     "format": "grib"
-                # },
+                'cems-glofas-seasonal': {
+                    "system_version": ['operational', 'version_3_1', 'version_2_2'],
+                    'hydrological_model': ['lisflood'],
+                    "variable": "river_discharge_in_the_last_24_hours",
+                    "leadtime_hour": list(range(24, 5161, 24)),
+                    "year": list(range(2019, datetime.date.today().year + 1)),
+                    "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
+                              "11", "12"],
+                    # "day": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    # "area": [10.95, -90.95, -30.95, -29.95],
+                    "format": "grib"
+                },
                 'cems-glofas-forecast': {
                     "system_version": ['operational', 'version_3_1', 'version_2_1'],
                     'hydrological_model': ['lisflood', 'htessel_lisflood'],
@@ -50,48 +56,52 @@ class GloFasAPI:
                     # "area": [10.95, -90.95, -30.95, -29.95],
                     "format": "grib"
                 },
-                # 'cems-glofas-reforecast': {
-                #     "system_version": ['version_4_0', 'version_3_1', 'version_2_2'],
-                #     'hydrological_model': ['lisflood', 'htessel_lisflood'],
-                #     'product_type': [
-                #         'control_forecast', 'ensemble_perturbed_forecasts',
-                #     ],
-                #     "leadtime_hour": list(range(24, 1105, 24)),
-                #     "year": list(range(1999, datetime.date.today().year + 1)),
-                #     "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-                #               "11", "12"],
-                #     "day": list(range(24, 32)),
-                #     # "area": [10.95, -90.95, -30.95, -29.95],
-                #     "format": "grib"
-                # }
+                'cems-glofas-reforecast': {
+                    "system_version": ['version_4_0', 'version_3_1', 'version_2_2'],
+                    'hydrological_model': ['lisflood', 'htessel_lisflood'],
+                    'product_type': [
+                        'control_forecast', 'ensemble_perturbed_forecasts',
+                    ],
+                    "leadtime_hour": list(range(24, 1105, 24)),
+                    "year": list(range(1999, datetime.date.today().year + 1)),
+                    "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
+                              "11", "12"],
+                    "day": list(range(24, 32)),
+                    # "area": [10.95, -90.95, -30.95, -29.95],
+                    "format": "grib"
+                }
             }
         }
+
+        logging.getLogger('cdsapi').setLevel(logging.CRITICAL)
+        warnings.filterwarnings('ignore', message='.*Template .*')
 
     def download_data(self, product_name, request_parameters, file_name):
         # Construct the file path
         day = request_parameters.get('day', '01')
         file_path = os.path.join(request_parameters['folder_location'], file_name)
 
+        f = io.StringIO()
         # Call the CDS API
-        self.client.retrieve(
-            product_name,
-            {
-                'variable': request_parameters['variable'],
-                'format': request_parameters['format'],
-                'system_version': request_parameters['system_version'],
-                'hydrological_model': request_parameters['hydrological_model'],
-                'product_type': request_parameters['product_type'],
-                'year': request_parameters['year'],
-                'day': day,
-                'month': request_parameters['month'],
-                'leadtime_hour': request_parameters['leadtime_hour'],
-                'area': request_parameters['area'],
-            },
-            file_path
-        )
+        with redirect_stdout(f):
+            self.client.retrieve(
+                product_name,
+                {
+                    'variable': request_parameters['variable'],
+                    'format': request_parameters['format'],
+                    'system_version': request_parameters['system_version'],
+                    'hydrological_model': request_parameters['hydrological_model'],
+                    'product_type': request_parameters['product_type'],
+                    'year': request_parameters['year'],
+                    'day': day,
+                    'month': request_parameters['month'],
+                    'leadtime_hour': request_parameters['leadtime_hour'],
+                    'area': request_parameters['area'],
+                },
+                file_path
+            )
 
-        print(f"Downloaded data to {file_path}")
-        return file_path
+            return file_path
 
     def no_data_helper_function(self, bbox, glofas_params, geometry, index, distinct_values):
         """
@@ -126,6 +136,22 @@ class GloFasAPI:
     def download_glofas_data(self, geometry, distinct_values, index):
         pass
 
+    def _create_sub_folder(self, base_folder: str) -> str:
+        """
+        Create a new subfolder within the given base folder.
+
+        :param base_folder: The path of the base folder where the subfolder will be created.
+        :type base_folder: str
+        :return: The path of the newly created subfolder.
+        :rtype: str
+        """
+        folder_name = f"{base_folder}/glofas_processed_on_{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
+        try:
+            os.mkdir(folder_name)
+            return folder_name
+        except OSError as e:
+            self.logger.error(f"Failed to create subfolder: {e}")
+            return base_folder
 
 class GloFasAPINotebookInterface(GloFasAPI):
 
@@ -133,6 +159,7 @@ class GloFasAPINotebookInterface(GloFasAPI):
         super().__init__(ee_manager)
         self.out = widgets.Output()  # For displaying logs, errors, etc.
         # Initialize widgets
+
 
         self.glofas_stack = VBox([])
 
@@ -207,10 +234,10 @@ class GloFasAPINotebookInterface(GloFasAPI):
         self.leadtime.layout.width = 'auto'
 
         self.single_or_date_range = widgets.ToggleButtons(
-            options=['Single Date', 'Date Range'],
+            options=['Single Date'],
             disabled=False,
             value='Single Date',
-            tooltips=['Single Date', 'Date Range'],
+            tooltips=['Single Date'],
         )
 
         self.glofas_date_vbox = VBox([])
@@ -230,9 +257,9 @@ class GloFasAPINotebookInterface(GloFasAPI):
         self.system_version.layout.width = 'auto'
         # self.date_picker.layout.width = 'auto'
 
-        self.add_image_to_map = widgets.Checkbox(description='Add Image to Map')
+        self.add_image_to_map = widgets.Checkbox(description='Add Image to Map', value=True)
 
-        self.create_sub_folder = widgets.Checkbox(description='Create Sub-folder')
+        self.create_sub_folder = widgets.Checkbox(description='Create Sub-folder', value=True)
         self.clip_to_geometry = widgets.Checkbox(
             value=True,
             description='Clip Image to Geometry Bounds',
@@ -259,6 +286,30 @@ class GloFasAPINotebookInterface(GloFasAPI):
                     self.single_or_date_range,
                     self.glofas_date_vbox, self.filechooser, self.glofas_end_of_vbox_items]
 
+    def get_available_dates(self, glofas_option):
+        """Generate a list of available dates based on the selected GloFas option."""
+        min_year = min(self.glofas_dict['products'][glofas_option]['year'])
+        max_year = max(self.glofas_dict['products'][glofas_option]['year'])
+        min_month = 1  # Assuming January is always included
+        max_month = 12  # Assuming December is always included
+        min_day = 1
+
+        available_dates = []
+        for year in range(min_year, max_year + 1):
+            for month in range(min_month, max_month + 1):
+                for day in range(min_day, self.get_last_day_of_month(year, month).day + 1):
+                    if datetime.date(year, month, day) >= datetime.date.today():
+                        break
+                    available_dates.append(datetime.date(year, month, day))
+
+        return available_dates
+
+    def update_date_dropdown(self, glofas_option):
+        """Update the date dropdown with available dates based on the selected GloFas option."""
+        available_dates = self.get_available_dates(glofas_option)
+        formatted_date_options = [(date.strftime('%Y-%m-%d'), date) for date in available_dates]
+        return formatted_date_options
+
     def on_single_or_date_range_change(self, change, glofas_option: str):
         """
         Handles the change event when the option for single date or date range is changed.
@@ -271,20 +322,15 @@ class GloFasAPINotebookInterface(GloFasAPI):
 
         single_or_date_range_value = change['new']
 
-        # Define the minimum and maximum dates based on the year and month data
-        min_year = min(self.glofas_dict['products'][glofas_option]['year'])
-        max_year = max(self.glofas_dict['products'][glofas_option]['year'])
-        min_month = 1  # Assuming January is always included
-        max_month = 12  # Assuming December is always included
+        options = self.update_date_dropdown(glofas_option)
 
         if single_or_date_range_value == 'Single Date':
             # Create the DatePicker widget with constraints
-            self.date_picker = DatePicker(
+
+            self.date_picker = widgets.Dropdown(
+                options=options,
                 description='Select Date:',
                 disabled=False,
-                value=datetime.date(min_year, min_month, 1),  # Default value
-                min=datetime.date(min_year, min_month, 1),  # Minimum value
-                max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
             )
 
             self.glofas_date_vbox.children = [self.date_picker]
@@ -292,23 +338,43 @@ class GloFasAPINotebookInterface(GloFasAPI):
         else:
             # Create the DatePicker widgets with constraints
             self.date_picker = HBox([
-                DatePicker(
+                widgets.Dropdown(
+                    options=options,
                     description='Select Start Date:',
-                    disabled=False,
-                    value=datetime.date(min_year, min_month, 1),  # Default value
-                    min=datetime.date(min_year, min_month, 1),  # Minimum value
-                    max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+                    disabled=False
                 ),
 
-                DatePicker(
+                widgets.Dropdown(
+                    options=options,
                     description='Select End Date:',
-                    disabled=False,
-                    value=datetime.date(max_year, max_month, 31),  # Default value
-                    min=datetime.date(min_year, min_month, 1),  # Minimum value
-                    max=datetime.date(max_year, max_month, 31)  # Maximum value (assumes 31 days in max month)
+                    disabled=False
                 )])
 
             self.glofas_date_vbox.children = [self.date_picker]
+
+
+    def update_max_date(self, year, month):
+        """
+        Update the maximum date of the DatePicker when the year or month changes.
+
+        :param year: The selected year.
+        :param month: The selected month.
+        """
+        max_date = self.get_last_day_of_month(year, month)
+        self.date_picker.max = max_date
+
+    def get_last_day_of_month(self, year, month):
+        """
+        Get the last day of the given month and year.
+
+        :param year: The year
+        :param month: The month
+        :return: The date of the last day of the given month and year.
+        """
+        next_month = month % 12 + 1
+        next_month_first_day = datetime.date(year if next_month != 1 else year + 1, next_month, 1)
+        last_day_of_month = next_month_first_day - datetime.timedelta(days=1)
+        return last_day_of_month
 
     def on_glofas_option_change(self, change):
         """
@@ -345,7 +411,6 @@ class GloFasAPINotebookInterface(GloFasAPI):
         :param index: The index of the Glofas data.
         :param distinct_values: The distinct values for the Glofas data (optional).
         :return: The file path of the downloaded Glofas data.
-
         """
 
         request_parameters = {
@@ -392,7 +457,7 @@ class GloFasAPINotebookInterface(GloFasAPI):
         #     'month': month,
         #     'day': day,
         #    """
-        print(glofas_product)
+
         date_type = self.single_or_date_range.value
         system_version = self.system_version.value.replace('.', '_').lower()
         hydrological_model = self.hydrological_model.value
@@ -409,6 +474,9 @@ class GloFasAPINotebookInterface(GloFasAPI):
         elif date_type == 'Date Range':
             start_date = self.date_picker.children[0].value
             end_date = self.date_picker.children[1].value
+            year = str(start_date.year)
+            month = int(start_date.month)
+            day = str(start_date.day)
         folder_location = self.filechooser.selected
         create_sub_folder = self.create_sub_folder.value
         clip_to_geometry = self.clip_to_geometry.value
@@ -468,14 +536,84 @@ class GloFasAPINotebookInterface(GloFasAPI):
             print("Invalid GloFAS product.")
             return None
 
-    def process_api(self, geometry, distinct_values, index, bbox, params):
+    def process_api(self, geometry, distinct_values, index, bbox, params, pbar=None):
         """
         Process the GLOFAS API data.
         """
         try:
-            file_path = self.download_glofas_data(bbox=bbox, params=params, index=index, distinct_values=distinct_values)
-            processed_raster = process_and_clip_raster(file_path, geometry, params, self.ee_instance)
+            pbar.update(4)
+            pbar.set_postfix_str("Downloading data...")
+
+            if params['create_sub_folder']:
+                # Create a sub-folder
+                params['folder_location'] = self._create_sub_folder(params['folder_location'])
+
+            params_file_path = os.path.join(params['folder_location'], 'parameters.json')
+
+
+            with open(params_file_path, 'w') as f:
+                json.dump(params, f)
+
+            if self.single_or_date_range.value == "Date Range":
+                try:
+
+                    start_date = self.date_picker.children[0].value
+                    end_date = self.date_picker.children[1].value
+
+                    current_date = start_date
+                    if isinstance(start_date, datetime.datetime):
+                        start_date = start_date.date()
+                    if isinstance(end_date, datetime.datetime):
+                        end_date = end_date.date()
+                    if isinstance(current_date, datetime.datetime):
+                        current_date = current_date.date()
+
+                    while current_date <= end_date:
+                        params['year'] = str(current_date.year)
+                        params['month'] = current_date.month
+                        params['day'] = str(current_date.day)
+                        file_path = self.download_glofas_data(bbox=bbox, params=params, index=index, distinct_values=distinct_values)
+                        pbar.update(4)
+                        pbar.set_postfix_str("Processing data...")
+                        processed_raster = process_and_clip_raster(file_path, geometry, params, self.ee_instance)
+                        current_date += datetime.timedelta(days=1)
+
+                except Exception as e:
+                    print(e)
+                    if "no data is available within your requested subset" in str(e) and params['no_data_helper']:
+                        return self.no_data_helper_function(bbox, params, geometry, index, distinct_values)
+                    else:
+                        print("An error occurred that couldn't be handled by the no data helper function.")
+                        return None
+
+            else:
+
+                file_path = self.download_glofas_data(bbox=bbox, params=params, index=index, distinct_values=distinct_values)
+                pbar.update(4)
+                pbar.set_postfix_str("Processing data...")
+                processed_raster = process_and_clip_raster(file_path, geometry, params, self.ee_instance)
+            # Serialize the geometry to GeoJSON
+            if isinstance(geometry, ee.Geometry):
+                geojson_geometry = geometry.getInfo()  # If geometry is an Earth Engine object
+            elif isinstance(geometry, ee.Feature):
+                geojson_geometry = geometry.getInfo()
+            elif isinstance(geometry, ee.FeatureCollection):
+                geojson_geometry = geometry.getInfo()
+            else:
+                geojson_geometry = geometry  # If geometry is already in GeoJSON format
+
+            # Define the GeoJSON filename
+            geojson_filename = os.path.join(params['folder_location'], 'geometry.geojson')
+
+            # Write the GeoJSON to a file
+            with open(geojson_filename, 'w') as f:
+                f.write(json.dumps(geojson_geometry))
+
+            pbar.update(2)
+            pbar.set_postfix_str("Finished!")
+
             return processed_raster
+
         except Exception as e:
             print(e)
             if "no data is available within your requested subset" in str(e) and params['no_data_helper']:
@@ -483,36 +621,6 @@ class GloFasAPINotebookInterface(GloFasAPI):
             else:
                 print("An error occurred that couldn't be handled by the no data helper function.")
                 return None
-
-        # If the initial attempt fails, try other combinations
-        #     if "no data is available within your requested subset" in str(e):
-        #         if params['no_data_helper']:
-        #             system_version_list = self.glofas_dict['products'][f'{params["glofas_product"]}']['system_version']
-        #             hydrological_model_list = self.glofas_dict['products'][f'{params["glofas_product"]}']['hydrological_model']
-        #             product_type_list = self.glofas_dict['products'][f'{params["glofas_product"]}'].get('product_type', [None])
-        #
-        #             # Generate all combinations
-        #             all_combinations = list(itertools.product(system_version_list, hydrological_model_list, product_type_list))
-        #
-        #             # Remove the last attempted combination
-        #             last_attempted_combination = (params['system_version'], params['hydrological_model'],
-        #                                           params['product_type'] if params.get('product_type') else None)
-        #             all_combinations.remove(last_attempted_combination)
-        #
-        #             # Try each remaining combination
-        #             for comb in all_combinations:
-        #                 try:
-        #                     params['system_version'], params['hydrological_model'], params['product_type'] = comb
-        #                     file_path = self.download_glofas_data(geometry, params, index, distinct_values)
-        #                     processed_raster = process_and_clip_raster(file_path, geometry, params)
-        #                     return processed_raster
-        #                 except Exception as e:
-        #                     print(e)
-        #                     if "no data is available within your requested subset" not in str(e):
-        #                         break  # Exit the loop if a different error occurs
-        #
-        #     # Handle the case where no combination was successful
-        #             print("No suitable data could be found for any combination.")
 
     def setup_global_variables(self):
         self.glofas_dict = {
