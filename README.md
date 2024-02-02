@@ -40,7 +40,22 @@ Provides clear, intuitive interfaces and documentation, reducing the learning cu
 While the package is rich in features for geospatial data handling, users should be aware of the dependencies and requirements for various integrated APIs.
 Regular updates and community contributions can expand the package’s capabilities, keeping it relevant and up-to-date with the latest trends in geospatial data analysis.
 
-Using Docker
+### Config File Creation
+A configuration file is required to run the package. A sample config file is located in the package at the following path: _mcimageprocessing/config/config_sample.yaml_. This file should be copied and renamed to _config.yaml_, and the necessary parameters should be filled in.
+
+**For GEE, the following parameters are required:**
+client email: The service account email address
+private_key: The private key provided in the service account credential file provided by Google.
+
+**For GloFas, the following parameters are required:**
+url: The GloFas API URL associated with the account you created
+key: The API key associated with the account you created
+
+**For Modis NRT Flood Data, the following parameters are required:**
+token: The token provided by NASA for accessing the API associated with your account.
+
+
+### Using Docker
 --------
 
 **Running the Docker Container and Connecting to Jupyter Notebook**

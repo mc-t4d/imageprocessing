@@ -15,6 +15,8 @@ config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
 # Initialize the ConfigManager with the path to the config.yaml
 config_manager = ConfigManager.get_instance(config_path)
 
-
+# Import the jupyter module to make it available as mcimageprocessing.jupyter
 from . import jupyter
-__all__ = ['jupyter'] + getattr(jupyter, '__all__', [])
+
+# You can define __all__ to specify what is imported with "from mcimageprocessing import *"
+__all__ = ['jupyter']

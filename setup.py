@@ -26,11 +26,6 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.11',
     ],
-    # Removed the incorrect 'requirements' line
-    package_data={
-        'mcimageprocessing': ['ee_auth_file.json'],
-    },
-    include_package_data=True,
     description="A Python package built for Mercy Corps to handle image processing and analysis.",
     install_requires=requirements,  # This is correct and should stay
     long_description=readme + '\n\n' + history,
@@ -43,3 +38,4 @@ setup(
     version='0.1.0',
     zip_safe=False,
 )
+

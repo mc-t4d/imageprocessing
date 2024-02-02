@@ -1,5 +1,6 @@
-from mcimageprocessing.programmatic.APIs.GloFasAPI import GloFasAPI
-from .JupyterAPI import JupyterAPI
-from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
+# File: mcimageprocessing/jupyter/__init__.py
 
-__all__ = ['EarthEngineManager', 'GloFasAPI', 'JupyterAPI']
+from .JupyterAPI import JupyterAPI
+
+# You can define __all__ to specify what is imported with "from mcimageprocessing.jupyter import *"
+__all__ = ['JupyterAPI']
