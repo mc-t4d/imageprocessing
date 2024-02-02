@@ -9,8 +9,8 @@ __version__ = '0.1.0'
 import os
 from .config.config import ConfigManager
 
-# Construct the path to the config.yaml file
-config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
+# Use the get_config_path method to get the correct config path
+config_path = ConfigManager.get_config_path()
 
 # Initialize the ConfigManager with the path to the config.yaml
 config_manager = ConfigManager.get_instance(config_path)

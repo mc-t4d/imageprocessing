@@ -32,7 +32,7 @@ class ConfigManager:
 
     @staticmethod
     def get_config_path():
-        # Adjust the folder and file names as necessary
-        package_dir = os.path.dirname(__file__)
-        return os.path.join(package_dir, 'config.yaml')
+        # You can make this an environment variable or a parameter
+        config_dir = os.environ.get('CONFIG_DIR', os.path.dirname(__file__))
+        return os.path.join(config_dir, 'config.yaml')
 
