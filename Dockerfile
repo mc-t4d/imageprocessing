@@ -63,6 +63,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install the package from the distribution files
 RUN pip install --no-cache-dir /usr/src/app/dist/*.whl
 
+ENV CONFIG_DIR=/usr/src/app/mcimageprocessing/config
+
 # Make port 8888 available to the world outside this container
 EXPOSE 8888
 
