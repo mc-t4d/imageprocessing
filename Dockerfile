@@ -34,14 +34,6 @@ RUN apt-get update && \
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Switch back to the default Jupyter user
-USER jovyan
-
-# Set environment variables for GDAL
-ENV GDAL_VERSION=3.4.3 \
-    C_INCLUDE_PATH=/usr/include/gdal \
-    CPLUS_INCLUDE_PATH=/usr/include/gdal
-
 # Copy the built distribution packages from the builder stage
 COPY --from=builder /app/dist /usr/src/app/dist
 
@@ -53,6 +45,17 @@ COPY --from=builder /app/README.md /usr/src/app/
 COPY --from=builder /app/mcimageprocessing/config/sample.config.yaml /usr/src/app/mcimageprocessing/config/sample.config.yaml
 
 COPY --from=builder /app/mcimageprocessing/notebook_demo.ipynb /usr/src/app/mcimageprocessing/notebook_demo.ipynb
+
+RUN chown -R 1000:1000 /usr/src/app
+
+# Switch back to the default Jupyter user
+USER jovyan
+
+# Set environment variables for GDAL
+ENV GDAL_VERSION=3.4.3 \
+    C_INCLUDE_PATH=/usr/include/gdal \
+    CPLUS_INCLUDE_PATH=/usr/include/gdal
+
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
