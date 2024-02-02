@@ -145,7 +145,8 @@ class GloFasAPI:
         :return: The path of the newly created subfolder.
         :rtype: str
         """
-        folder_name = f"{base_folder}/glofas_processed_on_{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}/"
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  # More readable timestamp
+        folder_name = os.path.join(base_folder, f"glofas_processed_on_{timestamp}")
         try:
             os.mkdir(folder_name)
             return folder_name

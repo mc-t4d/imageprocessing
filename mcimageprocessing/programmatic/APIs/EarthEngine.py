@@ -630,7 +630,7 @@ class EarthEngineManager(BaseModel):
         elif isinstance(geometry, ee.FeatureCollection):
             # Dissolve the FeatureCollection into its outer boundary
             combined_geometry = geometry.geometry()
-            dissolved_geometry = combined_geometry.dissolve()
+            dissolved_geometry = combined_geometry.dissolve(maxError=1)
             return dissolved_geometry
         elif isinstance(geometry, dict):
             # Assuming geojson is meant to be geometry (typo in the original code)
@@ -769,7 +769,7 @@ class EarthEngineManager(BaseModel):
                 file_name = f"{band}_{str(params['year'])}_{split_count}_{index}.tif".replace('-', '_').replace('/',
                                                                                                                 '_').replace(
                     ' ', '_')
-                file_name = f"{params['folder_output']}/{file_name}"
+                file_name = os.path.join(params['folder_output'], file_name)
                 self.download_file_from_url(url=url, destination_path=file_name)
                 file_names.append(file_name)
             if split_count == 1 and len(file_names) == 1:

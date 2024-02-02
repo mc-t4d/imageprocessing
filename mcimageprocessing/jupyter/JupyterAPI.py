@@ -7,6 +7,7 @@ import geemap
 import geojson
 import geopandas as gpd
 import ipyleaflet
+import os
 import ipywidgets as widgets
 import localtileserver
 import matplotlib
@@ -421,47 +422,37 @@ class JupyterAPI(geemap.Map):
         * 'self.out'.
         """
         uploaded_files = change['new']  # Get the list of uploaded file info
+        with self.out:
+            try:
+                # Process each uploaded file
+                for file_info in uploaded_files:
+                    filename = file_info['name']
+                    content = file_info['content']  # file content as a memoryview object
+                    content_str = bytes(content).decode("utf-8")  # convert to string
 
-        try:
-            # Process each uploaded file
-            for file_info in uploaded_files:
-                filename = file_info['name']
+                    # Load the string as GeoJSON
+                    geojson_content = geojson.loads(content_str)
 
-                # This is the file content as a memoryview object
-                content = file_info['content']
+                    # Ensure the loaded GeoJSON content is in FeatureCollection format
+                    if isinstance(geojson_content, geojson.FeatureCollection):
+                        data_to_add = geojson_content
+                    elif isinstance(geojson_content, (geojson.Feature, geojson.geometry.Geometry)):
+                        # Wrap the single feature or geometry into a FeatureCollection
+                        data_to_add = geojson.FeatureCollection([geojson_content])
+                    else:
+                        raise ValueError("Unsupported GeoJSON type")
 
-                # Convert the memoryview object to bytes then decode to string
-                content_str = bytes(content).decode("utf-8")
+                    # Define the style for the layer
+                    style = {"color": "black", "fillColor": "black", "weight": 1, "fillOpacity": 0.5}
 
-                # Load the string as GeoJSON
-                geojson_content = geojson.loads(content_str)
-
-                # Create a GeoJSON layer
-
-                style = {
-                    "color": "black",  # Line color
-                    "fillColor": "black",  # Fill color
-                    "weight": 1,  # Border width
-                    "fillOpacity": 0.5  # Fill opacity
-                }
-
-                geojson_layer = GeoJSON(data=geojson_content, style=style)
-
-                # Add the GeoJSON to the map
-                try:
-                    self.add_layer(geojson_layer,
-                                   name='User Uploaded Data',
-                                   vis_params={'color': 'black'})
-                    bounds = self.calculate_bounds(geojson_content)
+                    # Create and add the GeoJSON layer to the map
+                    geojson_layer = GeoJSON(data=data_to_add, style=style)
+                    self.add_layer(geojson_layer, name='User Uploaded Data', vis_params={'color': 'black'})
+                    bounds = self.calculate_bounds(data_to_add)
                     self.fit_bounds(bounds)
                     self.userlayers['User Uploaded Data'] = geojson_layer
-                except Exception as e:
-                    with self.out:
-                        self.out.clear_output()
-                        print(f"Error adding layer: {e}")
 
-        except Exception as e:
-            with self.out:
+            except Exception as e:
                 self.out.clear_output()
                 print(f"Error processing files: {e}")
 
@@ -628,7 +619,10 @@ class JupyterAPI(geemap.Map):
             raster_data[~mask] = nodata_value
 
             # Define output path
-            output_path = file_path.rsplit('.', 1)[0] + '_clipped.tif'
+            file_dir, file_name = os.path.split(file_path)
+            file_base, file_ext = os.path.splitext(file_name)
+            output_filename = f"{file_base}_clipped.tif"
+            output_path = os.path.join(file_dir, output_filename)
 
             # Write the masked data to a new raster file
             with rasterio.open(
@@ -959,8 +953,45 @@ class JupyterAPI(geemap.Map):
                 elif params['population_source'] == 'WorldPop':
                     scale = 100
 
-                if isinstance(geometry, ee.Feature):
+                # Enhanced geometry handling
+                if isinstance(geometry, ee.Geometry):
+                    # If it's already an Earth Engine Geometry, use it directly
+                    geometry = geometry
+                elif isinstance(geometry, ee.Feature):
+                    # Convert an Earth Engine Feature to an Earth Engine Geometry
                     geometry = geometry.geometry()
+                elif isinstance(geometry, ee.FeatureCollection):
+                    # If it's a FeatureCollection, reduce it to a single geometry
+                    geometry = geometry.geometry()
+                elif isinstance(geometry, dict):
+                    # If it's a dictionary, it could be a GeoJSON object
+                    if 'features' in geometry:
+                        # It's a GeoJSON FeatureCollection, so convert it to an Earth Engine Geometry
+                        # Check each feature's geometry type and convert accordingly
+                        ee_geometries = []
+                        for feat in geometry['features']:
+                            geom_type = feat['geometry']['type']
+                            if geom_type in ['Polygon', 'MultiPolygon']:
+                                # Convert the GeoJSON geometry to an Earth Engine Geometry
+                                ee_geom = ee.Geometry(feat['geometry'])
+                                ee_geometries.append(ee_geom)
+                            else:
+                                # If the geometry is not a Polygon or MultiPolygon, print its type
+                                print(f"Unsupported geometry type in GeoJSON feature: {geom_type}")
+
+                        # Combine all the Earth Engine geometries into a MultiPolygon
+                        if ee_geometries:
+                            geometry = ee.Geometry.MultiPolygon(ee_geometries)
+                        else:
+                            raise ValueError("No valid Polygons or MultiPolygons found in GeoJSON features")
+                    else:
+                        # It's a single GeoJSON Feature, so convert it to an Earth Engine Geometry
+                        geometry = ee.Geometry(shape(geometry['geometry']))
+                elif isinstance(geometry, geojson.base.GeoJSON):
+                    # If it's a GeoJSON object from the geojson library
+                    geometry = ee.Geometry(shape(geometry))
+                else:
+                    raise ValueError("Unsupported geometry type")
 
                 # Calculate the min and max values of the image using dynamically obtained scale
                 stats = image_or_stats.reduceRegion(

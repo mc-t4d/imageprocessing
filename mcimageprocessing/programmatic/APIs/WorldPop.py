@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from typing import Optional
 
 import ee
+import re
 import json
 import ipyfilechooser as fc
 import ipywidgets as widgets
@@ -68,7 +69,9 @@ class WorldPop:
         :return: The path of the created subfolder.
 
         """
-        folder_name = os.path.join(base_folder, f"WorldPop_processed_on_{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}")
+        timestamp = str(datetime.datetime.now())
+        safe_timestamp = re.sub(r'[^a-zA-Z0-9\-_\.]', '', timestamp)  # Remove unsafe characters
+        folder_name = os.path.join(base_folder, f"WorldPop_processed_on_{safe_timestamp}")
         try:
             os.mkdir(folder_name)
             return folder_name
@@ -142,7 +145,7 @@ class WorldPop:
 
         if not download_successful:
             output_filename = f"mosaic_{band}.tif"
-            output_filename = f"{params['folder_output']}/{output_filename}"
+            output_filename = os.path.join(params['folder_output'], output_filename)
             mosaic_images(file_names, output_filename)
         else:
             pass
@@ -175,11 +178,13 @@ class WorldPop:
                 )
 
                 try:
-                    if params['flood_pop_calc']:
-                        sum_value = self.ee_instance.get_image_sum(image, geometry, scale, band)
-                        all_stats[band] = round(sum_value)
+
+                    sum_value = self.ee_instance.get_image_sum(image, geometry, scale, band)
+                    all_stats[band] = round(sum_value)
+
                 except KeyError:
                     pass
+
 
 
             return all_stats

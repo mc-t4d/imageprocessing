@@ -1,0 +1,1 @@
+{"population_source": "GPWv4", "year": "2020", "datatype": "CIESIN/GPWv411/GPW_Population_Count", "band": "population_count", "statistics_only": false, "add_image_to_map": true, "create_sub_folder": true, "folder_output": "/home/dowhn/Documents/consulting_work/knd_consulting/mercy_corps/mcimageprocessing/jupyter_testing/GPWv4_processed_on_20240202 091132320849"}

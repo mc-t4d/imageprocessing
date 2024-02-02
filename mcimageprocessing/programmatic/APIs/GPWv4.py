@@ -68,7 +68,7 @@ class GPWv4:
         """
         folder_name = os.path.join(base_folder, f"GPWv4_processed_on_{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '')}")
         try:
-            os.mkdir(folder_name)
+            os.makedirs(folder_name, exist_ok=True)
             return folder_name
         except OSError as e:
             self.logger.error(f"Failed to create subfolder: {e}")
@@ -135,8 +135,7 @@ class GPWv4:
                                                                   band=band)
 
         if not download_successful:
-            output_filename = f"mosaic_{band}.tif"
-            output_filename = f"{gpwv4_params['folder_output']}/{output_filename}"
+            output_filename = os.path.join(gpwv4_params['folder_output'], f"mosaic_{band}.tif")
             mosaic_images(file_names, output_filename)
         else:
             pass
