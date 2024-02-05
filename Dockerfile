@@ -1,18 +1,3 @@
-# Stage 1: Build distribution packages
-FROM python:3.11 AS builder
-
-# Set the working directory in the builder container
-WORKDIR /app
-
-# Copy your Python package source code into the builder container
-COPY . /app
-
-# Install any build dependencies you might need (e.g., setuptools, wheel)
-RUN pip install setuptools wheel
-
-# Run the setuptools commands to build your distribution packages
-RUN python setup.py sdist bdist_wheel
-
 # Stage 2: Create the final Jupyter Notebook image
 FROM jupyter/base-notebook
 
@@ -40,10 +25,9 @@ COPY --from=builder /app/dist /usr/src/app/dist
 # Copy the requirements.txt file
 COPY --from=builder /app/requirements.txt /usr/src/app/
 
+# Other necessary files
 COPY --from=builder /app/README.md /usr/src/app/
-
 COPY --from=builder /app/mcimageprocessing/config/sample.config.yaml /usr/src/app/mcimageprocessing/config/sample.config.yaml
-
 COPY --from=builder /app/mcimageprocessing/notebook_demo.ipynb /usr/src/app/mcimageprocessing/notebook_demo.ipynb
 
 RUN chown -R 1000:1000 /usr/src/app
@@ -56,6 +40,8 @@ ENV GDAL_VERSION=3.4.3 \
     C_INCLUDE_PATH=/usr/include/gdal \
     CPLUS_INCLUDE_PATH=/usr/include/gdal
 
+# Install numpy explicitly before other requirements
+RUN pip install --no-cache-dir numpy==1.26.3
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
@@ -71,4 +57,3 @@ EXPOSE 8888
 # Use the start-notebook.sh script from the base image to start the server
 # It properly handles token authentication and other settings
 CMD ["start-notebook.sh", "--NotebookApp.token=''", "--NotebookApp.password=''", "--NotebookApp.allow_origin='*'", "--NotebookApp.base_url=/"]
-
