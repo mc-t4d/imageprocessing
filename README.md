@@ -47,13 +47,18 @@ A configuration file is required to run the package. A sample config file is loc
 client email: The service account email address
 private_key: The private key provided in the service account credential file provided by Google.
 
+Please visit [this website](https://code.earthengine.google.com/register) to register for a free Google Earth Engine account and [this page](https://developers.google.com/earth-engine/guides/service_account) for help on creating a service account, email, and key.
+
 **For GloFas, the following parameters are required:**
 url: The GloFas API URL associated with the account you created
 key: The API key associated with the account you created
 
+Sign up for a GloFAS account [here](https://www.globalfloods.eu/accounts/login/).
+
 **For Modis NRT Flood Data, the following parameters are required:**
 token: The token provided by NASA for accessing the API associated with your account.
 
+Sign up for an EarthData account [here](https://urs.earthdata.nasa.gov/users/new) and upon login, go to 'My Profile' > 'Generate Token' to get your token.  The token lasts 2 months so will need to be updated periodically.
 
 ### Using Docker
 --------
@@ -63,7 +68,7 @@ token: The token provided by NASA for accessing the API associated with your acc
 This guide will walk you through the process of building and running a Docker container from the provided Dockerfile, connecting to the Jupyter Notebook server hosted within the container, and setting up a linked storage between your local machine and the Docker container.
 Prerequisites
 
-Ensure Docker is installed on your machine. If not, download and install Docker from the official website.
+Ensure Docker is installed on your machine and running. If not, download and install Docker from the [official website](https://www.docker.com/get-started/).
 
 **Building the Docker Image**
 
@@ -94,6 +99,8 @@ Run the Container: Use the following command to run your Docker container, repla
 Access the Jupyter Notebook: Once the container is running, open a web browser and visit http://localhost:8888.
 
 Use the Token: When prompted, enter the token provided in the terminal logs of the Docker container. This token is required for first-time access to the Jupyter Notebook server.
+
+From here, you can create a new notebook or use the _notebook_demo.ipynb_ file for quick-start access to the user interface.
 
 **Data Storage and Access**
 
