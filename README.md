@@ -41,7 +41,7 @@ While the package is rich in features for geospatial data handling, users should
 Regular updates and community contributions can expand the package’s capabilities, keeping it relevant and up-to-date with the latest trends in geospatial data analysis.
 
 ### Config File Creation
-A configuration file is required to run the package. A sample config file is located in the package at the following path: _mcimageprocessing/config/config_sample.yaml_. This file should be copied and renamed to _config.yaml_, and the necessary parameters should be filled in.
+A configuration file is required to run the package. A sample config file is located in the package at the following path: _mcimageprocessing/config/config_sample.yaml_. This file should be copied and renamed to _config.yaml_, and the necessary parameters should be filled in. Note that for `.yaml` files, you do not need `" "` around your values. 
 
 **For GEE, the following parameters are required:**
 client email: The service account email address
@@ -53,7 +53,7 @@ Please visit [this website](https://code.earthengine.google.com/register) to reg
 url: The GloFas API URL associated with the account you created
 key: The API key associated with the account you created
 
-Sign up for a GloFAS account [here](https://www.globalfloods.eu/accounts/login/).
+Sign up for a GloFAS account [here](https://cds.climate.copernicus.eu/user/register?destination=%2F%23!%2Fhome).  For your CDS url and API key, log in to your account and go to [this page](https://cds.climate.copernicus.eu/api-how-to), following the instructions for "Linux users" (as the container is a Linux image). You should see your url and key populate on the right-hand side.
 
 **For Modis NRT Flood Data, the following parameters are required:**
 token: The token provided by NASA for accessing the API associated with your account.
@@ -99,6 +99,8 @@ Run the Container: Use the following command to run your Docker container, repla
 Access the Jupyter Notebook: Once the container is running, open a web browser and visit http://localhost:8888.
 
 Use the Token: When prompted, enter the token provided in the terminal logs of the Docker container. This token is required for first-time access to the Jupyter Notebook server.
+
+Once you are in the Jupyter Server, you'll need to follow the "Config File Creation" instructions above, creating a _config.yaml_ file in the Jupyter environment that includes your API keys. If you have done this locally before creating the container, you can just copy the contents of that file into the new file.
 
 From here, you can create a new notebook or use the _notebook_demo.ipynb_ file for quick-start access to the user interface.
 
