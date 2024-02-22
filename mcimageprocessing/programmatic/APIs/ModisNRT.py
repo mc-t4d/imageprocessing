@@ -447,7 +447,7 @@ class ModisNRT:
         hdf_files_to_process = []
         tif_list = []
         for url in matching_files:
-            self.download_and_process_modis_nrt(url, modis_nrt_params['folder_path'], hdf_files_to_process, subdataset=modis_nrt_params['nrt_band'], tif_list=tif_list)
+            self.download_and_process_modis_nrt(url, modis_nrt_params['folder_output'], hdf_files_to_process, subdataset=modis_nrt_params['nrt_band'], tif_list=tif_list)
         return hdf_files_to_process, tif_list
 
 
@@ -709,19 +709,18 @@ class ModisNRTNotebookInterface(ModisNRT):
 
     def _create_sub_folder(self, base_folder: str) -> str:
         """
-        Create a new subfolder within the given base folder.
+        Create a new subfolder within the given base folder with a timestamp.
 
         :param base_folder: The path of the base folder where the subfolder will be created.
-        :type base_folder: str
-        :return: The path of the newly created subfolder.
-        :rtype: str
+        :return: The path of the newly created subfolder or the base folder if creation fails.
         """
-        folder_name = f"{base_folder}modis_nrt_processed_on_{str(datetime.datetime.now()).replace('-', '').replace('_', '').replace(':', '').replace('.', '').replace(' ', '_')}/"
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder_name = os.path.join(base_folder, f"modis_nrt_processed_on_{timestamp}")
         try:
-            os.mkdir(folder_name)
+            os.makedirs(folder_name, exist_ok=True)
             return folder_name
         except OSError as e:
-            self.logger.error(f"Failed to create subfolder: {e}")
+            self.logger.error(f"Failed to create subfolder '{folder_name}': {e}")
             return base_folder
 
     def process_api(self, geometry: Any, distinct_values: Any, index: int, bbox, params=None, pbar=None) -> None:
@@ -780,12 +779,12 @@ class ModisNRTNotebookInterface(ModisNRT):
                 year = current_date.year
                 doy = f"{current_date.timetuple().tm_yday:03d}"
                 for url in matching_files:
-                    self.download_and_process_modis_nrt(url, params['folder_path'], hdf_files_to_process,
+                    self.download_and_process_modis_nrt(url, params['folder_output'], hdf_files_to_process,
                                                         subdataset=self.modis_nrt_band_selection.value,
                                                         tif_list=tif_list)
                     start += 1
 
-                merged_output = f"{params['folder_output']}modis_nrt_merged_{year}_{doy}.tif"
+                merged_output = os.path.join(params['folder_output'], f"modis_nrt_merged_{year}_{doy}.tif")
                 self.merge_tifs(tif_list, merged_output)
                 for file in tif_list + hdf_files_to_process:
                     if params['keep_individual_tiles']:
@@ -799,7 +798,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                     process_and_clip_raster(merged_output, geometry, params, self.ee_instance)
                 except Exception as e:
                     print(f"{e}")
-                clipped_output = f"{params['folder_output']}modis_nrt_merged_{year}_{doy}_clipped.tif"
+                clipped_output = os.path.join(params['folder_output'], f"modis_nrt_merged_{year}_{doy}_clipped.tif")
 
                 if params['calculate_population']:
                     try:
@@ -836,12 +835,12 @@ class ModisNRTNotebookInterface(ModisNRT):
             pbar.update(3)
             pbar.set_postfix_str('Downloading and processing files...')
             for url in matching_files:
-                self.download_and_process_modis_nrt(url, params['folder_path'], hdf_files_to_process, subdataset=self.modis_nrt_band_selection.value, tif_list=tif_list)
+                self.download_and_process_modis_nrt(url, params['folder_output'], hdf_files_to_process, subdataset=self.modis_nrt_band_selection.value, tif_list=tif_list)
                 start += 1
 
             pbar.update(3)
             pbar.set_postfix_str('Merging and clipping files...')
-            merged_output = f"{params['folder_output']}modis_nrt_merged_{year}_{doy}.tif"
+            merged_output = os.path.join(params['folder_output'], f"modis_nrt_merged_{year}_{doy}.tif")
             self.merge_tifs(tif_list, merged_output)
             for file in tif_list + hdf_files_to_process:
                 if params['keep_individual_tiles']:
@@ -855,7 +854,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                 process_and_clip_raster(merged_output, geometry, params, self.ee_instance)
             except Exception as e:
                 print(f"{e}")
-            clipped_output = f"{params['folder_output']}modis_nrt_merged_{year}_{doy}_clipped.tif"
+            clipped_output = os.path.join(params['folder_output'], f"modis_nrt_merged_{year}_{doy}_clipped.tif")
 
             if params['calculate_population']:
                 try:
