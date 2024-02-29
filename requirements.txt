@@ -424,6 +424,7 @@ jupyterlab-widgets==3.0.9
     # via
     #   ipywidgets
     #   mcimageprocessing (setup.py)
+jupyter-server-proxy
 kiwisolver==1.4.5
     # via
     #   matplotlib

@@ -69,6 +69,9 @@ ENV CONFIG_DIR=/usr/src/app/mcimageprocessing/config
 # Make port 8888 available to the world outside this container
 EXPOSE 8888
 
+ARG LOCALTILESERVER_CLIENT_PREFIX='proxy/{port}'
+ENV LOCALTILESERVER_CLIENT_PREFIX=$LOCALTILESERVER_CLIENT_PREFIX
+
 # Use the start-notebook.sh script from the base image to start the server
 # It properly handles token authentication and other settings
 CMD ["start-notebook.sh", "--NotebookApp.token=''", "--NotebookApp.password=''", "--NotebookApp.allow_origin='*'", "--NotebookApp.base_url=/"]

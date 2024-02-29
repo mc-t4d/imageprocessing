@@ -243,6 +243,7 @@ class ModisNRT:
         :param output_tif: The path to the output GeoTIFF file.
         :return: None
         """
+
         gdal.Warp(output_tif, tif_list)
 
     def get_modis_nrt_dates(self) -> List[datetime.datetime]:
@@ -482,6 +483,7 @@ class ModisNRT:
             folder = '/path/to/folder'
             merged_file = merge_files(tif_list, folder)
         """
+
         merged_output = os.path.join(folder, 'modis_nrt_merged.tif')
         self.merge_tifs(tif_list, merged_output)
         return merged_output
@@ -738,6 +740,12 @@ class ModisNRTNotebookInterface(ModisNRT):
 
         if params.get('create_sub_folder'):
             params['folder_output'] = self._create_sub_folder(params['folder_path'])
+            try:
+                os.rename(os.path.join(params['folder_path'], 'geometry.geojson'),
+                          os.path.join(params['folder_output'], 'geometry.geojson'))
+            except PermissionError:
+                pass
+
 
         params_file_path = os.path.join(params['folder_output'], 'parameters.json')
 
@@ -783,6 +791,7 @@ class ModisNRTNotebookInterface(ModisNRT):
                                                         subdataset=self.modis_nrt_band_selection.value,
                                                         tif_list=tif_list)
                     start += 1
+
 
                 merged_output = os.path.join(params['folder_output'], f"modis_nrt_merged_{year}_{doy}.tif")
                 self.merge_tifs(tif_list, merged_output)

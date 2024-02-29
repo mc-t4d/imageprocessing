@@ -549,7 +549,10 @@ class GloFasAPINotebookInterface(GloFasAPI):
                 # Create a sub-folder
                 params['folder_location'] = self._create_sub_folder(params['folder_location'])
 
+
+
             params_file_path = os.path.join(params['folder_location'], 'parameters.json')
+
 
 
             with open(params_file_path, 'w') as f:
@@ -605,6 +608,7 @@ class GloFasAPINotebookInterface(GloFasAPI):
 
             # Define the GeoJSON filename
             geojson_filename = os.path.join(params['folder_location'], 'geometry.geojson')
+
 
             # Write the GeoJSON to a file
             with open(geojson_filename, 'w') as f:
