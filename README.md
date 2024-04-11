@@ -1,7 +1,5 @@
 # mcimageprocessing
 
-
-
 Overview of the Package
 
 This package provides a comprehensive solution for geospatial data processing and analysis, primarily designed to work within a Jupyter Notebook environment. It is equipped with a robust set of tools and functionalities, making it highly suitable for a wide range of applications in geospatial analysis, environmental monitoring, and data visualization.
@@ -41,7 +39,7 @@ While the package is rich in features for geospatial data handling, users should
 Regular updates and community contributions can expand the package’s capabilities, keeping it relevant and up-to-date with the latest trends in geospatial data analysis.
 
 ### Config File Creation
-A configuration file is required to run the package. A sample config file is located in the package at the following path: _mcimageprocessing/config/config_sample.yaml_. This file should be copied and renamed to _config.yaml_, and the necessary parameters should be filled in. Note that for `.yaml` files, you do not need `" "` around your values. 
+A configuration file is required to run the package. A sample config file is located in the package at the following path: _mcimageprocessing/config/config_sample.yaml_. This file should be copied and renamed to _config.yaml_, and the necessary parameters should be filled in. Note that for `.yaml` files, you do not need `" "` around your values.
 
 **For GEE, the following parameters are required:**
 client email: The service account email address
@@ -119,4 +117,53 @@ To stop the Jupyter Notebook server and the Docker container, simply use the Ctr
 If you encounter any issues, check the Docker container logs using docker logs [container-id].
 Ensure your Dockerfile is correctly set up and all necessary services are installed and configured as expected.
 
+### Installing the Package using pip and setup.py
+
+To install the `mcimageprocessing` package through pip using a `setup.py` file, follow these steps:
+
+1. **Clone or Download the Package Source Code**
+
+First, you need to have the source code on your local machine. You can clone the source code using the following command:
+
+    git clone https://github.com/mc-t4d/imageprocessing.git
+
+Alternatively, download the source code as a ZIP file and extract it to a directory on your computer.
+
+2. **Navigate to the Package Directory**
+
+Change to the directory containing the `setup.py` file. This file contains the package metadata and dependencies needed for installation. Run the following command in your terminal:
+
+    cd mcimageprocessing
+
+
+3. **Install the Package**
+
+Use `pip` to install the package. Run the following command to install the package along with its dependencies:
+
+    pip install
+
+
+If you prefer to install the package in "editable" mode (useful for development purposes), where changes to the source code will immediately affect the installed package, use the following command:
+
+    pip install -e .
+
+
+4. **Verify the Installation**
+
+After installation, you can verify that the package is installed correctly by checking its presence in the list of installed packages:
+
+    pip list | grep mcimageprocessing
+
+
+This command should list `mcimageprocessing` along with its version, indicating that the package is installed.
+
+5. **Testing the Installation**
+
+You can test whether the package is working properly by running some of its functions or scripts. If the package provides a command-line interface or scripts, try executing them to ensure everything is functioning as expected.
+
+6. **Updating the Package**
+
+If the source code of the package is updated, you can upgrade the installed package by navigating to the package directory and running:
+
+    pip install --upgrade .
 

@@ -75,7 +75,6 @@ class GloFasAPI:
 
         logging.getLogger('cdsapi').setLevel(logging.CRITICAL)
         warnings.filterwarnings('ignore', message='.*Template .*')
-
     def download_data(self, product_name, request_parameters, file_name):
         # Construct the file path
         day = request_parameters.get('day', '01')
