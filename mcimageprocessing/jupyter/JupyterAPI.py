@@ -26,6 +26,7 @@ from shapely.geometry import shape
 from shapely.geometry import shape
 from tqdm.notebook import tqdm as notebook_tqdm
 from mcimageprocessing import config_manager
+from mcimageprocessing.programmatic.shared_functions.utilities import calculate_bounds
 
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineNotebookInterface
@@ -360,49 +361,6 @@ class JupyterAPI(geemap.Map):
 
     # Replace 'your_grib_file.grib' with the path to your actual GRIB file
 
-    def calculate_bounds(self, geojson_content):
-        """
-        Calculate the bounds (minimum and maximum coordinates) of a given GeoJSON content.
-
-        :param geojson_content: The GeoJSON content.
-        :type geojson_content: dict
-        :return: The bounds represented by a list of two coordinate pairs: [[min_lat, min_lon], [max_lat, max_lon]].
-        :rtype: list
-        """
-        # Initialize min and max coordinates
-        min_lat, min_lon, max_lat, max_lon = 90, 180, -90, -180
-
-        # Function to update the bounds based on a coordinate pair
-        def update_bounds(lat, lon):
-            nonlocal min_lat, min_lon, max_lat, max_lon
-            if lat < min_lat: min_lat = lat
-            if lon < min_lon: min_lon = lon
-            if lat > max_lat: max_lat = lat
-            if lon > max_lon: max_lon = lon
-
-        # Iterate through the coordinates and update the bounds
-        for feature in geojson_content['features']:
-            coords = feature['geometry']['coordinates']
-            geom_type = feature['geometry']['type']
-
-            # Update bounds based on the geometry type
-            if geom_type == 'Point':
-                update_bounds(*coords)
-            elif geom_type in ['LineString', 'MultiPoint']:
-                for coord in coords:
-                    update_bounds(*coord)
-            elif geom_type in ['Polygon', 'MultiLineString']:
-                for part in coords:
-                    for coord in part:
-                        update_bounds(*coord)
-            elif geom_type == 'MultiPolygon':
-                for polygon in coords:
-                    for part in polygon:
-                        for coord in part:
-                            update_bounds(*coord)
-
-        return [[min_lat, min_lon], [max_lat, max_lon]]
-
     def on_file_upload(self, change):
         """
         :param change: A dictionary containing the information of the uploaded files.
@@ -425,7 +383,7 @@ class JupyterAPI(geemap.Map):
 
         If there are any errors during the processing or adding of the files, an exception is raised and caught. The error message is then printed to the output widget.
 
-        Note: The method is part of a class and assumes the presence of certain properties and methods like 'self.add_layer', 'self.calculate_bounds', 'self.fit_bounds', 'self.userlayers', and
+        Note: The method is part of a class and assumes the presence of certain properties and methods like 'self.add_layer', 'calculate_bounds', 'self.fit_bounds', 'self.userlayers', and
         * 'self.out'.
         """
         uploaded_files = change['new']  # Get the list of uploaded file info
@@ -455,7 +413,7 @@ class JupyterAPI(geemap.Map):
                     # Create and add the GeoJSON layer to the map
                     geojson_layer = GeoJSON(data=data_to_add, style=style)
                     self.add_layer(geojson_layer, name='User Uploaded Data', vis_params={'color': 'black'})
-                    bounds = self.calculate_bounds(data_to_add)
+                    bounds = calculate_bounds(data_to_add)
                     self.fit_bounds(bounds)
                     self.userlayers['User Uploaded Data'] = geojson_layer
 

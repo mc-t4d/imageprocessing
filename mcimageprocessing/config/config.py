@@ -33,6 +33,14 @@ class ConfigManager:
     @staticmethod
     def get_config_path():
         # You can make this an environment variable or a parameter
-        config_dir = os.environ.get('CONFIG_DIR', "/usr/src/app/mcimageprocessing/config")
-        return os.path.join(config_dir, 'config.yaml')
+        try:
+            config_dir = os.environ.get('CONFIG_DIR')
+            if config_dir:
+                return os.path.join(config_dir, 'config.yaml')
+            else:
+                config_dir = input("Enter the path to the config directory: ")
+                return os.path.join(config_dir, 'config.yaml')
+        except Exception as e:
+            config_dir = input("Enter the path to the config directory: ")
+            return os.path.join(config_dir, 'config.yaml')
 

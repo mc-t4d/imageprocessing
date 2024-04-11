@@ -4,6 +4,7 @@ import os
 import re
 from typing import Dict, Any, List
 from typing import Optional, Set, Tuple, Union
+from shapely.geometry import shape
 
 import ee
 import geopandas as gpd
@@ -209,30 +210,25 @@ class ModisNRT:
 
     def download_and_process_modis_nrt(self, url: str, folder_path: str, hdf_files_to_process: List[str],
                                        subdataset: str, tif_list: Optional[List[str]] = None) -> None:
-        """
-        :param geometry: The input geometry can be either a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.
-        :param modis_nrt_params: A dictionary containing the parameters for the MODIS Near Real-Time (NRT) data. This dictionary should include the 'date' key with a datetime object representing
-        the date for which the files should be retrieved.
-        :param subdataset_index: The index of the subdataset to be processed.
-        :param tif_list: (Optional) A list to store the paths of generated GeoTIFF files.
-        :return: None
-
-        Example usage:
-        ```
-        download_and_process_modis_nrt(Point(0, 0), {'date': datetime.datetime(2020, 1, 1)}, 0, tif_list=['output.tif'])
-        ```
-        """
-
         response = requests.get(url, headers=self.headers, stream=True)
+        downloaded_files = []
         if response.status_code == 200:
-            filename = f"{folder_path}{url.split('/')[-1]}"  # Extracts the filename
+            # Ensure the folder_path ends with a slash
+            print(folder_path)
+            if not folder_path.endswith('/'):
+                folder_path += '/'
+            filename = f"{folder_path}{url.split('/')[-1]}"  # Corrected the path
+
             with open(filename, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            hdf_files_to_process.append(filename)
+
+            downloaded_files.append(filename)
             subdataset_index = self.nrt_band_options[subdataset]
 
-            for hdf_file in hdf_files_to_process:
+
+            for hdf_file in downloaded_files:
+                print(hdf_file)
                 self.process_hdf_file(hdf_file, subdataset_index, tif_list=tif_list)
 
     def merge_tifs(self, tif_list: List[str], output_tif: str) -> None:
@@ -247,22 +243,28 @@ class ModisNRT:
         gdal.Warp(output_tif, tif_list)
 
     def get_modis_nrt_dates(self) -> List[datetime.datetime]:
-        """
-        Returns a list of datetime objects representing the available MODIS NRT (Near Real Time) dates.
+        years = []
+        response = requests.get(f'{self.modis_nrt_api_root_url}?fields=all')
+        if response.status_code == 200:
+            html_content = response.text
+            soup = BeautifulSoup(html_content, 'html.parser')
+            for a in soup.find_all('a'):
+                year_text = a.text  # Extract the text, which is the year
+                if year_text.isdigit():  # Ensure that the extracted text is a year
+                    years.append(year_text)
 
-        :return: A list of datetime.datetime objects representing the available MODIS NRT dates.
-        """
-        response = requests.get(
-            f'{self.modis_nrt_api_root_url}?fields=all&formats=json')
-        json_response = response.json()['content']
-        years = [x['name'] for x in json_response if x['name'] != 'Recent']
         dates = []
         for year in years:
-            date_response = requests.get(
-                f'{self.modis_nrt_api_root_url}/{year}?fields=all&formats=json')
-            date_response_json = date_response.json()['content']
-            for date in date_response_json:
-                dates.append(self.convert_to_date(f'{year}{date["name"]}'))
+            date_response = requests.get(f'{self.modis_nrt_api_root_url}/{year}?fields=all')
+            if date_response.status_code == 200:
+                html_content = date_response.text
+                soup = BeautifulSoup(html_content, 'html.parser')
+                for a in soup.find_all('a'):
+                    date_text = a.text  # Extract the text, which should be the day of the year
+                    if date_text.isdigit():  # Ensure that the extracted text is a day of the year
+                        date_string = f'{year}{date_text}'
+                        dates.append(self.convert_to_date(date_string))
+
         return dates
 
     def convert_to_date(self, date_string: str) -> datetime.datetime:
