@@ -25,6 +25,7 @@ from shapely.geometry import MultiPolygon
 from shapely.geometry import shape
 from shapely.geometry import shape
 from tqdm.notebook import tqdm as notebook_tqdm
+from mcimageprocessing import config_manager
 
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineNotebookInterface
@@ -129,7 +130,13 @@ class JupyterAPI(geemap.Map):
         Returns:
             None
         """
-        super().__init__()
+        super().__init__(ee_initialize=False)
+        credentials = ee.ServiceAccountCredentials(
+            email=config_manager.config['KEYS']['GEE']['client_email'],
+            key_data=config_manager.config['KEYS']['GEE']['private_key']
+        )
+
+        ee.Initialize(credentials)
         self.worldpop_class = WorldPopNotebookInterface()
         self.modis_nrt_class = ModisNRTNotebookInterface()
         self.ee_instance = EarthEngineManager()
