@@ -27,11 +27,13 @@ jobs:
               token: "${{ secrets.MODIS_NRT_TOKEN }}"
           EOF
 
+      - name: Create directory for config
+        run: mkdir -p mcimageprocessing/config
+
       - name: Encrypt the config file
         run: |
-          openssl enc -aes-256-cbc -salt -in config.yaml -out /usr/src/app/mcimageprocessing/config/config.enc -k ${{ secrets.ENCRYPTION_KEY }}
+          openssl enc -aes-256-cbc -salt -in config.yaml -out mcimageprocessing/config/config.enc -k ${{ secrets.ENCRYPTION_KEY }}
           rm config.yaml
-
 
       - name: Build Docker image
         run: |
