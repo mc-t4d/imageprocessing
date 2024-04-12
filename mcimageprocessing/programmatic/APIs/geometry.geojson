@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "geodesic": false, "coordinates": [[[29.553223, 8.928487], [29.553223, 9.698228], [30.585938, 9.698228], [30.585938, 8.928487], [29.553223, 8.928487]]]}, "properties": {"style": {"color": "black", "fillColor": "black", "weight": 1, "fillOpacity": 0.5}}}]}
