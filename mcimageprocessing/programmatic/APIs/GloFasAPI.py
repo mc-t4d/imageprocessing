@@ -19,7 +19,6 @@ from mcimageprocessing import config_manager
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
 
-
 class GloFasAPI:
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
         self.ee_instance = ee_manager if ee_manager else EarthEngineManager()
