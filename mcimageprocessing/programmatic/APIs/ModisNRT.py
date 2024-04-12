@@ -155,7 +155,6 @@ class ModisNRT:
 
         return tiles_covered
 
-
     def get_modis_nrt_file_list(self, tiles: List[Tuple[int, int]], modis_nrt_params: Dict[str, datetime.datetime]) -> \
     List[str]:
         """
