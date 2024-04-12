@@ -1,5 +1,5 @@
 import os
-
+import ee
 import geopandas as gpd
 import localtileserver
 import numpy as np
@@ -8,8 +8,9 @@ import rasterio
 from osgeo import gdal
 from rasterio.features import geometry_mask
 from rasterio.merge import merge
-from shapely.geometry import MultiPolygon
-from shapely.geometry import shape
+from shapely.geometry import shape, Polygon, MultiPolygon
+from rasterio.mask import mask as rasterio_mask
+from shapely.wkt import loads as from_wkt
 
 
 def mosaic_images(file_names, output_filename='mosaic.tif'):
@@ -171,88 +172,62 @@ def inspect_grib_file(file_path: str):
     except Exception as e:
         print(f"An overall error occurred: {e}")
 
-def clip_raster(file_path, geometry, ee_instance):
+def clip_raster(file_path, geometry, ee_instance=None):
     """
+    Clips a raster file based on a specified geometry.
+
     :param file_path: The file path of the raster file to be clipped.
-    :param geometry: The geometry to be used for clipping.
-    :param ee_instance: The Earth Engine instance used for conversion.
-
+    :param geometry: The geometry to be used for clipping. Can be a dictionary or an Earth Engine geometry.
+    :param ee_instance: Optional Earth Engine instance for conversion.
     :return: The file path of the clipped raster file.
-
     """
-
-    # Check file format and inspect if it's a GRIB file
-
     if file_path.endswith('.grib'):
-        inspect_grib_file(file_path)
+        # Placeholder for actual inspection logic
+        print("GRIB file detected. Ensure appropriate handling is implemented.")
 
+    # Convert Earth Engine geometry to shapely geometry if applicable
+    if isinstance(geometry, ee.Geometry) and ee_instance:
+        geometry = ee_instance.ee_geometry_to_shapely(geometry)
 
-    # Convert Earth Engine geometry to shapely geometry
-    geometry = ee_instance.ee_geometry_to_shapely(geometry)
+    # Convert geometry input to a Shapely geometry object if it's a dictionary (assuming GeoJSON)
+    if isinstance(geometry, dict):
+        geometry = shape(geometry)
 
+    # Ensure geometry is a MultiPolygon for consistency
+    if not isinstance(geometry, MultiPolygon):
+        geometry = MultiPolygon([geometry])
 
-    # Convert to MultiPolygon if needed
-    try:
-        if isinstance(geometry, dict):
-            try:
-                geometry = shape(geometry['geometries'][1])
-            except KeyError:
-                geometry = shape(geometry)
-        if not isinstance(geometry, MultiPolygon):
-            geometry = MultiPolygon([geometry])
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-    # Create a GeoDataFrame
-    gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs="EPSG:4326")
-    # Open the raster file with rasterio
+    # Load the raster file
     with rasterio.open(file_path) as src:
+        # Create a GeoDataFrame to handle the geometry
+        gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs="EPSG:4326")
+        gdf = gdf.to_crs(src.crs)  # Reproject geometry to match raster CRS
 
-        # Reproject the geometry to match the raster's CRS
-        gdf = gdf.to_crs(src.crs)
+        # Clip the raster using the mask
+        out_image, out_transform = rasterio_mask(src, gdf.geometry, crop=True, all_touched=True, invert=False)
+        out_meta = src.meta.copy()
+        out_meta.update({
+            "driver": "GTiff",
+            "height": out_image.shape[1],
+            "width": out_image.shape[2],
+            "transform": out_transform
+        })
 
-        # Read the raster data
-        raster_data = src.read(1)
-
-        # Determine the nodata value based on the data type
-        if raster_data.dtype == 'uint8':
-            nodata_value = 255
-        else:
-            nodata_value = -9999
-
-        # Create the mask
-        mask = geometry_mask(gdf.geometry, transform=src.transform, invert=True,
-                             out_shape=(src.height, src.width))
-
-        # Apply the mask - set nodata values
-        raster_data[~mask] = nodata_value
-
-        # Define output path
+        # Define the output file path
         output_path = file_path.rsplit('.', 1)[0] + '_clipped.tif'
 
-        # Write the masked data to a new raster file
-        with rasterio.open(
-            output_path,
-            'w',
-            driver='GTiff',
-            height=src.height,
-            width=src.width,
-            count=1,
-            dtype=raster_data.dtype,
-            crs=src.crs,
-            transform=src.transform,
-            nodata=nodata_value
-        ) as dst:
-            dst.write(raster_data, 1)
+        # Save the clipped raster
+        with rasterio.open(output_path, "w", **out_meta) as dest:
+            dest.write(out_image)
 
     return output_path
 
-def calculate_bounds(geojson_content):
+def calculate_bounds(input_geom):
     """
-    Calculate the bounds (minimum and maximum coordinates) of a given GeoJSON content.
+    Calculate the bounds (minimum and maximum coordinates) of various geometric inputs like GeoJSON, GeoDataFrame, WKT, etc.
 
-    :param geojson_content: The GeoJSON content.
-    :type geojson_content: dict
+    :param input_geom: The geometric input which can be GeoJSON, GeoDataFrame, WKT, or a Shapefile path.
+    :type input_geom: dict, geopandas.GeoDataFrame, shapely.geometry.base.BaseGeometry, str
     :return: The bounds represented by a list of two coordinate pairs: [[min_lat, min_lon], [max_lat, max_lon]].
     :rtype: list
     """
@@ -262,17 +237,17 @@ def calculate_bounds(geojson_content):
     # Function to update the bounds based on a coordinate pair
     def update_bounds(lat, lon):
         nonlocal min_lat, min_lon, max_lat, max_lon
-        if lat < min_lat: min_lat = lat
-        if lon < min_lon: min_lon = lon
-        if lat > max_lat: max_lat = lat
-        if lon > max_lon: max_lon = lon
+        if lat < min_lat:
+            min_lat = lat
+        if lon < min_lon:
+            min_lon = lon
+        if lat > max_lat:
+            max_lat = lat
+        if lon > max_lon:
+            max_lon = lon
 
-    # Iterate through the coordinates and update the bounds
-    for feature in geojson_content['features']:
-        coords = feature['geometry']['coordinates']
-        geom_type = feature['geometry']['type']
-
-        # Update bounds based on the geometry type
+    # Helper function to parse coordinates based on geometry type
+    def parse_coordinates(coords, geom_type):
         if geom_type == 'Point':
             update_bounds(*coords)
         elif geom_type in ['LineString', 'MultiPoint']:
@@ -288,4 +263,36 @@ def calculate_bounds(geojson_content):
                     for coord in part:
                         update_bounds(*coord)
 
+    # Determine type and extract coordinates
+    if isinstance(input_geom, dict):  # GeoJSON
+        for feature in input_geom['features']:
+            coords = feature['geometry']['coordinates']
+            geom_type = feature['geometry']['type']
+            parse_coordinates(coords, geom_type)
+    elif isinstance(input_geom, gpd.GeoDataFrame):  # GeoDataFrame
+        for geom in input_geom.geometry:
+            parse_coordinates(geom.coords[:], geom.type)
+    elif isinstance(input_geom, str):  # WKT or path to shapefile
+        if input_geom.lower().endswith('.shp'):  # Shapefile path
+            input_geom = gpd.read_file(input_geom)
+            for geom in input_geom.geometry:
+                parse_coordinates(geom.coords[:], geom.type)
+        else:  # WKT
+            geom = from_wkt(input_geom)
+            parse_coordinates(geom.coords[:], geom.type)
+    else:
+        raise TypeError("Unsupported geometry format")
+
     return [[min_lat, min_lon], [max_lat, max_lon]]
+
+def generate_bbox(geometry):
+    bounds = calculate_bounds(geometry)
+    bbox_polygon = Polygon([
+        (bounds[0][1], bounds[0][0]),  # lower-left
+        (bounds[0][1], bounds[1][0]),  # upper-left
+        (bounds[1][1], bounds[1][0]),  # upper-right
+        (bounds[1][1], bounds[0][0]),  # lower-right
+        (bounds[0][1], bounds[0][0])  # back to lower-left to close the polygon
+    ])
+    gdf = gpd.GeoDataFrame([{'geometry': bbox_polygon}], crs='EPSG:4326')
+    return gdf.geometry.bounds

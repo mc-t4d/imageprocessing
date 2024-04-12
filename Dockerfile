@@ -1,77 +1,66 @@
-# Stage 1: Build distribution packages
+# syntax=docker/dockerfile:1.2
 FROM python:3.11 AS builder
 
-# Set the working directory in the builder container
 WORKDIR /app
-
-# Copy your Python package source code into the builder container
 COPY . /app
-
-# Install any build dependencies you might need (e.g., setuptools, wheel)
 RUN pip install setuptools wheel
-
-# Run the setuptools commands to build your distribution packages
 RUN python setup.py sdist bdist_wheel
 
-# Stage 2: Create the final Jupyter Notebook image
 FROM jupyter/base-notebook
 
-# Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Switch to the root user to install dependencies
+# Define placeholders for secrets
+ARG GEE_CLIENT_EMAIL
+ARG GEE_PRIVATE_KEY
+ARG GLOFAS_KEY
+ARG GLOFAS_URL
+ARG MODIS_NRT_TOKEN
+ARG LOCALTILESERVER_CLIENT_PREFIX='proxy/{port}'
+
+# Utilizing secrets to set environment variables securely
+RUN --mount=type=secret,id=GEE_CLIENT_EMAIL \
+    GEE_CLIENT_EMAIL=$(cat /run/secrets/GEE_CLIENT_EMAIL) && export GEE_CLIENT_EMAIL
+RUN --mount=type=secret,id=GEE_PRIVATE_KEY \
+    GEE_PRIVATE_KEY=$(cat /run/secrets/GEE_PRIVATE_KEY) && export GEE_PRIVATE_KEY
+RUN --mount=type=secret,id=GLOFAS_KEY \
+    GLOFAS_KEY=$(cat /run/secrets/GLOFAS_KEY) && export GLOFAS_KEY
+RUN --mount=type=secret,id=GLOFAS_URL \
+    GLOFAS_URL=$(cat /run/secrets/GLOFAS_URL) && export GLOFAS_URL
+RUN --mount=type=secret,id=MODIS_NRT_TOKEN \
+    MODIS_NRT_TOKEN=$(cat /run/secrets/MODIS_NRT_TOKEN) && export MODIS_NRT_TOKEN
+
+ENV LOCALTILESERVER_CLIENT_PREFIX=$LOCALTILESERVER_CLIENT_PREFIX
+
 USER root
 
-# Install GDAL dependencies
+# Install dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     libgdal-dev \
     gdal-bin \
     python3-gdal
-
-# Clean up APT when done to reduce image size
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the built distribution packages from the builder stage
 COPY --from=builder /app/dist /usr/src/app/dist
-
-# Copy the requirements.txt file
 COPY --from=builder /app/requirements.txt /usr/src/app/
-
 COPY --from=builder /app/README.md /usr/src/app/
-
-COPY --from=builder /app/mcimageprocessing/config/sample.config.yaml /usr/src/app/mcimageprocessing/config/sample.config.yaml
-
-COPY --from=builder /app/mcimageprocessing/notebook_demo.ipynb /usr/src/app/mcimageprocessing/notebook_demo.ipynb
+COPY --from=builder /app/mcimageprocessing/config/sample.config.yaml /usr/src/app/mcimageprocessing/config/
+COPY --from=builder /app/mcimageprocessing/notebook_demo.ipynb /usr/src/app/mcimageprocessing/
 
 RUN chown -R 1000:1000 /usr/src/app
-
-# Switch back to the default Jupyter user
 USER jovyan
 
-# Set environment variables for GDAL
 ENV GDAL_VERSION=3.4.3 \
     C_INCLUDE_PATH=/usr/include/gdal \
     CPLUS_INCLUDE_PATH=/usr/include/gdal
 
 RUN pip install --no-cache-dir numpy==1.26.3
-
-# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Install the package from the distribution files
 RUN pip install --no-cache-dir /usr/src/app/dist/*.whl
 
 ENV CONFIG_DIR=/usr/src/app/mcimageprocessing/config
-
-# Make port 8888 available to the world outside this container
 EXPOSE 8888
-
-ARG LOCALTILESERVER_CLIENT_PREFIX='proxy/{port}'
-ENV LOCALTILESERVER_CLIENT_PREFIX=$LOCALTILESERVER_CLIENT_PREFIX
-
-# Use the start-notebook.sh script from the base image to start the server
-# It properly handles token authentication and other settings
 CMD ["start-notebook.sh", "--NotebookApp.token=''", "--NotebookApp.password=''", "--NotebookApp.allow_origin='*'", "--NotebookApp.base_url=/"]

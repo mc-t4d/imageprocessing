@@ -1,3 +1,7 @@
+# ==============================================================================
+# IMPORTS
+# ==============================================================================
+
 import datetime
 import json
 import os
@@ -31,6 +35,29 @@ from mcimageprocessing.programmatic.APIs.WorldPop import WorldPop
 from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
 
 
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
+population_source_options = ['WorldPop', 'GPWv4']
+nrt_band_options = {'Water Counts 1-Day 250m Grid_Water_Composite': 0,
+                    'Water Counts CS 1-Day 250m Grid_Water_Composite': 1,
+                    'Valid Counts 1-Day 250m Grid_Water_Composite': 2,
+                    'Valid Counts CS 1-Day 250m Grid_Water_Composite': 3,
+                    'Flood 1-Day 250m Grid_Water_Composite': 4,
+                    'Flood 1-Day CS 250m Grid_Water_Composite': 5,
+                    'Water Counts 2-Day 250m Grid_Water_Composite': 6,
+                    'Valid Counts 2-Day 250m Grid_Water_Composite': 7,
+                    'Flood 2-Day 250m Grid_Water_Composite': 8,
+                    'Water Counts 3-Day 250m Grid_Water_Composite': 9,
+                    'Valid Counts 3-Day 250m Grid_Water_Composite': 10,
+                    'Flood 3-Day 250m Grid_Water_Composite': 11}
+modis_proj = Proj("+proj=sinu +R=6371007.181 +nadgrids=@null +wktext")
+modis_tile_size = 1111950.5196666667  # MODIS sinusoidal tile size in meters
+modis_nrt_api_root_url = 'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/archives/allData/61/MCDWD_L3_NRT'
+date_type_options = ['Single Date', 'Date Range', 'All Available Images']
+population_source_variables = ['Residential Population', "Age and Sex Structures"]
+population_source_year_options = [x for x in range(2000, 2021)]
+
 class ModisNRT:
     """
     :class: ModisNRT
@@ -60,25 +87,14 @@ class ModisNRT:
             Process an HDF file and convert it to a GeoTIFF.
     """
 
-    population_source_options=['WorldPop', 'GPWv4']
-    nrt_band_options = {'Water Counts 1-Day 250m Grid_Water_Composite': 0,
-                        'Water Counts CS 1-Day 250m Grid_Water_Composite': 1,
-                        'Valid Counts 1-Day 250m Grid_Water_Composite': 2,
-                        'Valid Counts CS 1-Day 250m Grid_Water_Composite': 3,
-                        'Flood 1-Day 250m Grid_Water_Composite': 4,
-                        'Flood 1-Day CS 250m Grid_Water_Composite': 5,
-                        'Water Counts 2-Day 250m Grid_Water_Composite': 6,
-                        'Valid Counts 2-Day 250m Grid_Water_Composite': 7,
-                        'Flood 2-Day 250m Grid_Water_Composite': 8,
-                        'Water Counts 3-Day 250m Grid_Water_Composite': 9,
-                        'Valid Counts 3-Day 250m Grid_Water_Composite': 10,
-                        'Flood 3-Day 250m Grid_Water_Composite': 11}
-    modis_proj = Proj("+proj=sinu +R=6371007.181 +nadgrids=@null +wktext")
-    modis_tile_size = 1111950.5196666667  # MODIS sinusoidal tile size in meters
-    modis_nrt_api_root_url = 'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/archives/allData/61/MCDWD_L3_NRT'
-    date_type_options = ['Single Date', 'Date Range', 'All Available Images']
-    population_source_variables=['Residential Population', "Age and Sex Structures"]
-    population_source_year_options=[x for x in range(2000, 2021)]
+    population_source_options=population_source_options
+    nrt_band_options = nrt_band_options
+    modis_proj = modis_proj
+    modis_tile_size = modis_tile_size
+    modis_nrt_api_root_url = modis_nrt_api_root_url
+    date_type_options = date_type_options
+    population_source_variables= population_source_variables
+    population_source_year_options=population_source_year_options
 
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
         """
@@ -214,7 +230,6 @@ class ModisNRT:
         downloaded_files = []
         if response.status_code == 200:
             # Ensure the folder_path ends with a slash
-            print(folder_path)
             if not folder_path.endswith('/'):
                 folder_path += '/'
             filename = f"{folder_path}{url.split('/')[-1]}"  # Corrected the path
@@ -228,7 +243,6 @@ class ModisNRT:
 
 
             for hdf_file in downloaded_files:
-                print(hdf_file)
                 self.process_hdf_file(hdf_file, subdataset_index, tif_list=tif_list)
 
     def merge_tifs(self, tif_list: List[str], output_tif: str) -> None:
