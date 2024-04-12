@@ -1,13 +1,13 @@
-name: Create, Encrypt and Upload Config File
+name: Build, Encrypt and Deploy
 
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 jobs:
-  prepare-and-upload:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -30,13 +30,18 @@ jobs:
       - name: Encrypt the config file
         run: |
           openssl enc -aes-256-cbc -salt -in config.yaml -out config.enc -k ${{ secrets.ENCRYPTION_KEY }}
-          rm config.yaml  # Optionally remove the plaintext file to keep the workspace secure
+          rm config.yaml  # Remove plaintext file
 
-      - name: Upload encrypted config to secure location
-        uses: actions/upload-artifact@v2
-        with:
-          name: encrypted-config
-          path: config.enc
+      - name: Build Docker image
+        run: |
+          docker build -t t4ds/mcimageprocessing:${{ github.sha }} .
+        env:
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
 
-      - name: Cleanup local files
+      - name: Push Docker image
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          docker push t4ds/mcimageprocessing:${{ github.sha }}
+
+      - name: Cleanup
         run: rm config.enc
