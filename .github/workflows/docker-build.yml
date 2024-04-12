@@ -1,3 +1,11 @@
+name: Build, Encrypt and Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
