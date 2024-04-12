@@ -48,4 +48,4 @@ jobs:
           docker push t4ds/mcimageprocessing:latest
 
       - name: Cleanup
-        run: rm config.enc
+        run: rm mcimageprocessing/config/config.enc
