@@ -36,6 +36,10 @@ RUN pip install --no-cache-dir /usr/src/app/dist/*.whl
 
 # Set ownership to the jovyan user (Jupyter default user)
 RUN chown -R 1000:1000 /usr/src/app
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 USER jovyan
 
 # Environment variables
@@ -48,7 +52,6 @@ ENV GDAL_VERSION=3.4.3 \
 EXPOSE 8888
 
 # Add the entrypoint script
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["start-notebook.sh", "--NotebookApp.token=''", "--NotebookApp.password=''", "--NotebookApp.allow_origin='*'", "--NotebookApp.base_url=/"]
