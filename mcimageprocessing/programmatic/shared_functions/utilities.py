@@ -223,14 +223,6 @@ def clip_raster(file_path, geometry, ee_instance=None):
     return output_path
 
 def calculate_bounds(input_geom):
-    """
-    Calculate the bounds (minimum and maximum coordinates) of various geometric inputs like GeoJSON, GeoDataFrame, WKT, etc.
-
-    :param input_geom: The geometric input which can be GeoJSON, GeoDataFrame, WKT, or a Shapefile path.
-    :type input_geom: dict, geopandas.GeoDataFrame, shapely.geometry.base.BaseGeometry, str
-    :return: The bounds represented by a list of two coordinate pairs: [[min_lat, min_lon], [max_lat, max_lon]].
-    :rtype: list
-    """
     # Initialize min and max coordinates
     min_lat, min_lon, max_lat, max_lon = 90, 180, -90, -180
 
@@ -246,40 +238,31 @@ def calculate_bounds(input_geom):
         if lon > max_lon:
             max_lon = lon
 
-    # Helper function to parse coordinates based on geometry type
-    def parse_coordinates(coords, geom_type):
-        if geom_type == 'Point':
-            update_bounds(*coords)
-        elif geom_type in ['LineString', 'MultiPoint']:
-            for coord in coords:
-                update_bounds(*coord)
-        elif geom_type in ['Polygon', 'MultiLineString']:
-            for part in coords:
-                for coord in part:
-                    update_bounds(*coord)
-        elif geom_type == 'MultiPolygon':
-            for polygon in coords:
-                for part in polygon:
-                    for coord in part:
-                        update_bounds(*coord)
+    # Helper function to process different geometry types
+    def process_geometry(geom):
+        if isinstance(geom, (Polygon, MultiPolygon)):
+            for point in geom.exterior.coords:
+                update_bounds(point[1], point[0])
+        elif isinstance(geom, (LineString, Point)):
+            for point in geom.coords:
+                update_bounds(point[1], point[0])
 
-    # Determine type and extract coordinates
+    # Handle different input types
     if isinstance(input_geom, dict):  # GeoJSON
         for feature in input_geom['features']:
-            coords = feature['geometry']['coordinates']
-            geom_type = feature['geometry']['type']
-            parse_coordinates(coords, geom_type)
+            geom = from_wkt(feature['geometry'])
+            process_geometry(geom)
     elif isinstance(input_geom, gpd.GeoDataFrame):  # GeoDataFrame
         for geom in input_geom.geometry:
-            parse_coordinates(geom.coords[:], geom.type)
-    elif isinstance(input_geom, str):  # WKT or path to shapefile
+            process_geometry(geom)
+    elif isinstance(input_geom, str):  # WKT or shapefile path
         if input_geom.lower().endswith('.shp'):  # Shapefile path
             input_geom = gpd.read_file(input_geom)
             for geom in input_geom.geometry:
-                parse_coordinates(geom.coords[:], geom.type)
+                process_geometry(geom)
         else:  # WKT
             geom = from_wkt(input_geom)
-            parse_coordinates(geom.coords[:], geom.type)
+            process_geometry(geom)
     else:
         raise TypeError("Unsupported geometry format")
 
@@ -289,9 +272,9 @@ def generate_bbox(geometry):
     bounds = calculate_bounds(geometry)
     bbox_polygon = Polygon([
         (bounds[0][1], bounds[0][0]),  # lower-left
-        (bounds[0][1], bounds[1][0]),  # upper-left
-        (bounds[1][1], bounds[1][0]),  # upper-right
         (bounds[1][1], bounds[0][0]),  # lower-right
+        (bounds[1][1], bounds[1][0]),  # upper-right
+        (bounds[0][1], bounds[1][0]),  # upper-left
         (bounds[0][1], bounds[0][0])  # back to lower-left to close the polygon
     ])
     gdf = gpd.GeoDataFrame([{'geometry': bbox_polygon}], crs='EPSG:4326')

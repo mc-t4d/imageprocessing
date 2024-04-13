@@ -32,7 +32,7 @@ from mcimageprocessing import config_manager
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.APIs.GPWv4 import GPWv4
 from mcimageprocessing.programmatic.APIs.WorldPop import WorldPop
-from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
+from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster, generate_bbox
 
 
 # ==============================================================================
@@ -107,6 +107,10 @@ class ModisNRT:
         self.ee_instance = ee_manager if ee_manager else EarthEngineManager()
         self.worldpop_instance = WorldPop()
         self.gpwv4_instance = GPWv4()
+
+    # ==============================================================================
+    # HELPER FUNCTIONS
+    # ==============================================================================
 
     def calculate_modis_tile_index(self, x: float, y: float) -> tuple[int, int]:
         """
@@ -520,6 +524,54 @@ class ModisNRT:
     #         os.makedirs(folder, exist_ok=True)
     #         modis_nrt_params['folder_path'] = folder
     #     return modis_nrt_params['folder_path']
+
+    def process_modis_nrt_programmatic(self, geometry: Any, modis_nrt_params: Dict[str, Any]) -> str:
+        """
+        This method is used to process MODIS NRT (Near Real-Time) data programmatically. It takes a geometry and a dictionary of parameters as input, and returns the path to the merged TIFF file.
+
+        Parameters:
+        geometry (Any): The geometry for which the MODIS NRT data is to be processed. This can be a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.
+        modis_nrt_params (Dict[str, Any]): A dictionary containing the MODIS NRT parameters. The dictionary should have the following keys:
+            - 'date': The date for which the MODIS NRT data is to be processed.
+            - 'folder_output': The path to the folder where the output files will be saved.
+            - 'keep_individual_tiles': A boolean indicating whether to keep the individual tiles or not.
+            - 'nrt_band': The band of the MODIS NRT data to be processed.
+
+        Returns:
+        str: The path to the merged TIFF file.
+
+        Example Usage:
+        modis_nrt_params = {
+            'date': datetime.datetime(2020, 5, 1),
+            'folder_output': '/path/to/folder',
+            'keep_individual_tiles': False,
+            'nrt_band': 'Flood 3-Day 250m Grid_Water_Composite'
+        }
+        geometry = [minx, miny, maxx, maxy]
+        modis_nrt = ModisNRT()
+        merged_tiff_path = modis_nrt.process_modis_nrt_programmatic(geometry, modis_nrt_params)
+        """
+
+        # Generate the bounding box for the given geometry
+        bbox = generate_bbox(geometry)
+
+        # Get the MODIS tiles for the bounding box
+        tiles = self.get_tiles(bbox)
+
+        # Find the matching files for the given tiles and MODIS NRT parameters
+        matching_files = self.find_matching_files(tiles, modis_nrt_params)
+
+        # Download and process the matching files
+        hdf_files_to_process, tif_list = self.download_and_process_files(matching_files, modis_nrt_params)
+
+        # Merge the processed files into a single TIFF file
+        merged_output = self.merge_files(tif_list, modis_nrt_params['folder_output'])
+
+        # Clean up the individual files if the 'keep_individual_tiles' parameter is set to False
+        self.cleanup_files(tif_list, hdf_files_to_process, modis_nrt_params)
+
+        # Return the path to the merged TIFF file
+        return merged_output
 
 
 class ModisNRTNotebookInterface(ModisNRT):

@@ -37,7 +37,7 @@ RUN pip install --no-cache-dir /usr/src/app/dist/*.whl
 # Set ownership to the jovyan user (Jupyter default user)
 RUN chown -R 1000:1000 /usr/src/app
 
-COPY mcimageprocessing/config/config.enc /usr/src/app/mcimageprocessing/config/
+#COPY mcimageprocessing/config/config.enc /usr/src/app/mcimageprocessing/config/
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
