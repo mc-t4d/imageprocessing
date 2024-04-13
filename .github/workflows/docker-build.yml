@@ -35,6 +35,14 @@ jobs:
           openssl enc -aes-256-cbc -salt -in config.yaml -out mcimageprocessing/config/config.enc -k ${{ secrets.ENCRYPTION_KEY }}
           rm config.yaml
 
+      - name: Commit and Push Encrypted File
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+          git add mcimageprocessing/config/config.enc
+          git commit -m "Add encrypted config file"
+          git push
+
       - name: Build Docker image
         run: |
           docker build -t t4ds/mcimageprocessing:${{ github.sha }} -t t4ds/mcimageprocessing:latest .
