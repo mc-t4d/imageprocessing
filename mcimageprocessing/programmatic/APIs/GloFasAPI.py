@@ -20,6 +20,14 @@ from mcimageprocessing import config_manager
 from mcimageprocessing.programmatic.APIs.EarthEngine import EarthEngineManager
 from mcimageprocessing.programmatic.shared_functions.utilities import process_and_clip_raster
 
+from osgeo import gdal
+
+# Set error level to only report errors and ignore warnings - especially related to GloFas warnings regarding missing metadata for pygrib in the GRIB files natively from GloFas.
+gdal.UseExceptions()
+gdal.PushErrorHandler('CPLQuietErrorHandler')
+gdal.SetConfigOption('CPL_LOG_ERRORS', 'OFF')
+gdal.SetConfigOption('CPL_LOG', 'OFF')
+
 class GloFasAPI:
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
         self.ee_instance = ee_manager if ee_manager else EarthEngineManager()
