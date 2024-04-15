@@ -13,7 +13,7 @@ WORKDIR /usr/src/app
 # Install system dependencies
 USER root
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common && \
+    apt-get install -y --no-install-recommends software-properties-common gnupg2 dirmngr && \
     add-apt-repository ppa:ubuntugis/ppa && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
