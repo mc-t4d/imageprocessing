@@ -205,7 +205,7 @@ future==0.18.3
     # via
     #   geocoder
     #   mcimageprocessing (setup.py)
-gdal==3.4.3
+gdal==3.6.4
     # via mcimageprocessing (setup.py)
 geemap==0.30.4
     # via mcimageprocessing (setup.py)

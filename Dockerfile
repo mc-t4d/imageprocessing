@@ -13,6 +13,8 @@ WORKDIR /usr/src/app
 # Install system dependencies
 USER root
 RUN apt-get update && \
+    add-apt-repository ppa:ubuntugis/ppa && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     libgdal-dev \
@@ -44,7 +46,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 USER jovyan
 
 # Environment variables
-ENV GDAL_VERSION=3.4.3 \
+ENV GDAL_VERSION=3.6.2 \
     C_INCLUDE_PATH=/usr/include/gdal \
     CPLUS_INCLUDE_PATH=/usr/include/gdal \
     CONFIG_DIR=/usr/src/app/mcimageprocessing/config
