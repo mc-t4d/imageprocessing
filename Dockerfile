@@ -29,7 +29,7 @@ RUN apt-get update && \
 COPY --from=builder /app/dist /usr/src/app/dist
 COPY --from=builder /app/requirements.txt /usr/src/app/
 COPY --from=builder /app/README.md /usr/src/app/
-COPY --from=builder /app/mcimageprocessing/config/sample.config.yaml /usr/src/app/mcimageprocessing/config/
+COPY --from=builder /app/mcimageprocessing/config/config.enc /usr/src/app/mcimageprocessing/config/
 COPY --from=builder /app/mcimageprocessing/notebook_demo.ipynb /usr/src/app/mcimageprocessing/
 
 # Install Python packages
