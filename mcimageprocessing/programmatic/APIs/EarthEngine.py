@@ -19,91 +19,44 @@ from mcimageprocessing import config_manager
 
 
 class EarthEngineManager(BaseModel):
-    """
-    EarthEngineManager class for managing Earth Engine operations.
-    """
-
     year_ranges: list = []
-
-    aggregation_functions: dict = None
-
-    vis_params: ClassVar[dict] = {'NDVI': {'min': 0, 'max': 1,
-                                           'palette': ['FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718',
-                                                       '74A901', '66A000', '529400', '3E8601', '207401', '056201',
-                                                       '004C00', '023B01', '012E01', '011D01', '011301']}}
+    vis_params: ClassVar[dict] = {
+        'NDVI': {
+            'min': 0, 'max': 1,
+            'palette': [
+                'FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718',
+                '74A901', '66A000', '529400', '3E8601', '207401', '056201',
+                '004C00', '023B01', '012E01', '011D01', '011301'
+            ]
+        }
+    }
     ee_dates: list = []
 
-    @root_validator(pre=True)
-    def set_aggregation_functions(cls, values):
-        """Set the aggregation functions for the class.
+    # Class-level aggregation functions that do not change and are not instance-specific
+    aggregation_functions: ClassVar[dict] = {
+        'mode': lambda ic: ic.mode(),
+        'median': lambda ic: ic.median(),
+        'mean': lambda ic: ic.mean(),
+        'max': lambda ic: ic.max(),
+        'min': lambda ic: ic.min(),
+        'sum': lambda ic: ic.reduce(ee.Reducer.sum()),
+        'first': lambda ic: ic.sort('system:time_start', False).first()
+    }
 
-        :param values: A dictionary specifying the aggregation functions.
-            The dictionary keys are the names of the aggregation functions,
-            and the values are lambda functions that execute the desired aggregation.
-            Supported aggregation functions:
-                - 'mode': Mode of the input values.
-                - 'median': Median of the input values.
-                - 'mean': Mean of the input values.
-                - 'max': Maximum value of the input values.
-                - 'min': Minimum value of the input values.
-                - 'sum': Sum of the input values.
-                - 'first': The first value of the input collection after sorting
-                  by 'system:time_start' in descending order.
-        :type values: dict
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.load_credentials()
 
-        :return: The same input dictionary `values`.
-        :rtype: dict
-        """
-        cls.aggregation_functions = {
-            'mode': lambda ic: ic.mode(),
-            'median': lambda ic: ic.median(),
-            'mean': lambda ic: ic.mean(),
-            'max': lambda ic: ic.max(),
-            'min': lambda ic: ic.min(),
-            'sum': lambda ic: ic.reduce(ee.Reducer.sum()),
-            'first': lambda ic: ic.sort('system:time_start', False).first(),
-            # 'last': lambda ic: ic.sort('system:time_start', False).last()
-        }
-        return values
-
-    @root_validator(pre=True)
-    def set_vis_params(cls, values):
-        """
-
-        """
-        values["vis_params"] = {'NDVI': {'min': 0, 'max': 1,
-                                         'palette': ['FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718',
-                                                     '74A901', '66A000', '529400', '3E8601', '207401', '056201',
-                                                     '004C00', '023B01', '012E01', '011D01', '011301']}}
-        return values
-
-    def load_credentials(cls, v):
-        """
-        Initialize Earth Engine credentials using the provided ServiceAccountCredentials.
-
-        :param cls: The class object.
-        :param v: The value to be returned.
-        :return: The value passed as 'v'.
-        """
-
-        # Initialize Earth Engine credentials
+    def load_credentials(self):
+        # Assuming `config_manager` is defined elsewhere and loaded appropriately
         credentials = ee.ServiceAccountCredentials(
             email=config_manager.config['KEYS']['GEE']['client_email'],
             key_data=config_manager.config['KEYS']['GEE']['private_key']
         )
-
         ee.Initialize(credentials)
-        return v
-
 
     @classmethod
     def validate_aggregation_function(cls, function):
-        """
-
-        :param function: The aggregation function to validate.
-        :return: The validated aggregation function.
-
-        """
         if function not in cls.aggregation_functions:
             raise ValueError(
                 f"Invalid aggregation function: {function}. Must be one of: {', '.join(cls.aggregation_functions.keys())}")

@@ -108,6 +108,128 @@ class ModisNRT:
         self.gpwv4_instance = GPWv4()
 
     # ==============================================================================
+    # PRIMARY FUNCTIONS
+    # ==============================================================================
+
+    def download_and_process_files(self, matching_files: List[str], modis_nrt_params: Dict[str, Any]) -> (List[str], List[str]):
+        """
+        Download and process the given files.
+
+        :param matching_files: List of files to be downloaded and processed.
+        :param modis_nrt_params: Dictionary containing modis nrt parameters.
+        :type matching_files: List[str]
+        :type modis_nrt_params: Dict[str, Any]
+        :return: Tuple containing lists of hdf files to process and tif files.
+        :rtype: Tuple[List[str], List[str]]
+        """
+        hdf_files_to_process = []
+        tif_list = []
+        for url in matching_files:
+            self.download_and_process_modis_nrt(url, modis_nrt_params['folder_output'], hdf_files_to_process, subdataset=modis_nrt_params['nrt_band'], tif_list=tif_list)
+        return hdf_files_to_process, tif_list
+
+    def calculate_population_in_flood_area(self, raster_path: str, year: int, population_data_type: str,
+                                           population_data_source: str, folder_output: str) -> str:
+
+        with rasterio.open(raster_path) as src:
+            band = src.read(1)  # Read the first band
+
+        # Create a mask where the pixel value is 3
+        mask = band == 3
+        if not np.any(mask):
+            return 'No flood area detected'
+
+        # Vectorize the mask
+        mask_shapes = shapes(band, mask=mask, transform=src.transform)
+
+        # Create geometries and their associated raster values
+        geometries = []
+        raster_values = []
+        for geom, value in mask_shapes:
+            if value == 3.0:
+                geometries.append(shape(geom))
+                raster_values.append(value)
+
+        # Create a GeoDataFrame with geometry and raster value columns
+        gdf = gpd.GeoDataFrame({'geometry': geometries, 'raster_value': raster_values})
+
+        # Set the CRS from the raster
+        gdf.crs = src.crs
+
+        os.makedirs(folder_output, exist_ok=True)
+
+        output_path = raster_path.replace('.tif', '.geojson').replace('modis_nrt_merged', 'flood_area')
+
+        gdf.to_file(output_path, driver='GeoJSON')
+
+        ee_geometries = gdf['geometry'].apply(self.shapely_to_ee)
+
+        multi_geom = ee.Geometry.MultiPolygon(list(ee_geometries))
+
+        if population_data_type == 'WorldPop':
+
+            worldpop = WorldPop()
+
+            if population_data_source == 'Residential Population':
+
+                worldpop_params = {
+                    'api_source': population_data_type,
+                    'year': year,
+                    'datatype': population_data_source,
+                    'statistics_only': False,
+                    'add_image_to_map': False,
+                    'create_sub_folder': False,
+                    'folder_output': folder_output,
+                    'band': 'population',
+                    'flood_pop_calc': True
+                }
+
+
+                image, folder_path = worldpop.process_api(geometry=multi_geom, distinct_values=None, index=None,
+                                             params=worldpop_params, pbar=None)
+
+                return round(image["population"])
+
+
+                # return f'Population impacted: {"{:,}".format(round(image["population"]))}'
+
+                # return f'Population impacted: {image}'
+
+
+            else:
+                worldpop_params = {
+                    'api_source': population_data_type,
+                    'year': year,
+                    'datatype': population_data_source,
+                    'statistics_only': True,
+                    'add_image_to_map': False,
+                    'create_sub_folder': False,
+                    'folder_output': folder_output,
+                    'flood_pop_calc': True
+                }
+
+                image, folder_path = worldpop.process_api(multi_geom, None, None, worldpop_params)
+
+                return f'Population impacted: {image}'
+
+        else:
+            gpwv4 = GPWv4()
+
+            band = 'population_count' if population_data_source == 'CIESIN/GPWv411/GPW_Population_Count' else 'unwpp-adjusted_population_count'
+            gpwv4_params = {
+                'year': year,
+                'datatype': population_data_source,
+                'band': band,
+                'statistics_only': False,
+                'add_image_to_map': False,
+                'create_sub_folder': False,
+                'folder_output': folder_output,
+            }
+            image, folder_path = gpwv4.process_api(multi_geom, distinct_values=None, index=None, params=gpwv4_params)
+
+            return round(self.ee_instance.get_image_sum(img=image, geometry=multi_geom, band=band, scale=927.67))
+
+    # ==============================================================================
     # HELPER FUNCTIONS
     # ==============================================================================
 
@@ -217,6 +339,18 @@ class ModisNRT:
         if tif_list is not None:
             tif_list.append(output_tiff)
 
+
+    def merge_tifs(self, tif_list: List[str], output_tif: str) -> None:
+        """
+        Merge a list of GeoTIFF files into a single GeoTIFF.
+
+        :param tif_list: A list of GeoTIFF files to merge.
+        :param output_tif: The path to the output GeoTIFF file.
+        :return: None
+        """
+
+        gdal.Warp(output_tif, tif_list)
+
     def download_and_process_modis_nrt(self, url: str, folder_path: str, hdf_files_to_process: List[str],
                                        subdataset: str, tif_list: Optional[List[str]] = None) -> None:
         response = requests.get(url, headers=self.headers, stream=True)
@@ -237,17 +371,6 @@ class ModisNRT:
 
             for hdf_file in downloaded_files:
                 self.process_hdf_file(hdf_file, subdataset_index, tif_list=tif_list)
-
-    def merge_tifs(self, tif_list: List[str], output_tif: str) -> None:
-        """
-        Merge a list of GeoTIFF files into a single GeoTIFF.
-
-        :param tif_list: A list of GeoTIFF files to merge.
-        :param output_tif: The path to the output GeoTIFF file.
-        :return: None
-        """
-
-        gdal.Warp(output_tif, tif_list)
 
     def get_modis_nrt_dates(self) -> List[datetime.datetime]:
         years = []
@@ -294,107 +417,6 @@ class ModisNRT:
 
         return date
 
-
-    def calculate_population_in_flood_area(self, raster_path: str, year: int, population_data_type: str,
-                                           population_data_source: str, folder_output: str) -> str:
-
-        with rasterio.open(raster_path) as src:
-            band = src.read(1)  # Read the first band
-
-        # Create a mask where the pixel value is 3
-        mask = band == 3
-        if not np.any(mask):
-            return 'No flood area detected'
-
-        # Vectorize the mask
-        mask_shapes = shapes(band, mask=mask, transform=src.transform)
-
-        # Create geometries and their associated raster values
-        geometries = []
-        raster_values = []
-        for geom, value in mask_shapes:
-            if value == 3.0:
-                geometries.append(shape(geom))
-                raster_values.append(value)
-
-        # Create a GeoDataFrame with geometry and raster value columns
-        gdf = gpd.GeoDataFrame({'geometry': geometries, 'raster_value': raster_values})
-
-        # Set the CRS from the raster
-        gdf.crs = src.crs
-
-        os.makedirs(folder_output, exist_ok=True)
-
-        output_path = raster_path.replace('.tif', '.geojson').replace('modis_nrt_merged', 'flood_area')
-
-        gdf.to_file(output_path, driver='GeoJSON')
-
-        ee_geometries = gdf['geometry'].apply(self.shapely_to_ee)
-
-        multi_geom = ee.Geometry.MultiPolygon(list(ee_geometries))
-
-        if population_data_type == 'WorldPop':
-
-            worldpop = WorldPop()
-
-            if population_data_source == 'Residential Population':
-
-                worldpop_params = {
-                    'api_source': population_data_type,
-                    'year': year,
-                    'datatype': population_data_source,
-                    'statistics_only': False,
-                    'add_image_to_map': False,
-                    'create_sub_folder': False,
-                    'folder_output': folder_output,
-                    'band': 'population',
-                    'flood_pop_calc': True
-                }
-
-
-                image, folder_path = worldpop.process_api(geometry=multi_geom, distinct_values=None, index=None,
-                                             params=worldpop_params, pbar=None)
-
-                return round(image["population"])
-
-
-                # return f'Population impacted: {"{:,}".format(round(image["population"]))}'
-
-                # return f'Population impacted: {image}'
-
-
-            else:
-                worldpop_params = {
-                    'api_source': population_data_type,
-                    'year': year,
-                    'datatype': population_data_source,
-                    'statistics_only': True,
-                    'add_image_to_map': False,
-                    'create_sub_folder': False,
-                    'folder_output': folder_output,
-                    'flood_pop_calc': True
-                }
-
-                image, folder_path = worldpop.process_api(multi_geom, None, None, worldpop_params)
-
-                return f'Population impacted: {image}'
-
-        else:
-            gpwv4 = GPWv4()
-
-            band = 'population_count' if population_data_source == 'CIESIN/GPWv411/GPW_Population_Count' else 'unwpp-adjusted_population_count'
-            gpwv4_params = {
-                'year': year,
-                'datatype': population_data_source,
-                'band': band,
-                'statistics_only': False,
-                'add_image_to_map': False,
-                'create_sub_folder': False,
-                'folder_output': folder_output,
-            }
-            image, folder_path = gpwv4.process_api(multi_geom, distinct_values=None, index=None, params=gpwv4_params)
-
-            return round(self.ee_instance.get_image_sum(img=image, geometry=multi_geom, band=band, scale=927.67))
 
 
 
@@ -443,23 +465,6 @@ class ModisNRT:
         """
         return self.get_modis_nrt_file_list(tiles, modis_nrt_params)
 
-    def download_and_process_files(self, matching_files: List[str], modis_nrt_params: Dict[str, Any]) -> (List[str], List[str]):
-        """
-        Download and process the given files.
-
-        :param matching_files: List of files to be downloaded and processed.
-        :param modis_nrt_params: Dictionary containing modis nrt parameters.
-        :type matching_files: List[str]
-        :type modis_nrt_params: Dict[str, Any]
-        :return: Tuple containing lists of hdf files to process and tif files.
-        :rtype: Tuple[List[str], List[str]]
-        """
-        hdf_files_to_process = []
-        tif_list = []
-        for url in matching_files:
-            self.download_and_process_modis_nrt(url, modis_nrt_params['folder_output'], hdf_files_to_process, subdataset=modis_nrt_params['nrt_band'], tif_list=tif_list)
-        return hdf_files_to_process, tif_list
-
 
     def cleanup_files(self, tif_list: List[str], hdf_files_to_process: List[str], modis_nrt_params: Dict[str, Any]) -> None:
         """
@@ -496,6 +501,7 @@ class ModisNRT:
         merged_output = os.path.join(folder, 'modis_nrt_merged.tif')
         self.merge_tifs(tif_list, merged_output)
         return merged_output
+
 
 class ModisNRTNotebookInterface(ModisNRT):
 
