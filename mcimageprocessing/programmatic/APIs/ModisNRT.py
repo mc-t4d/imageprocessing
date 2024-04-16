@@ -8,7 +8,7 @@ import os
 import re
 from typing import Dict, Any, List
 from typing import Optional, Set, Tuple, Union
-from shapely.geometry import shape
+from pyproj import Transformer
 
 import ee
 import geopandas as gpd
@@ -20,12 +20,11 @@ import rasterio
 import requests
 from bs4 import BeautifulSoup
 from osgeo import gdal
-from pyproj import Proj, transform
+from pyproj import CRS
 from rasterio.features import shapes
 from shapely.geometry import Point
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
-from shapely.geometry import mapping
 import shapely
 
 from mcimageprocessing import config_manager
@@ -51,7 +50,7 @@ nrt_band_options = {'Water Counts 1-Day 250m Grid_Water_Composite': 0,
                     'Water Counts 3-Day 250m Grid_Water_Composite': 9,
                     'Valid Counts 3-Day 250m Grid_Water_Composite': 10,
                     'Flood 3-Day 250m Grid_Water_Composite': 11}
-modis_proj = Proj("+proj=sinu +R=6371007.181 +nadgrids=@null +wktext")
+modis_proj = CRS("+proj=sinu +R=6371007.181 +nadgrids=@null +wktext")
 modis_tile_size = 1111950.5196666667  # MODIS sinusoidal tile size in meters
 modis_nrt_api_root_url = 'https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/archives/allData/61/MCDWD_L3_NRT'
 date_type_options = ['Single Date', 'Date Range', 'All Available Images']
@@ -126,32 +125,22 @@ class ModisNRT:
         return h, v
 
     def get_modis_tile(self, geometry: Union[Point, list, pd.DataFrame]) -> Set[tuple[int, int]]:
-        """
-            Method to calculate the MODIS tile indices covered by a given geometry.
-
-            :param geometry: The geometry for which to calculate the MODIS tile indices. Must be a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns
-        *.
-            :type geometry: Union[Point, list, pd.DataFrame]
-            :return: A set of MODIS tile indices covered by the geometry.
-            :rtype: Set[tuple[int, int]]
-            :raises TypeError: If the input geometry is not of the expected types.
-
-            """
+        transformer = Transformer.from_crs("epsg:4326", self.modis_proj, always_xy=True)
         tiles_covered = set()
 
         if isinstance(geometry, Point):
-            x, y = transform(Proj(proj='latlong'), self.modis_proj, geometry.x, geometry.y)
+            x, y = transformer.transform(geometry.x, geometry.y)
             tiles_covered.add(self.calculate_modis_tile_index(x, y))
         elif isinstance(geometry, list) and len(geometry) == 4:
             for corner in [(geometry[0], geometry[1]), (geometry[0], geometry[3]),
                            (geometry[2], geometry[1]), (geometry[2], geometry[3])]:
-                x, y = transform(Proj(proj='latlong'), self.modis_proj, *corner)
+                x, y = transformer.transform(corner[0], corner[1])
                 tiles_covered.add(self.calculate_modis_tile_index(x, y))
         elif isinstance(geometry, pd.DataFrame):
             bbox = geometry.iloc[0]  # Assuming you want to process the first row
             for corner in [(bbox['minx'], bbox['miny']), (bbox['minx'], bbox['maxy']),
                            (bbox['maxx'], bbox['miny']), (bbox['maxx'], bbox['maxy'])]:
-                x, y = transform(Proj(proj='latlong'), self.modis_proj, *corner)
+                x, y = transformer.transform(corner[0], corner[1])
                 tiles_covered.add(self.calculate_modis_tile_index(x, y))
         else:
             raise TypeError(
@@ -507,72 +496,6 @@ class ModisNRT:
         merged_output = os.path.join(folder, 'modis_nrt_merged.tif')
         self.merge_tifs(tif_list, merged_output)
         return merged_output
-
-    # def create_sub_folder(self, modis_nrt_params: Dict[str, Any]) -> str:
-    #     """
-    #     Creates a sub-folder based on the given parameters.
-    #
-    #     :param modis_nrt_params: A dictionary containing the parameters.
-    #            - 'create_sub_folder' (bool): Indicates whether to create a sub-folder or not.
-    #            - 'folder_path' (str): The path to the main folder.
-    #     :return: The path of the created sub-folder.
-    #     :rtype: str
-    #     """
-    #     if modis_nrt_params['create_sub_folder']:
-    #         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    #         folder = os.path.join(modis_nrt_params['folder_path'], timestamp)
-    #         os.makedirs(folder, exist_ok=True)
-    #         modis_nrt_params['folder_path'] = folder
-    #     return modis_nrt_params['folder_path']
-
-    def process_modis_nrt_programmatic(self, geometry: Any, modis_nrt_params: Dict[str, Any]) -> str:
-        """
-        This method is used to process MODIS NRT (Near Real-Time) data programmatically. It takes a geometry and a dictionary of parameters as input, and returns the path to the merged TIFF file.
-
-        Parameters:
-        geometry (Any): The geometry for which the MODIS NRT data is to be processed. This can be a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.
-        modis_nrt_params (Dict[str, Any]): A dictionary containing the MODIS NRT parameters. The dictionary should have the following keys:
-            - 'date': The date for which the MODIS NRT data is to be processed.
-            - 'folder_output': The path to the folder where the output files will be saved.
-            - 'keep_individual_tiles': A boolean indicating whether to keep the individual tiles or not.
-            - 'nrt_band': The band of the MODIS NRT data to be processed.
-
-        Returns:
-        str: The path to the merged TIFF file.
-
-        Example Usage:
-        modis_nrt_params = {
-            'date': datetime.datetime(2020, 5, 1),
-            'folder_output': '/path/to/folder',
-            'keep_individual_tiles': False,
-            'nrt_band': 'Flood 3-Day 250m Grid_Water_Composite'
-        }
-        geometry = [minx, miny, maxx, maxy]
-        modis_nrt = ModisNRT()
-        merged_tiff_path = modis_nrt.process_modis_nrt_programmatic(geometry, modis_nrt_params)
-        """
-
-        # Generate the bounding box for the given geometry
-        bbox = generate_bbox(geometry)
-
-        # Get the MODIS tiles for the bounding box
-        tiles = self.get_tiles(bbox)
-
-        # Find the matching files for the given tiles and MODIS NRT parameters
-        matching_files = self.find_matching_files(tiles, modis_nrt_params)
-
-        # Download and process the matching files
-        hdf_files_to_process, tif_list = self.download_and_process_files(matching_files, modis_nrt_params)
-
-        # Merge the processed files into a single TIFF file
-        merged_output = self.merge_files(tif_list, modis_nrt_params['folder_output'])
-
-        # Clean up the individual files if the 'keep_individual_tiles' parameter is set to False
-        self.cleanup_files(tif_list, hdf_files_to_process, modis_nrt_params)
-
-        # Return the path to the merged TIFF file
-        return merged_output
-
 
 class ModisNRTNotebookInterface(ModisNRT):
 

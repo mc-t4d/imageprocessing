@@ -529,7 +529,7 @@ class JupyterAPI(geemap.Map):
             # Direct comparison for integer types
             return out_image == nodata_value
 
-    def clip_raster(self, file_path, geometry):
+    def clip_raster(self, file_path: str, geometry, output_file_name: str = None):
         """
         Clip a raster file based on a given geometry and return the path to the clipped file.
 
@@ -586,7 +586,7 @@ class JupyterAPI(geemap.Map):
             # Define output path
             file_dir, file_name = os.path.split(file_path)
             file_base, file_ext = os.path.splitext(file_name)
-            output_filename = f"{file_base}_clipped.tif"
+            output_filename = f"{file_base}_clipped.tif" if output_file_name is None else output_file_name
             output_path = os.path.join(file_dir, output_filename)
 
             # Write the masked data to a new raster file

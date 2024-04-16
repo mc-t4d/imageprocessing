@@ -8,7 +8,7 @@ import rasterio
 from osgeo import gdal
 from rasterio.features import geometry_mask
 from rasterio.merge import merge
-from shapely.geometry import shape, Polygon, MultiPolygon
+from shapely.geometry import shape, Polygon, MultiPolygon, LineString, Point
 from rasterio.mask import mask as rasterio_mask
 from shapely.wkt import loads as from_wkt
 
@@ -177,7 +177,7 @@ def clip_raster(file_path, geometry, ee_instance=None):
     Clips a raster file based on a specified geometry.
 
     :param file_path: The file path of the raster file to be clipped.
-    :param geometry: The geometry to be used for clipping. Can be a dictionary or an Earth Engine geometry.
+    :param geometry: The geometry to be used for clipping. Can be a dictionary, an Earth Engine geometry, or a GeoDataFrame.
     :param ee_instance: Optional Earth Engine instance for conversion.
     :return: The file path of the clipped raster file.
     """
@@ -190,8 +190,12 @@ def clip_raster(file_path, geometry, ee_instance=None):
         geometry = ee_instance.ee_geometry_to_shapely(geometry)
 
     # Convert geometry input to a Shapely geometry object if it's a dictionary (assuming GeoJSON)
-    if isinstance(geometry, dict):
+    elif isinstance(geometry, dict):
         geometry = shape(geometry)
+
+    # If geometry is a GeoDataFrame, use the geometry directly
+    elif isinstance(geometry, gpd.GeoDataFrame):
+        geometry = geometry.geometry.unary_union
 
     # Ensure geometry is a MultiPolygon for consistency
     if not isinstance(geometry, MultiPolygon):

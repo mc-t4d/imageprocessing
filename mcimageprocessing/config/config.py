@@ -43,4 +43,3 @@ class ConfigManager:
         except Exception as e:
             config_dir = input("Enter the path to the config directory: ")
             return os.path.join(config_dir, 'config.yaml')
-
