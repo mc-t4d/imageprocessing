@@ -158,6 +158,20 @@ After installation, you can verify that the package is installed correctly by ch
 
 This command should list `mcimageprocessing` along with its version, indicating that the package is installed.
 
+In order to decrypt the configuration file, you will need to ensure openssl is installed on your machine.  If it is not, you can install it using the following command:
+
+    linux: sudo apt-get install openssl
+    mac: brew install openssl
+    windows: download the installer from the [official website](https://slproweb.com/products/Win32OpenSSL.html)
+
+then run the following command to decrypt the configuration file:
+
+    linux: openssl enc -aes-256-cbc -d -in config/config.enc -out config/config.yaml -k [decryption key provided by T4D]
+    mac: openssl enc -aes-256-cbc -d -in config/config.enc -out config/config.yaml -k [decryption key provided by T4D]
+    windows: openssl enc -aes-256-cbc -d -in config/config.enc -out config/config.yaml -k [decryption key provided by T4D]
+
+This will create a _config.yaml_ file in the _config_ directory that you can use to store your API keys, pre-populated with the keys provided by T4D.
+
 5. **Testing the Installation**
 
 You can test whether the package is working properly by running some of its functions or scripts. If the package provides a command-line interface or scripts, try executing them to ensure everything is functioning as expected.
