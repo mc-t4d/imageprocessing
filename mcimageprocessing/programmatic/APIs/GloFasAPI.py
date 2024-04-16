@@ -30,6 +30,11 @@ gdal.SetConfigOption('CPL_LOG', 'OFF')
 
 class GloFasAPI:
     def __init__(self, ee_manager: Optional[EarthEngineManager] = None):
+
+        # ==============================================================================
+        # CONFIGURATION
+        # ==============================================================================
+
         self.ee_instance = ee_manager if ee_manager else EarthEngineManager()
         url = config_manager.config['KEYS']['GloFas']['url']
         key = config_manager.config['KEYS']['GloFas']['key']
@@ -83,6 +88,11 @@ class GloFasAPI:
 
         logging.getLogger('cdsapi').setLevel(logging.CRITICAL)
         warnings.filterwarnings('ignore', message='.*Template .*')
+
+    # ==============================================================================
+    # PRIMARY FUNCTIONS
+    # ==============================================================================
+
     def download_data(self, product_name, request_parameters, file_name):
         # Construct the file path
         day = request_parameters.get('day', '01')
@@ -109,6 +119,43 @@ class GloFasAPI:
             )
 
             return file_path
+
+    def download_glofas_data(self, bbox, params, index=None, distinct_values=None):
+        """
+        :param bbox: The bounding box of the area to download Glofas data for.
+        :param glofas_params: The parameters for downloading Glofas data.
+        :param index: The index of the Glofas data.
+        :param distinct_values: The distinct values for the Glofas data (optional).
+        :return: The file path of the downloaded Glofas data.
+        """
+
+        request_parameters = {
+            'glofas_product': params.get('glofas_product'),
+            'variable': 'river_discharge_in_the_last_24_hours',
+            'format': 'grib',
+            'system_version': params.get('system_version'),
+            'hydrological_model': params.get('hydrological_model'),
+            'product_type': params.get('product_type', 'ensemble_perturbed_forecasts'),
+            'year': params.get('year'),
+            'month': params.get('month'),
+            # Omit 'day' to use the default value or provide a specific day
+            'day': params.get('day', '01'),
+            'leadtime_hour': params.get('leadtime_hour'),
+            'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
+            'folder_location': params.get('folder_location'),
+        }
+
+        index = index if index is not None else 0
+
+        # Construct file name based on the parameters
+        file_name = f"{params['glofas_product']}_{'userdefined' if distinct_values is None else '_'.join(str(value) for value in distinct_values)}_{index}_{params.get('year')}_{params.get('month')}_{request_parameters.get('day', '01')}.grib"
+
+        # Download data and return the file path
+        return self.download_data(params['glofas_product'], request_parameters, file_name)
+
+    # ==============================================================================
+    # HELPER FUNCTIONS
+    # ==============================================================================
 
     def no_data_helper_function(self, bbox, glofas_params, geometry, index, distinct_values):
         """
@@ -140,8 +187,6 @@ class GloFasAPI:
         print("No suitable data could be found for any combination.")
         return None
 
-    def download_glofas_data(self, geometry, distinct_values, index):
-        pass
 
     def _create_sub_folder(self, base_folder: str) -> str:
         """
@@ -160,6 +205,20 @@ class GloFasAPI:
         except OSError as e:
             self.logger.error(f"Failed to create subfolder: {e}")
             return base_folder
+
+
+    def get_last_day_of_month(self, year, month):
+        """
+        Get the last day of the given month and year.
+
+        :param year: The year
+        :param month: The month
+        :return: The date of the last day of the given month and year.
+        """
+        next_month = month % 12 + 1
+        next_month_first_day = datetime.date(year if next_month != 1 else year + 1, next_month, 1)
+        last_day_of_month = next_month_first_day - datetime.timedelta(days=1)
+        return last_day_of_month
 
 class GloFasAPINotebookInterface(GloFasAPI):
 
@@ -371,18 +430,6 @@ class GloFasAPINotebookInterface(GloFasAPI):
         max_date = self.get_last_day_of_month(year, month)
         self.date_picker.max = max_date
 
-    def get_last_day_of_month(self, year, month):
-        """
-        Get the last day of the given month and year.
-
-        :param year: The year
-        :param month: The month
-        :return: The date of the last day of the given month and year.
-        """
-        next_month = month % 12 + 1
-        next_month_first_day = datetime.date(year if next_month != 1 else year + 1, next_month, 1)
-        last_day_of_month = next_month_first_day - datetime.timedelta(days=1)
-        return last_day_of_month
 
     def on_glofas_option_change(self, change):
         """
@@ -412,36 +459,6 @@ class GloFasAPINotebookInterface(GloFasAPI):
         #     # If the selected GloFAS product is not recognized, clear the glofas_stack
         #     self.glofas_stack.children = ()
 
-    def download_glofas_data(self, bbox, params, index, distinct_values=None):
-        """
-        :param bbox: The bounding box of the area to download Glofas data for.
-        :param glofas_params: The parameters for downloading Glofas data.
-        :param index: The index of the Glofas data.
-        :param distinct_values: The distinct values for the Glofas data (optional).
-        :return: The file path of the downloaded Glofas data.
-        """
-
-        request_parameters = {
-            'glofas_product': params.get('glofas_product'),
-            'variable': 'river_discharge_in_the_last_24_hours',
-            'format': 'grib',
-            'system_version': params.get('system_version'),
-            'hydrological_model': params.get('hydrological_model'),
-            'product_type': params.get('product_type', 'ensemble_perturbed_forecasts'),
-            'year': params.get('year'),
-            'month': params.get('month'),
-            # Omit 'day' to use the default value or provide a specific day
-            'day': params.get('day', '01'),
-            'leadtime_hour': params.get('leadtime_hour'),
-            'area': [bbox['maxy'][0], bbox['minx'][0], bbox['miny'][0], bbox['maxx'][0]],
-            'folder_location': params.get('folder_location'),
-        }
-
-        # Construct file name based on the parameters
-        file_name = f"{params['glofas_product']}_{'userdefined' if distinct_values is None else '_'.join(str(value) for value in distinct_values)}_{index}_{params.get('year')}_{params.get('month')}_{request_parameters.get('day', '01')}.grib"
-
-        # Download data and return the file path
-        return self.download_data(params['glofas_product'], request_parameters, file_name)
 
     def gather_parameters(self, glofas_product: str):
         """

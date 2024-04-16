@@ -11,7 +11,22 @@ from rasterio.merge import merge
 from shapely.geometry import shape, Polygon, MultiPolygon, LineString, Point
 from rasterio.mask import mask as rasterio_mask
 from shapely.wkt import loads as from_wkt
+import sys
 
+def suppress_external_warnings(func):
+    def wrapper(*args, **kwargs):
+        # Redirect stderr to null
+        stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+
+        # Execute the function
+        result = func(*args, **kwargs)
+
+        # Restore stderr
+        sys.stderr = stderr
+        return result
+
+    return wrapper
 
 def mosaic_images(file_names, output_filename='mosaic.tif'):
     """
@@ -172,6 +187,7 @@ def inspect_grib_file(file_path: str):
     except Exception as e:
         print(f"An overall error occurred: {e}")
 
+@suppress_external_warnings
 def clip_raster(file_path, geometry, ee_instance=None):
     """
     Clips a raster file based on a specified geometry.
@@ -182,7 +198,6 @@ def clip_raster(file_path, geometry, ee_instance=None):
     :return: The file path of the clipped raster file.
     """
     if file_path.endswith('.grib'):
-        # Placeholder for actual inspection logic
         print("GRIB file detected. Ensure appropriate handling is implemented.")
 
     # Convert Earth Engine geometry to shapely geometry if applicable
