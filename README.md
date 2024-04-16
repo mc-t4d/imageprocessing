@@ -87,10 +87,11 @@ Create a Local Directory for Data: On your host machine, create a directory wher
 Run the Container: Use the following command to run your Docker container, replacing [image-name] with the name of your built image, and [path-to-local-data-dir] with the path to the directory you created:
 
 
-    docker run -p 8888:8888 -v [path-to-local-data-dir]:/usr/src/app/data [image-name]
+    docker run -e DECRYPTION_KEY=[decryption key provided by T4D]-p 8888:8888 -v [path-to-local-data-dir]:/usr/src/app/data [image-name]
 
 -p 8888:8888 maps port 8888 of the container to port 8888 of your host machine, allowing you to access the Jupyter Notebook server.
 -v [path-to-local-data-dir]:/usr/src/app/data mounts the local directory to the /usr/src/app/data directory in the container, creating a shared storage space.
+-e is the encryption key provided by T4D to decrypt the configuration file. The configuration file contains all of the necessary Mercy Corps tokens and api keys required for this application.
 
 **Connecting to the Jupyter Notebook Server**
 
