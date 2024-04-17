@@ -19,7 +19,11 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
+
+current_dir = os.path.dirname(__file__) 
+parent_dir = os.path.dirname(current_dir)
+
+sys.path.insert(0, os.path.abspath('../mcimageprocessing/programmatic/'))
 
 import mcimageprocessing
 
@@ -31,7 +35,11 @@ import mcimageprocessing
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode']
+extensions = extensions = [
+    'sphinx.ext.autodoc', 
+    'sphinx.ext.viewcode', 
+    'sphinx.ext.napoleon'
+    ]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -47,7 +55,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'mcimageprocessing'
-copyright = "2023, Nicholas Dowhaniuk"
+copyright = "2024, Mercy Corps"
 author = "Nicholas Dowhaniuk"
 
 # The version info for the project you're documenting, acts as replacement
@@ -56,6 +64,7 @@ author = "Nicholas Dowhaniuk"
 #
 # The short X.Y version.
 version = mcimageprocessing.__version__
+# version = '00.01.00'
 # The full version, including alpha/beta/rc tags.
 release = mcimageprocessing.__version__
 
@@ -64,12 +73,21 @@ release = mcimageprocessing.__version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+#language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+# Mock imports allow the documentation to build without satisfying a full build
+# of the package
+
+autodoc_mock_imports = ['ee','geemap', 'ipyfilechooser', 'cdsapi', 'geopandas', 
+                        'ipywidgets', 'pydantic', 'yaml', 'numpy', 'geojson', 
+                        'shapely', 'branca', 'pandas', 'ipyleaflet', 'rasterio',
+                        'localtileserver', 'bs4', 'matplotlib', 'osgeo', 'IPython',
+                        'pyproj', 'pygrib', 'mcimageprocessing']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -83,7 +101,7 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the

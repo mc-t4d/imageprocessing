@@ -45,18 +45,19 @@ A configuration file is required to run the package. A sample config file is loc
 client email: The service account email address
 private_key: The private key provided in the service account credential file provided by Google.
 
-Please visit [this website](https://code.earthengine.google.com/register) to register for a free Google Earth Engine account and [this page](https://developers.google.com/earth-engine/guides/service_account) for help on creating a service account, email, and key.
+Login info is provided with the package download, but if you would like to create your own account, please visit [this website](https://code.earthengine.google.com/register) to register for a free Google Earth Engine account and [this page](https://developers.google.com/earth-engine/guides/service_account) for help on creating a service account, email, and key.
 
 **For GloFas, the following parameters are required:**
 url: The GloFas API URL associated with the account you created
 key: The API key associated with the account you created
 
-Sign up for a GloFAS account [here](https://cds.climate.copernicus.eu/user/register?destination=%2F%23!%2Fhome).  For your CDS url and API key, log in to your account and go to [this page](https://cds.climate.copernicus.eu/api-how-to), following the instructions for "Linux users" (as the container is a Linux image). You should see your url and key populate on the right-hand side.
+The API url and key are provided with the package download, but if you would like to have your own credentials, sign up for a GloFAS account [here](https://cds.climate.copernicus.eu/user/register?destination=%2F%23!%2Fhome).  For your CDS url and API key, log in to your account and go to [this page](https://cds.climate.copernicus.eu/api-how-to), following the instructions for "Linux users" (as the container is a Linux image). You should see your url and key populate on the right-hand side.
 
 **For Modis NRT Flood Data, the following parameters are required:**
 token: The token provided by NASA for accessing the API associated with your account.
 
-Sign up for an EarthData account [here](https://urs.earthdata.nasa.gov/users/new) and upon login, go to 'My Profile' > 'Generate Token' to get your token.  The token lasts 2 months so will need to be updated periodically.
+The API key is included with the package download, but if you would like to have your own credentials, sign up for an EarthData account [here](https://urs.earthdata.nasa.gov/users/new)
+and upon login, go to 'My Profile' > 'Generate Token' to get your token. The token lasts 2 months so will need to be updated periodically.
 
 ### Using Docker
 --------
@@ -132,16 +133,18 @@ Alternatively, download the source code as a ZIP file and extract it to a direct
 
 2. **Navigate to the Package Directory**
 
-Change to the directory containing the `setup.py` file. This file contains the package metadata and dependencies needed for installation. Run the following command in your terminal:
+Make sure you are in the directory containing the `setup.py` file this should be in the base folder of the cloned repo. 
+This file contains the package metadata and dependencies needed for installation. 
+Run the following command in your terminal if you are not already in the base folder:
 
-    cd mcimageprocessing
+    cd imageprocessing
 
 
 3. **Install the Package**
 
 Use `pip` to install the package. Run the following command to install the package along with its dependencies:
 
-    pip install
+    pip install .
 
 
 If you prefer to install the package in "editable" mode (useful for development purposes), where changes to the source code will immediately affect the installed package, use the following command:
@@ -166,9 +169,9 @@ In order to decrypt the configuration file, you will need to ensure openssl is i
 
 then run the following command to decrypt the configuration file:
 
-    linux: openssl enc -aes-256-cbc -d -in config/config.enc -out config/config.yaml -k [decryption key provided by T4D]
-    mac: openssl enc -aes-256-cbc -d -in config/config.enc -out config/config.yaml -k [decryption key provided by T4D]
-    windows: openssl enc -aes-256-cbc -d -in config/config.enc -out config/config.yaml -k [decryption key provided by T4D]
+    linux: openssl enc -aes-256-cbc -d -in mcimageprocessing/config/config.enc -out mcimageprocessing/config/config.yaml -k [decryption key provided by T4D]
+    mac: openssl enc -aes-256-cbc -d -in mcimageprocessing/config/config.enc -out mcimageprocessing/config/config.yaml -k [decryption key provided by T4D]
+    windows: openssl enc -aes-256-cbc -d -in mcimageprocessing/config/config.enc -out mcimageprocessing/config/config.yaml -k [decryption key provided by T4D]
 
 This will create a _config.yaml_ file in the _config_ directory that you can use to store your API keys, pre-populated with the keys provided by T4D.
 
