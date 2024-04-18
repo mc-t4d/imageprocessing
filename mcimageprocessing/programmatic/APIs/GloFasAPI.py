@@ -571,7 +571,14 @@ class GloFasAPINotebookInterface(GloFasAPI):
 
             if params['create_sub_folder']:
                 # Create a sub-folder
+                folder_path = params['folder_location']
                 params['folder_location'] = self._create_sub_folder(params['folder_location'])
+
+                try:
+                    os.rename(os.path.join(folder_path, 'geometry.geojson'),
+                              os.path.join(params['folder_location'], 'geometry.geojson'))
+                except PermissionError:
+                    pass
 
 
 

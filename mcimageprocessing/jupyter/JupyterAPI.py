@@ -1171,7 +1171,10 @@ class JupyterAPI(geemap.Map):
 
         with self.out:
             try:
-                selected_path = self.modis_nrt_class.filechooser.selected
+                if self.dropdown_api.value == 'modis_nrt':
+                    selected_path = self.modis_nrt_class.filechooser.selected
+                else:
+                    selected_path = self.glofas_class.filechooser.selected
             except Exception as e:
                 pass
             geometries = self.ee_instance.determine_geometries_to_process(layer=self.layer, column=self.column,
