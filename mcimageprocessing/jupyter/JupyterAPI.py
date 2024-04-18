@@ -1172,9 +1172,8 @@ class JupyterAPI(geemap.Map):
         with self.out:
             try:
                 selected_path = self.modis_nrt_class.filechooser.selected
-                print("Selected path:", selected_path)
             except Exception as e:
-                print('No MODIS NRT options available!')
+                pass
             geometries = self.ee_instance.determine_geometries_to_process(layer=self.layer, column=self.column,
                                                                           dropdown_api=self.dropdown_api.value,
                                                                           boundary_type=self.boundary_type.value,
