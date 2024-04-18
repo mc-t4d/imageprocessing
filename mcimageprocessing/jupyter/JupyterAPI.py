@@ -1170,12 +1170,18 @@ class JupyterAPI(geemap.Map):
         }
 
         with self.out:
+            try:
+                selected_path = self.modis_nrt_class.filechooser.selected
+                print("Selected path:", selected_path)
+            except Exception as e:
+                print('No MODIS NRT options available!')
             geometries = self.ee_instance.determine_geometries_to_process(layer=self.layer, column=self.column,
                                                                           dropdown_api=self.dropdown_api.value,
                                                                           boundary_type=self.boundary_type.value,
                                                                           draw_features=self.draw_features,
                                                                           userlayers=self.userlayers,
-                                                                          boundary_layer=self.dropdown.value)
+                                                                          boundary_layer=self.dropdown.value,
+                                                                          output_folder_location=selected_path)
             for index, (geometry, distinct_values) in enumerate(geometries):
                 api_handler = api_handlers.get(self.dropdown_api.value)
                 if api_handler:

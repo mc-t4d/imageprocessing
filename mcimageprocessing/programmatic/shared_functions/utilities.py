@@ -74,6 +74,7 @@ def process_and_clip_raster(file_path, geometry, params=None, ee_instance=None):
         'palette': 'viridis',
         'nodata': no_data_val
     }
+
     if params['clip_to_geometry']:
         raster_path = clip_raster(file_path, geometry, ee_instance)
         return raster_path
@@ -220,6 +221,7 @@ def clip_raster(file_path, geometry, ee_instance=None):
     with rasterio.open(file_path) as src:
         # Create a GeoDataFrame to handle the geometry
         gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs="EPSG:4326")
+
         gdf = gdf.to_crs(src.crs)  # Reproject geometry to match raster CRS
 
         # Clip the raster using the mask

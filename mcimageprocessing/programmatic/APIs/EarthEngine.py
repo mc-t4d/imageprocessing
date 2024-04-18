@@ -645,7 +645,8 @@ class EarthEngineManager(BaseModel):
                 for poly in geom['coordinates']:
                     all_geometries.append(poly)
 
-    def download_feature_geometry(self, distinct_values, feature_type_prefix=None, column=None, layer=None, dropdown_api=None):
+    def download_feature_geometry(self, distinct_values, feature_type_prefix=None, column=None, layer=None,
+                                  dropdown_api=None, output_folder_location=None):
         """
         :param distinct_values: A list of distinct values used to filter the features.
         :param feature_type_prefix: Optional prefix for the feature type.
@@ -697,7 +698,8 @@ class EarthEngineManager(BaseModel):
 
         if feature and dropdown_api in ['glofas', 'modis_nrt']:
             geometry = feature.geometry().getInfo()
-            with open('geometry.geojson', "w") as file:
+            geom_location = 'geometry.geojson' if output_folder_location is None else os.path.join(output_folder_location, 'geometry.geojson')
+            with open(geom_location, "w") as file:
                 json.dump(geometry, file)
             return geometry
         else:
@@ -771,7 +773,8 @@ class EarthEngineManager(BaseModel):
             return geometry
 
     def determine_geometries_to_process(self, override_boundary_type=None, layer=None, column=None, dropdown_api=None,
-                                        boundary_type=None, draw_features=None, userlayers=None, boundary_layer=None):
+                                        boundary_type=None, draw_features=None, userlayers=None, boundary_layer=None,
+                                        output_folder_location=None):
         """
         :param override_boundary_type: (optional) Type of boundary to override the default boundary type.
         :type override_boundary_type: str
@@ -802,7 +805,8 @@ class EarthEngineManager(BaseModel):
                 if boundary_type == 'Predefined Boundaries':
                     distinct_values = self.process_drawn_features([feature], layer=layer, column=column)
                     feature = self.download_feature_geometry(distinct_values, feature_type_prefix=boundary_layer.split('_')[0],
-                                                             column=column, layer=layer, dropdown_api=dropdown_api)
+                                                             column=column, layer=layer, dropdown_api=dropdown_api,
+                                                             output_folder_location=output_folder_location)
 
                 else:  # User Defined
                     distinct_values = None
