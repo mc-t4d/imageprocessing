@@ -1,5 +1,5 @@
 Welcome to mcimageprocessing's documentation!
-=============================================
+======================================
 
 .. toctree::
    :maxdepth: 2

@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APIs.ModisNRT &mdash; mcimageprocessing 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            mcimageprocessing
+          </a>
+              <div class="version">
+                0.1.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../authors.html">Credits</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../history.html">History</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">mcimageprocessing</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">APIs.ModisNRT</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for APIs.ModisNRT</h1><div class="highlight"><pre>
+<span></span><span class="c1"># ==============================================================================</span>
+<span class="c1"># IMPORTS</span>
+<span class="c1"># ==============================================================================</span>
+
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
+<span class="kn">from</span> <span class="nn">pyproj</span> <span class="kn">import</span> <span class="n">Transformer</span>
+
+<span class="kn">import</span> <span class="nn">ee</span>
+<span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
+<span class="kn">import</span> <span class="nn">ipyfilechooser</span> <span class="k">as</span> <span class="nn">fc</span>
+<span class="kn">import</span> <span class="nn">ipywidgets</span> <span class="k">as</span> <span class="nn">widgets</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">rasterio</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">bs4</span> <span class="kn">import</span> <span class="n">BeautifulSoup</span>
+<span class="kn">from</span> <span class="nn">osgeo</span> <span class="kn">import</span> <span class="n">gdal</span>
+<span class="kn">from</span> <span class="nn">pyproj</span> <span class="kn">import</span> <span class="n">CRS</span>
+<span class="kn">from</span> <span class="nn">rasterio.features</span> <span class="kn">import</span> <span class="n">shapes</span>
+<span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="kn">import</span> <span class="n">Point</span>
+<span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="kn">import</span> <span class="n">shape</span>
+<span class="kn">from</span> <span class="nn">shapely.geometry.base</span> <span class="kn">import</span> <span class="n">BaseGeometry</span>
+<span class="kn">import</span> <span class="nn">shapely</span>
+
+<span class="kn">from</span> <span class="nn">mcimageprocessing</span> <span class="kn">import</span> <span class="n">config_manager</span>
+<span class="kn">from</span> <span class="nn">mcimageprocessing.programmatic.APIs.EarthEngine</span> <span class="kn">import</span> <span class="n">EarthEngineManager</span>
+<span class="kn">from</span> <span class="nn">mcimageprocessing.programmatic.APIs.GPWv4</span> <span class="kn">import</span> <span class="n">GPWv4</span>
+<span class="kn">from</span> <span class="nn">mcimageprocessing.programmatic.APIs.WorldPop</span> <span class="kn">import</span> <span class="n">WorldPop</span>
+<span class="kn">from</span> <span class="nn">mcimageprocessing.programmatic.shared_functions.utilities</span> <span class="kn">import</span> <span class="n">process_and_clip_raster</span><span class="p">,</span> <span class="n">generate_bbox</span>
+
+
+<span class="c1"># ==============================================================================</span>
+<span class="c1"># CONFIGURATION</span>
+<span class="c1"># ==============================================================================</span>
+<span class="n">population_source_options</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;WorldPop&#39;</span><span class="p">,</span> <span class="s1">&#39;GPWv4&#39;</span><span class="p">]</span>
+<span class="n">nrt_band_options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Water Counts 1-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="s1">&#39;Water Counts CS 1-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="s1">&#39;Valid Counts 1-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+                    <span class="s1">&#39;Valid Counts CS 1-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+                    <span class="s1">&#39;Flood 1-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+                    <span class="s1">&#39;Flood 1-Day CS 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+                    <span class="s1">&#39;Water Counts 2-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span>
+                    <span class="s1">&#39;Valid Counts 2-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span>
+                    <span class="s1">&#39;Flood 2-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+                    <span class="s1">&#39;Water Counts 3-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">9</span><span class="p">,</span>
+                    <span class="s1">&#39;Valid Counts 3-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+                    <span class="s1">&#39;Flood 3-Day 250m Grid_Water_Composite&#39;</span><span class="p">:</span> <span class="mi">11</span><span class="p">}</span>
+<span class="n">modis_proj</span> <span class="o">=</span> <span class="n">CRS</span><span class="p">(</span><span class="s2">&quot;+proj=sinu +R=6371007.181 +nadgrids=@null +wktext&quot;</span><span class="p">)</span>
+<span class="n">modis_tile_size</span> <span class="o">=</span> <span class="mf">1111950.5196666667</span>  <span class="c1"># MODIS sinusoidal tile size in meters</span>
+<span class="n">modis_nrt_api_root_url</span> <span class="o">=</span> <span class="s1">&#39;https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/archives/allData/61/MCDWD_L3_NRT&#39;</span>
+<span class="n">date_type_options</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Single Date&#39;</span><span class="p">,</span> <span class="s1">&#39;Date Range&#39;</span><span class="p">,</span> <span class="s1">&#39;All Available Images&#39;</span><span class="p">]</span>
+<span class="n">population_source_variables</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Residential Population&#39;</span><span class="p">,</span> <span class="s2">&quot;Age and Sex Structures&quot;</span><span class="p">]</span>
+<span class="n">population_source_year_options</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span> <span class="mi">2021</span><span class="p">)]</span>
+
+<div class="viewcode-block" id="ModisNRT">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT">[docs]</a>
+<span class="k">class</span> <span class="nc">ModisNRT</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :class: ModisNRT</span>
+<span class="sd">    This class provides functions to interact with the MODIS NRT (Near Real-Time) data.</span>
+
+<span class="sd">    Initialization Parameters:</span>
+<span class="sd">        None</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        modis_tile_size (float): MODIS sinusoidal tile size in meters.</span>
+<span class="sd">        modis_download_token (str): Token for MODIS NRT download.</span>
+<span class="sd">        modis_nrt_api_root_url (str): Root URL for MODIS NRT API.</span>
+<span class="sd">        headers (dict): Headers for API requests.</span>
+<span class="sd">        nrt_band_options (dict): Dictionary mapping MODIS band names to their index values.</span>
+
+<span class="sd">    Methods:</span>
+<span class="sd">        calculate_modis_tile_index(x, y)</span>
+<span class="sd">            Calculate MODIS tile indices for given sinusoidal coordinates.</span>
+
+<span class="sd">        get_modis_tile(geometry)</span>
+<span class="sd">            Calculate which MODIS tiles a given geometry falls into.</span>
+
+<span class="sd">        get_modis_nrt_file_list(tiles, modis_nrt_params)</span>
+<span class="sd">            Get a list of MODIS NRT files for the given tiles.</span>
+
+<span class="sd">        process_hdf_file(hdf_file, subdataset_index, tif_list=None)</span>
+<span class="sd">            Process an HDF file and convert it to a GeoTIFF.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">population_source_options</span><span class="o">=</span><span class="n">population_source_options</span>
+    <span class="n">nrt_band_options</span> <span class="o">=</span> <span class="n">nrt_band_options</span>
+    <span class="n">modis_proj</span> <span class="o">=</span> <span class="n">modis_proj</span>
+    <span class="n">modis_tile_size</span> <span class="o">=</span> <span class="n">modis_tile_size</span>
+    <span class="n">modis_nrt_api_root_url</span> <span class="o">=</span> <span class="n">modis_nrt_api_root_url</span>
+    <span class="n">date_type_options</span> <span class="o">=</span> <span class="n">date_type_options</span>
+    <span class="n">population_source_variables</span><span class="o">=</span> <span class="n">population_source_variables</span>
+    <span class="n">population_source_year_options</span><span class="o">=</span><span class="n">population_source_year_options</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ee_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EarthEngineManager</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the object.</span>
+
+<span class="sd">        :param ee_manager: Optional parameter of type EarthEngineManager. An instance of the EarthEngineManager class. If not provided, a new instance will be created.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">modis_download_token</span> <span class="o">=</span> <span class="n">config_manager</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;KEYS&#39;</span><span class="p">][</span><span class="s1">&#39;MODIS_NRT&#39;</span><span class="p">][</span><span class="s1">&#39;token&#39;</span><span class="p">]</span>  <span class="c1"># Token for MODIS NRT download</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;Bearer </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_download_token</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">}</span>  <span class="c1"># Token for MODIS NRT download</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span> <span class="o">=</span> <span class="n">ee_manager</span> <span class="k">if</span> <span class="n">ee_manager</span> <span class="k">else</span> <span class="n">EarthEngineManager</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_instance</span> <span class="o">=</span> <span class="n">WorldPop</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_instance</span> <span class="o">=</span> <span class="n">GPWv4</span><span class="p">()</span>
+
+    <span class="c1"># ==============================================================================</span>
+    <span class="c1"># PRIMARY FUNCTIONS</span>
+    <span class="c1"># ==============================================================================</span>
+
+<div class="viewcode-block" id="ModisNRT.download_and_process_files">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.download_and_process_files">[docs]</a>
+    <span class="k">def</span> <span class="nf">download_and_process_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">matching_files</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">modis_nrt_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="p">(</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Download and process the given files.</span>
+
+<span class="sd">        :param matching_files: List of files to be downloaded and processed.</span>
+<span class="sd">        :param modis_nrt_params: Dictionary containing modis nrt parameters.</span>
+<span class="sd">        :type matching_files: List[str]</span>
+<span class="sd">        :type modis_nrt_params: Dict[str, Any]</span>
+<span class="sd">        :return: Tuple containing lists of hdf files to process and tif files.</span>
+<span class="sd">        :rtype: Tuple[List[str], List[str]]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">hdf_files_to_process</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">tif_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">matching_files</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">download_and_process_modis_nrt</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">modis_nrt_params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="n">hdf_files_to_process</span><span class="p">,</span> <span class="n">subdataset</span><span class="o">=</span><span class="n">modis_nrt_params</span><span class="p">[</span><span class="s1">&#39;nrt_band&#39;</span><span class="p">],</span> <span class="n">tif_list</span><span class="o">=</span><span class="n">tif_list</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">hdf_files_to_process</span><span class="p">,</span> <span class="n">tif_list</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.calculate_population_in_flood_area">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.calculate_population_in_flood_area">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_population_in_flood_area</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">raster_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">year</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">population_data_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                                           <span class="n">population_data_source</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">folder_output</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">raster_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+            <span class="n">band</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Read the first band</span>
+
+        <span class="c1"># Create a mask where the pixel value is 3</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">band</span> <span class="o">==</span> <span class="mi">3</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">mask</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s1">&#39;No flood area detected&#39;</span>
+
+        <span class="c1"># Vectorize the mask</span>
+        <span class="n">mask_shapes</span> <span class="o">=</span> <span class="n">shapes</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">)</span>
+
+        <span class="c1"># Create geometries and their associated raster values</span>
+        <span class="n">geometries</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">raster_values</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">geom</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">mask_shapes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="mf">3.0</span><span class="p">:</span>
+                <span class="n">geometries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">shape</span><span class="p">(</span><span class="n">geom</span><span class="p">))</span>
+                <span class="n">raster_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># Create a GeoDataFrame with geometry and raster value columns</span>
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">({</span><span class="s1">&#39;geometry&#39;</span><span class="p">:</span> <span class="n">geometries</span><span class="p">,</span> <span class="s1">&#39;raster_value&#39;</span><span class="p">:</span> <span class="n">raster_values</span><span class="p">})</span>
+
+        <span class="c1"># Set the CRS from the raster</span>
+        <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">folder_output</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">output_path</span> <span class="o">=</span> <span class="n">raster_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.tif&#39;</span><span class="p">,</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;modis_nrt_merged&#39;</span><span class="p">,</span> <span class="s1">&#39;flood_area&#39;</span><span class="p">)</span>
+
+        <span class="n">gdf</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s1">&#39;GeoJSON&#39;</span><span class="p">)</span>
+
+        <span class="n">ee_geometries</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shapely_to_ee</span><span class="p">)</span>
+
+        <span class="n">multi_geom</span> <span class="o">=</span> <span class="n">ee</span><span class="o">.</span><span class="n">Geometry</span><span class="o">.</span><span class="n">MultiPolygon</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">ee_geometries</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">population_data_type</span> <span class="o">==</span> <span class="s1">&#39;WorldPop&#39;</span><span class="p">:</span>
+
+            <span class="n">worldpop</span> <span class="o">=</span> <span class="n">WorldPop</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">population_data_source</span> <span class="o">==</span> <span class="s1">&#39;Residential Population&#39;</span><span class="p">:</span>
+
+                <span class="n">worldpop_params</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;api_source&#39;</span><span class="p">:</span> <span class="n">population_data_type</span><span class="p">,</span>
+                    <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="n">year</span><span class="p">,</span>
+                    <span class="s1">&#39;datatype&#39;</span><span class="p">:</span> <span class="n">population_data_source</span><span class="p">,</span>
+                    <span class="s1">&#39;statistics_only&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                    <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                    <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                    <span class="s1">&#39;folder_output&#39;</span><span class="p">:</span> <span class="n">folder_output</span><span class="p">,</span>
+                    <span class="s1">&#39;band&#39;</span><span class="p">:</span> <span class="s1">&#39;population&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;flood_pop_calc&#39;</span><span class="p">:</span> <span class="kc">True</span>
+                <span class="p">}</span>
+
+
+                <span class="n">image</span><span class="p">,</span> <span class="n">folder_path</span> <span class="o">=</span> <span class="n">worldpop</span><span class="o">.</span><span class="n">process_api</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="n">multi_geom</span><span class="p">,</span> <span class="n">distinct_values</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                             <span class="n">params</span><span class="o">=</span><span class="n">worldpop_params</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+                <span class="k">return</span> <span class="nb">round</span><span class="p">(</span><span class="n">image</span><span class="p">[</span><span class="s2">&quot;population&quot;</span><span class="p">])</span>
+
+
+                <span class="c1"># return f&#39;Population impacted: {&quot;{:,}&quot;.format(round(image[&quot;population&quot;]))}&#39;</span>
+
+                <span class="c1"># return f&#39;Population impacted: {image}&#39;</span>
+
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">worldpop_params</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;api_source&#39;</span><span class="p">:</span> <span class="n">population_data_type</span><span class="p">,</span>
+                    <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="n">year</span><span class="p">,</span>
+                    <span class="s1">&#39;datatype&#39;</span><span class="p">:</span> <span class="n">population_data_source</span><span class="p">,</span>
+                    <span class="s1">&#39;statistics_only&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                    <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                    <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                    <span class="s1">&#39;folder_output&#39;</span><span class="p">:</span> <span class="n">folder_output</span><span class="p">,</span>
+                    <span class="s1">&#39;flood_pop_calc&#39;</span><span class="p">:</span> <span class="kc">True</span>
+                <span class="p">}</span>
+
+                <span class="n">image</span><span class="p">,</span> <span class="n">folder_path</span> <span class="o">=</span> <span class="n">worldpop</span><span class="o">.</span><span class="n">process_api</span><span class="p">(</span><span class="n">multi_geom</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">worldpop_params</span><span class="p">)</span>
+
+                <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;Population impacted: </span><span class="si">{</span><span class="n">image</span><span class="si">}</span><span class="s1">&#39;</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">gpwv4</span> <span class="o">=</span> <span class="n">GPWv4</span><span class="p">()</span>
+
+            <span class="n">band</span> <span class="o">=</span> <span class="s1">&#39;population_count&#39;</span> <span class="k">if</span> <span class="n">population_data_source</span> <span class="o">==</span> <span class="s1">&#39;CIESIN/GPWv411/GPW_Population_Count&#39;</span> <span class="k">else</span> <span class="s1">&#39;unwpp-adjusted_population_count&#39;</span>
+            <span class="n">gpwv4_params</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="n">year</span><span class="p">,</span>
+                <span class="s1">&#39;datatype&#39;</span><span class="p">:</span> <span class="n">population_data_source</span><span class="p">,</span>
+                <span class="s1">&#39;band&#39;</span><span class="p">:</span> <span class="n">band</span><span class="p">,</span>
+                <span class="s1">&#39;statistics_only&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="s1">&#39;folder_output&#39;</span><span class="p">:</span> <span class="n">folder_output</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="n">image</span><span class="p">,</span> <span class="n">folder_path</span> <span class="o">=</span> <span class="n">gpwv4</span><span class="o">.</span><span class="n">process_api</span><span class="p">(</span><span class="n">multi_geom</span><span class="p">,</span> <span class="n">distinct_values</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">gpwv4_params</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="nb">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image_sum</span><span class="p">(</span><span class="n">img</span><span class="o">=</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">multi_geom</span><span class="p">,</span> <span class="n">band</span><span class="o">=</span><span class="n">band</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">927.67</span><span class="p">))</span></div>
+
+
+    <span class="c1"># ==============================================================================</span>
+    <span class="c1"># HELPER FUNCTIONS</span>
+    <span class="c1"># ==============================================================================</span>
+
+<div class="viewcode-block" id="ModisNRT.calculate_modis_tile_index">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.calculate_modis_tile_index">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_modis_tile_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the MODIS tile index for the given coordinates.</span>
+
+<span class="sd">        :param x: The X-coordinate of the location.</span>
+<span class="sd">        :param y: The Y-coordinate of the location.</span>
+<span class="sd">        :return: A tuple containing the horizontal and vertical indices of the MODIS tile.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">x</span> <span class="o">+</span> <span class="mf">20015109.354</span><span class="p">)</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_tile_size</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="mf">10007554.677</span> <span class="o">-</span> <span class="n">y</span><span class="p">)</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_tile_size</span><span class="p">)</span>  <span class="c1"># Adjust for Northern Hemisphere</span>
+        <span class="k">return</span> <span class="n">h</span><span class="p">,</span> <span class="n">v</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.get_modis_tile">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.get_modis_tile">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_modis_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Point</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]:</span>
+        <span class="n">transformer</span> <span class="o">=</span> <span class="n">Transformer</span><span class="o">.</span><span class="n">from_crs</span><span class="p">(</span><span class="s2">&quot;epsg:4326&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_proj</span><span class="p">,</span> <span class="n">always_xy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">tiles_covered</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">Point</span><span class="p">):</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">transformer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">geometry</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">geometry</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
+            <span class="n">tiles_covered</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">calculate_modis_tile_index</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">corner</span> <span class="ow">in</span> <span class="p">[(</span><span class="n">geometry</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">geometry</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="p">(</span><span class="n">geometry</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">geometry</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span>
+                           <span class="p">(</span><span class="n">geometry</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">geometry</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="p">(</span><span class="n">geometry</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">geometry</span><span class="p">[</span><span class="mi">3</span><span class="p">])]:</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">transformer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">corner</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">corner</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">tiles_covered</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">calculate_modis_tile_index</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+            <span class="n">bbox</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># Assuming you want to process the first row</span>
+            <span class="k">for</span> <span class="n">corner</span> <span class="ow">in</span> <span class="p">[(</span><span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;minx&#39;</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;miny&#39;</span><span class="p">]),</span> <span class="p">(</span><span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;minx&#39;</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;maxy&#39;</span><span class="p">]),</span>
+                           <span class="p">(</span><span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;maxx&#39;</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;miny&#39;</span><span class="p">]),</span> <span class="p">(</span><span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;maxx&#39;</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;maxy&#39;</span><span class="p">])]:</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">transformer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">corner</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">corner</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">tiles_covered</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">calculate_modis_tile_index</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">&quot;Input must be a Shapely Point, a bounding box list [minx, miny, maxx, maxy], or a DataFrame with bbox columns.&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">tiles_covered</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.get_modis_nrt_file_list">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.get_modis_nrt_file_list">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_modis_nrt_file_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]],</span> <span class="n">modis_nrt_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">])</span> <span class="o">-&gt;</span> \
+    <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param tiles: List of tuples representing the tiles (integer values for h and v)</span>
+<span class="sd">        :param modis_nrt_params: Dictionary containing the necessary parameters for Modis NRT (date)</span>
+<span class="sd">        :return: List of matching file URLs</span>
+
+<span class="sd">        This method takes in a list of tiles and Modis NRT parameters and returns a list of file URLs that match the specified criteria. It loops through each tile, constructs the base URL folder</span>
+<span class="sd">        *, and generates a file pattern based on the year, day of year, and tile coordinates. It then sends a request to the base URL folder and parses the HTML content using BeautifulSoup.</span>
+<span class="sd">        * It finds all the links in the HTML content and checks if they match the file pattern. If a link matches the pattern, it is added to the list of matching files. Finally, the method</span>
+<span class="sd">        * prints a message and returns the list of matching file URLs.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">matching_files</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">:</span>
+            <span class="n">h</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tile</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tile</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">year</span> <span class="o">=</span> <span class="n">modis_nrt_params</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">year</span>
+            <span class="n">doy</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">modis_nrt_params</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">timetuple</span><span class="p">()</span><span class="o">.</span><span class="n">tm_yday</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">base_url_folder</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_api_root_url</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">year</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">doy</span><span class="si">}</span><span class="s2">/&quot;</span>
+            <span class="n">file_pattern</span> <span class="o">=</span> <span class="sa">rf</span><span class="s2">&quot;MCDWD_L3_NRT\.A</span><span class="si">{</span><span class="n">year</span><span class="si">}{</span><span class="n">doy</span><span class="si">}</span><span class="s2">\.h</span><span class="si">{</span><span class="n">h</span><span class="si">}</span><span class="s2">v</span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">\.061\.\d+\.hdf&quot;</span>
+
+            <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">base_url_folder</span><span class="p">)</span>
+            <span class="n">html_content</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">text</span>
+
+            <span class="n">soup</span> <span class="o">=</span> <span class="n">BeautifulSoup</span><span class="p">(</span><span class="n">html_content</span><span class="p">,</span> <span class="s1">&#39;html.parser&#39;</span><span class="p">)</span>
+
+            <span class="n">links</span> <span class="o">=</span> <span class="n">soup</span><span class="o">.</span><span class="n">find_all</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Check if the request was successful</span>
+            <span class="k">for</span> <span class="n">link</span> <span class="ow">in</span> <span class="n">links</span><span class="p">:</span>
+                <span class="n">href</span> <span class="o">=</span> <span class="n">link</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;href&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">file_pattern</span><span class="p">,</span> <span class="n">href</span><span class="p">):</span>
+                    <span class="n">matching_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">href</span><span class="p">)</span>
+
+
+        <span class="k">return</span> <span class="n">matching_files</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.process_hdf_file">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.process_hdf_file">[docs]</a>
+    <span class="k">def</span> <span class="nf">process_hdf_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hdf_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">subdataset_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">tif_list</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process HDF file and convert the selected subdataset to GeoTIFF format.</span>
+
+<span class="sd">        :param hdf_file: Path to the HDF file.</span>
+<span class="sd">        :param subdataset_index: Index of the subdataset to be converted.</span>
+<span class="sd">        :param tif_list: Optional list to store the paths of the converted GeoTIFF files.</span>
+<span class="sd">        :return: None</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">hdf_dataset</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">hdf_file</span><span class="p">,</span> <span class="n">gdal</span><span class="o">.</span><span class="n">GA_ReadOnly</span><span class="p">)</span>
+        <span class="n">subdatasets</span> <span class="o">=</span> <span class="n">hdf_dataset</span><span class="o">.</span><span class="n">GetSubDatasets</span><span class="p">()</span>
+
+        <span class="c1"># Select a subdataset</span>
+        <span class="n">subdataset</span> <span class="o">=</span> <span class="n">subdatasets</span><span class="p">[</span><span class="n">subdataset_index</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Open the subdataset</span>
+        <span class="n">ds</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">subdataset</span><span class="p">,</span> <span class="n">gdal</span><span class="o">.</span><span class="n">GA_ReadOnly</span><span class="p">)</span>
+
+        <span class="c1"># Define output path for the GeoTIFF</span>
+        <span class="n">output_tiff</span> <span class="o">=</span> <span class="n">hdf_file</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.hdf&#39;</span><span class="p">,</span> <span class="s1">&#39;.tif&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Convert to GeoTIFF</span>
+        <span class="n">gdal</span><span class="o">.</span><span class="n">Translate</span><span class="p">(</span><span class="n">output_tiff</span><span class="p">,</span> <span class="n">ds</span><span class="p">)</span>
+
+        <span class="c1"># Close the dataset</span>
+        <span class="n">ds</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">tif_list</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">tif_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output_tiff</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ModisNRT.merge_tifs">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.merge_tifs">[docs]</a>
+    <span class="k">def</span> <span class="nf">merge_tifs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tif_list</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">output_tif</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Merge a list of GeoTIFF files into a single GeoTIFF.</span>
+
+<span class="sd">        :param tif_list: A list of GeoTIFF files to merge.</span>
+<span class="sd">        :param output_tif: The path to the output GeoTIFF file.</span>
+<span class="sd">        :return: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">gdal</span><span class="o">.</span><span class="n">Warp</span><span class="p">(</span><span class="n">output_tif</span><span class="p">,</span> <span class="n">tif_list</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.download_and_process_modis_nrt">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.download_and_process_modis_nrt">[docs]</a>
+    <span class="k">def</span> <span class="nf">download_and_process_modis_nrt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">folder_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">hdf_files_to_process</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+                                       <span class="n">subdataset</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">tif_list</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">headers</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">downloaded_files</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="c1"># Ensure the folder_path ends with a slash</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">folder_path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+                <span class="n">folder_path</span> <span class="o">+=</span> <span class="s1">&#39;/&#39;</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">folder_path</span><span class="si">}{</span><span class="n">url</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>  <span class="c1"># Corrected the path</span>
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">iter_content</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">8192</span><span class="p">):</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+
+            <span class="n">downloaded_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+            <span class="n">subdataset_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nrt_band_options</span><span class="p">[</span><span class="n">subdataset</span><span class="p">]</span>
+
+
+            <span class="k">for</span> <span class="n">hdf_file</span> <span class="ow">in</span> <span class="n">downloaded_files</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">process_hdf_file</span><span class="p">(</span><span class="n">hdf_file</span><span class="p">,</span> <span class="n">subdataset_index</span><span class="p">,</span> <span class="n">tif_list</span><span class="o">=</span><span class="n">tif_list</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.get_modis_nrt_dates">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.get_modis_nrt_dates">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_modis_nrt_dates</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">]:</span>
+        <span class="n">years</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_api_root_url</span><span class="si">}</span><span class="s1">?fields=all&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="n">html_content</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">text</span>
+            <span class="n">soup</span> <span class="o">=</span> <span class="n">BeautifulSoup</span><span class="p">(</span><span class="n">html_content</span><span class="p">,</span> <span class="s1">&#39;html.parser&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">soup</span><span class="o">.</span><span class="n">find_all</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">):</span>
+                <span class="n">year_text</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">text</span>  <span class="c1"># Extract the text, which is the year</span>
+                <span class="k">if</span> <span class="n">year_text</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>  <span class="c1"># Ensure that the extracted text is a year</span>
+                    <span class="n">years</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">year_text</span><span class="p">)</span>
+
+        <span class="n">dates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">year</span> <span class="ow">in</span> <span class="n">years</span><span class="p">:</span>
+            <span class="n">date_response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_api_root_url</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">year</span><span class="si">}</span><span class="s1">?fields=all&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">date_response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+                <span class="n">html_content</span> <span class="o">=</span> <span class="n">date_response</span><span class="o">.</span><span class="n">text</span>
+                <span class="n">soup</span> <span class="o">=</span> <span class="n">BeautifulSoup</span><span class="p">(</span><span class="n">html_content</span><span class="p">,</span> <span class="s1">&#39;html.parser&#39;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">soup</span><span class="o">.</span><span class="n">find_all</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">):</span>
+                    <span class="n">date_text</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">text</span>  <span class="c1"># Extract the text, which should be the day of the year</span>
+                    <span class="k">if</span> <span class="n">date_text</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>  <span class="c1"># Ensure that the extracted text is a day of the year</span>
+                        <span class="n">date_string</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">year</span><span class="si">}{</span><span class="n">date_text</span><span class="si">}</span><span class="s1">&#39;</span>
+                        <span class="n">dates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_to_date</span><span class="p">(</span><span class="n">date_string</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">dates</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.convert_to_date">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.convert_to_date">[docs]</a>
+    <span class="k">def</span> <span class="nf">convert_to_date</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">date_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Converts a date string to a datetime object.</span>
+
+<span class="sd">        :param date_string: The date string in the format &quot;YYYYDDD&quot;, where YYYY is the year and DDD is the day of the year.</span>
+<span class="sd">        :return: The converted datetime object representing the given date.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; convert_to_date(&quot;2020121&quot;)</span>
+<span class="sd">            datetime.datetime(2020, 5, 1)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Extract the year and the day of the year from the string</span>
+        <span class="n">year</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">date_string</span><span class="p">[:</span><span class="mi">4</span><span class="p">])</span>
+        <span class="n">day_of_year</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">date_string</span><span class="p">[</span><span class="mi">4</span><span class="p">:])</span>
+
+        <span class="c1"># Calculate the date by adding the day of the year to the start of the year</span>
+        <span class="n">date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">day_of_year</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">date</span></div>
+
+
+
+
+
+<div class="viewcode-block" id="ModisNRT.shapely_to_ee">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.shapely_to_ee">[docs]</a>
+    <span class="k">def</span> <span class="nf">shapely_to_ee</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">BaseGeometry</span><span class="p">,</span> <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;EPSG:4326&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ee</span><span class="o">.</span><span class="n">Geometry</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param geometry: The Shapely geometry object to be converted to Earth Engine Geometry.</span>
+<span class="sd">        :type geometry: shapely.geometry.base.BaseGeometry</span>
+
+<span class="sd">        :param crs: The Coordinate Reference System (CRS) of the input geometry. Defaults to &#39;EPSG:4326&#39;.</span>
+<span class="sd">        :type crs: str</span>
+
+<span class="sd">        :return: The Earth Engine Geometry object created from the input Shapely geometry.</span>
+<span class="sd">        :rtype: ee.Geometry</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">geojson</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">([</span><span class="n">geometry</span><span class="p">])</span><span class="o">.</span><span class="n">set_crs</span><span class="p">(</span><span class="n">crs</span><span class="p">)</span><span class="o">.</span><span class="n">to_json</span><span class="p">()</span>
+        <span class="n">geojson_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">geojson</span><span class="p">)</span>
+        <span class="n">ee_geometry</span> <span class="o">=</span> <span class="n">ee</span><span class="o">.</span><span class="n">Geometry</span><span class="p">(</span><span class="n">geojson_dict</span><span class="p">[</span><span class="s1">&#39;features&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;geometry&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">ee_geometry</span></div>
+
+
+
+<div class="viewcode-block" id="ModisNRT.get_tiles">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.get_tiles">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bbox</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the tiles for the given bounding box.</span>
+
+<span class="sd">        :param bbox: The bounding box.</span>
+<span class="sd">        :type bbox: Any</span>
+<span class="sd">        :return: The list of tiles.</span>
+<span class="sd">        :rtype: List[Any]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tiles</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_modis_tile</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tiles</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.find_matching_files">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.find_matching_files">[docs]</a>
+    <span class="k">def</span> <span class="nf">find_matching_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">modis_nrt_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Find matching files based on the given tiles and MODIS NRT parameters.</span>
+
+<span class="sd">        :param tiles: A list of tiles.</span>
+<span class="sd">        :type tiles: List[Any]</span>
+
+<span class="sd">        :param modis_nrt_params: A dictionary of MODIS NRT parameters.</span>
+<span class="sd">        :type modis_nrt_params: Dict[str, Any]</span>
+
+<span class="sd">        :return: A list of matching file names.</span>
+<span class="sd">        :rtype: List[str]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_modis_nrt_file_list</span><span class="p">(</span><span class="n">tiles</span><span class="p">,</span> <span class="n">modis_nrt_params</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ModisNRT.cleanup_files">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.cleanup_files">[docs]</a>
+    <span class="k">def</span> <span class="nf">cleanup_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tif_list</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">hdf_files_to_process</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">modis_nrt_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Removes files from the given lists if `keep_individual_tiles` parameter is False.</span>
+
+<span class="sd">        :param tif_list: A list of TIFF file paths.</span>
+<span class="sd">        :param hdf_files_to_process: A list of HDF file paths.</span>
+<span class="sd">        :param modis_nrt_params: A dictionary of MODIS NRT parameters.</span>
+<span class="sd">            - &#39;keep_individual_tiles&#39;: A boolean indicating whether to keep individual tiles or not.</span>
+
+<span class="sd">        :return: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">modis_nrt_params</span><span class="p">[</span><span class="s1">&#39;keep_individual_tiles&#39;</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">tif_list</span> <span class="o">+</span> <span class="n">hdf_files_to_process</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="ModisNRT.merge_files">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRT.merge_files">[docs]</a>
+    <span class="k">def</span> <span class="nf">merge_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tif_list</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">folder</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Merge the given list of TIFF files into a single merged file.</span>
+
+<span class="sd">        :param tif_list: List of paths to TIFF files to be merged.</span>
+<span class="sd">        :param folder: Folder where the merged file will be saved.</span>
+<span class="sd">        :return: Path to the merged TIFF file.</span>
+
+<span class="sd">        Example Usage:</span>
+<span class="sd">            tif_list = [&#39;file1.tif&#39;, &#39;file2.tif&#39;, &#39;file3.tif&#39;]</span>
+<span class="sd">            folder = &#39;/path/to/folder&#39;</span>
+<span class="sd">            merged_file = merge_files(tif_list, folder)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">merged_output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="s1">&#39;modis_nrt_merged.tif&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">merge_tifs</span><span class="p">(</span><span class="n">tif_list</span><span class="p">,</span> <span class="n">merged_output</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">merged_output</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ModisNRTNotebookInterface">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRTNotebookInterface">[docs]</a>
+<span class="k">class</span> <span class="nc">ModisNRTNotebookInterface</span><span class="p">(</span><span class="n">ModisNRT</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ee_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EarthEngineManager</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the class.</span>
+
+<span class="sd">        :param ee_manager: An instance of the EarthEngineManager class. If not provided,</span>
+<span class="sd">                           a new instance will be created.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">ee_manager</span><span class="p">)</span>  <span class="c1"># Initialize the base WorldPop class</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Output</span><span class="p">()</span>  <span class="c1"># For displaying logs, errors, etc.</span>
+        <span class="c1"># Initialize widgets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_widgets_for_modis_nrt</span><span class="p">()</span>
+
+<div class="viewcode-block" id="ModisNRTNotebookInterface.on_single_or_date_range_change_modis_nrt">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRTNotebookInterface.on_single_or_date_range_change_modis_nrt">[docs]</a>
+    <span class="k">def</span> <span class="nf">on_single_or_date_range_change_modis_nrt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">change</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Handle the change event for the single or date range dropdown in the MODIS NRT widget.</span>
+
+<span class="sd">        :param change: The change event.</span>
+<span class="sd">        :type change: dict</span>
+
+<span class="sd">        :return: The value of the single or date range dropdown.</span>
+<span class="sd">        :rtype: any</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">single_or_date_range_value</span> <span class="o">=</span> <span class="n">change</span><span class="p">[</span><span class="s1">&#39;new&#39;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">single_or_date_range_value</span> <span class="o">==</span> <span class="s1">&#39;Single Date&#39;</span><span class="p">:</span>
+            <span class="c1"># Create the DatePicker widget with constraints</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">date_picker_modis_nrt</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="p">[(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">year</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">month</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">day</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_available_dates</span><span class="p">],</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Select Date:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_date_vbox</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">date_picker_modis_nrt</span><span class="p">]</span>
+
+        <span class="k">elif</span> <span class="n">single_or_date_range_value</span> <span class="o">==</span> <span class="s1">&#39;Date Range&#39;</span><span class="p">:</span>
+            <span class="c1"># Create the DatePicker widgets with constraints</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">date_picker_modis_nrt</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">HBox</span><span class="p">([</span>
+                <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                    <span class="n">options</span><span class="o">=</span><span class="p">[(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">year</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">month</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">day</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_available_dates</span><span class="p">],</span>
+                    <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Select Start Date:&#39;</span><span class="p">,</span>
+                    <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="p">),</span>
+
+                <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                    <span class="n">options</span><span class="o">=</span><span class="p">[(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">year</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">month</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">day</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_available_dates</span><span class="p">],</span>
+                    <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Select End Date:&#39;</span><span class="p">,</span>
+                    <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="p">),])</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_date_vbox</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">date_picker_modis_nrt</span><span class="p">]</span>
+
+        <span class="k">elif</span> <span class="n">single_or_date_range_value</span> <span class="o">==</span> <span class="s1">&#39;All Available Images&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_date_vbox</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">return</span> <span class="n">single_or_date_range_value</span></div>
+
+
+<div class="viewcode-block" id="ModisNRTNotebookInterface.on_population_source_change">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRTNotebookInterface.on_population_source_change">[docs]</a>
+    <span class="k">def</span> <span class="nf">on_population_source_change</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">change</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param change: dictionary containing the new value of the population source</span>
+<span class="sd">        :return: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">new_population_source</span> <span class="o">=</span> <span class="n">change</span><span class="p">[</span><span class="s1">&#39;new&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Update population_source_variable and population_source_year based on the new_population_source</span>
+        <span class="k">if</span> <span class="n">new_population_source</span> <span class="o">==</span> <span class="s1">&#39;WorldPop&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source_variable</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_instance</span><span class="o">.</span><span class="n">data_type_options</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source_year</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_instance</span><span class="o">.</span><span class="n">year_options</span><span class="p">]</span>
+
+        <span class="k">elif</span> <span class="n">new_population_source</span> <span class="o">==</span> <span class="s1">&#39;GPWv4&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source_variable</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]:</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;layer&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_instance</span><span class="o">.</span><span class="n">data_type_options</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;Population Density&#39;</span><span class="p">}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source_year</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_instance</span><span class="o">.</span><span class="n">year_options</span><span class="p">]</span>
+
+        <span class="c1"># Ensure the value is set to one of the available options</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">population_source_variable</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source_variable</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">population_source_year</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source_year</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="ModisNRTNotebookInterface.get_modis_nrt_dates">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRTNotebookInterface.get_modis_nrt_dates">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_modis_nrt_dates</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieves the MODIS NRT dates from the NASA API.</span>
+
+<span class="sd">        :return: A list of datetime.date objects representing the MODIS NRT dates.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/61/MCDWD_L3_NRT?fields=all&amp;formats=json&#39;</span><span class="p">)</span>
+        <span class="n">json_response</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;content&#39;</span><span class="p">]</span>
+        <span class="n">years</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">json_response</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;Recent&#39;</span><span class="p">]</span>
+        <span class="n">dates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">year</span> <span class="ow">in</span> <span class="n">years</span><span class="p">:</span>
+            <span class="n">date_response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/61/MCDWD_L3_NRT/</span><span class="si">{</span><span class="n">year</span><span class="si">}</span><span class="s1">?fields=all&amp;formats=json&#39;</span><span class="p">)</span>
+            <span class="n">date_response_json</span> <span class="o">=</span> <span class="n">date_response</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;content&#39;</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">date</span> <span class="ow">in</span> <span class="n">date_response_json</span><span class="p">:</span>
+                <span class="n">dates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_to_date</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">year</span><span class="si">}{</span><span class="n">date</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">dates</span></div>
+
+
+<div class="viewcode-block" id="ModisNRTNotebookInterface.create_widgets_for_modis_nrt">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRTNotebookInterface.create_widgets_for_modis_nrt">[docs]</a>
+    <span class="k">def</span> <span class="nf">create_widgets_for_modis_nrt</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">widgets</span><span class="o">.</span><span class="n">Widget</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create widgets for MODIS NRT.</span>
+
+<span class="sd">        :return: A list of widgets.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_available_dates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_modis_nrt_dates</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">ToggleButtons</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">date_type_options</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">value</span><span class="o">=</span><span class="s1">&#39;Single Date&#39;</span><span class="p">,</span>
+                <span class="n">tooltips</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Single Date&#39;</span><span class="p">,</span> <span class="s1">&#39;Date Range&#39;</span><span class="p">,</span> <span class="s1">&#39;All Available Images&#39;</span><span class="p">],</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_band_selection</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">nrt_band_options</span><span class="o">.</span><span class="n">keys</span><span class="p">()],</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Band:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">value</span><span class="o">=</span><span class="s1">&#39;Flood 3-Day 250m Grid_Water_Composite&#39;</span><span class="p">,</span>
+                <span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;description_width&#39;</span><span class="p">:</span> <span class="s1">&#39;initial&#39;</span><span class="p">},</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_date_vbox</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">VBox</span><span class="p">([])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">on_single_or_date_range_change_modis_nrt</span><span class="p">({</span><span class="s1">&#39;new&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span><span class="o">.</span><span class="n">value</span><span class="p">})</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span><span class="o">.</span><span class="n">observe</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">change</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">on_single_or_date_range_change_modis_nrt</span><span class="p">(</span><span class="n">change</span><span class="p">),</span>
+                <span class="n">names</span><span class="o">=</span><span class="s1">&#39;value&#39;</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">calculate_population</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span>
+                <span class="n">value</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Calculate Population in Flood Area: &#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">indent</span><span class="o">=</span><span class="kc">False</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">population_source_options</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Population Source:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">value</span><span class="o">=</span><span class="s1">&#39;WorldPop&#39;</span><span class="p">,</span>
+                <span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;description_width&#39;</span><span class="p">:</span> <span class="s1">&#39;initial&#39;</span><span class="p">},</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source_variable</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">population_source_variables</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Population Variable:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">value</span><span class="o">=</span><span class="s1">&#39;Residential Population&#39;</span><span class="p">,</span>
+                <span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;description_width&#39;</span><span class="p">:</span> <span class="s1">&#39;initial&#39;</span><span class="p">},</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source_year</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">population_source_year_options</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Population Year:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">value</span><span class="o">=</span><span class="mi">2020</span><span class="p">,</span>
+                <span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;description_width&#39;</span><span class="p">:</span> <span class="s1">&#39;initial&#39;</span><span class="p">},</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source_grid</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Accordion</span><span class="p">([</span><span class="n">widgets</span><span class="o">.</span><span class="n">TwoByTwoLayout</span><span class="p">(</span>
+                <span class="n">top_left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">calculate_population</span><span class="p">,</span>
+                <span class="n">top_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">population_source</span><span class="p">,</span>
+                <span class="n">bottom_left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">population_source_variable</span><span class="p">,</span>
+                <span class="n">bottom_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">population_source_year</span>
+            <span class="p">)])</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source_grid</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;Population Options&#39;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Add Image to Map&#39;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Create Sub-folder&#39;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">FileChooser</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="n">show_only_dirs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">clip_to_geometry</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span>
+                <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Clip Image to Geometry Bounds&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">indent</span><span class="o">=</span><span class="kc">False</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">keep_individual_tiles</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span>
+                <span class="n">value</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Keep Individual Tiles&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">indent</span><span class="o">=</span><span class="kc">False</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">end_of_vbox_items</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Accordion</span><span class="p">([</span><span class="n">widgets</span><span class="o">.</span><span class="n">TwoByTwoLayout</span><span class="p">(</span>
+                <span class="n">top_left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span><span class="p">,</span>
+                <span class="n">top_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">clip_to_geometry</span><span class="p">,</span>
+                <span class="n">bottom_left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">keep_individual_tiles</span><span class="p">,</span>
+                <span class="n">bottom_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span>
+            <span class="p">)])</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">end_of_vbox_items</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;Options&#39;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_source</span><span class="o">.</span><span class="n">observe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">on_population_source_change</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="s1">&#39;value&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Return a list of widgets</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_band_selection</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_date_vbox</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source_grid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_of_vbox_items</span><span class="p">]</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_create_sub_folder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_folder</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new subfolder within the given base folder with a timestamp.</span>
+
+<span class="sd">        :param base_folder: The path of the base folder where the subfolder will be created.</span>
+<span class="sd">        :return: The path of the newly created subfolder or the base folder if creation fails.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">timestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">_%H%M%S&quot;</span><span class="p">)</span>
+        <span class="n">folder_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base_folder</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;modis_nrt_processed_on_</span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">folder_name</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">folder_name</span>
+        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create subfolder &#39;</span><span class="si">{</span><span class="n">folder_name</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">base_folder</span>
+
+<div class="viewcode-block" id="ModisNRTNotebookInterface.process_api">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRTNotebookInterface.process_api">[docs]</a>
+    <span class="k">def</span> <span class="nf">process_api</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">bbox</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process API method to perform specific operations.</span>
+
+<span class="sd">        :param geometry: The geometry for the operation.</span>
+<span class="sd">        :param distinct_values: The distinct values for the operation.</span>
+<span class="sd">        :param index: The index value for the operation.</span>
+<span class="sd">        :param bbox: The bounding box for the operation.</span>
+<span class="sd">        :param params: The optional parameters for the operation.</span>
+<span class="sd">        :return: The path of the processed file.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;create_sub_folder&#39;</span><span class="p">):</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_sub_folder</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_path&#39;</span><span class="p">])</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_path&#39;</span><span class="p">],</span> <span class="s1">&#39;geometry.geojson&#39;</span><span class="p">),</span>
+                          <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="s1">&#39;geometry.geojson&#39;</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">PermissionError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+
+        <span class="n">params_file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="s1">&#39;parameters.json&#39;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">params_file_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">params_for_dump</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">params_for_dump</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+                    <span class="n">params_for_dump</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">params_for_dump</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;calculate_population&#39;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">population_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">tiles</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_modis_tile</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span><span class="o">.</span><span class="n">value</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;Date Range&#39;</span><span class="p">,</span> <span class="s1">&#39;All Available Images&#39;</span><span class="p">]:</span>
+            <span class="n">start_date</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;start_date&#39;</span><span class="p">]</span>
+            <span class="n">end_date</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;end_date&#39;</span><span class="p">]</span>
+
+            <span class="n">current_date</span> <span class="o">=</span> <span class="n">start_date</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">start_date</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+                <span class="n">start_date</span> <span class="o">=</span> <span class="n">start_date</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">end_date</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+                <span class="n">end_date</span> <span class="o">=</span> <span class="n">end_date</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">current_date</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+                <span class="n">current_date</span> <span class="o">=</span> <span class="n">current_date</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+
+            <span class="k">while</span> <span class="n">current_date</span> <span class="o">&lt;=</span> <span class="n">end_date</span><span class="p">:</span>
+                <span class="c1"># Process your current_date</span>
+                <span class="n">params</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">current_date</span>
+                <span class="n">matching_files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_modis_nrt_file_list</span><span class="p">(</span><span class="n">tiles</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">matching_files</span> <span class="o">==</span> <span class="p">[]:</span>
+                    <span class="n">current_date</span> <span class="o">+=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No matching files found for this date. Please try again later after new imagery available.&#39;</span><span class="p">)</span>
+                    <span class="k">continue</span>
+                <span class="n">hdf_files_to_process</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">tif_list</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">year</span> <span class="o">=</span> <span class="n">current_date</span><span class="o">.</span><span class="n">year</span>
+                <span class="n">doy</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">current_date</span><span class="o">.</span><span class="n">timetuple</span><span class="p">()</span><span class="o">.</span><span class="n">tm_yday</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="k">for</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">matching_files</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">download_and_process_modis_nrt</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="n">hdf_files_to_process</span><span class="p">,</span>
+                                                        <span class="n">subdataset</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_band_selection</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                                                        <span class="n">tif_list</span><span class="o">=</span><span class="n">tif_list</span><span class="p">)</span>
+                    <span class="n">start</span> <span class="o">+=</span> <span class="mi">1</span>
+
+
+                <span class="n">merged_output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;modis_nrt_merged_</span><span class="si">{</span><span class="n">year</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">doy</span><span class="si">}</span><span class="s2">.tif&quot;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">merge_tifs</span><span class="p">(</span><span class="n">tif_list</span><span class="p">,</span> <span class="n">merged_output</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">tif_list</span> <span class="o">+</span> <span class="n">hdf_files_to_process</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;keep_individual_tiles&#39;</span><span class="p">]:</span>
+                        <span class="k">pass</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+                        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                            <span class="k">pass</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">process_and_clip_raster</span><span class="p">(</span><span class="n">merged_output</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">clipped_output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;modis_nrt_merged_</span><span class="si">{</span><span class="n">year</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">doy</span><span class="si">}</span><span class="s2">_clipped.tif&quot;</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;calculate_population&#39;</span><span class="p">]:</span>
+                    <span class="k">try</span><span class="p">:</span>
+
+                        <span class="n">pop_impacted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculate_population_in_flood_area</span><span class="p">(</span><span class="n">clipped_output</span><span class="p">,</span>
+                                                                               <span class="n">params</span><span class="p">[</span><span class="s1">&#39;population_year&#39;</span><span class="p">],</span>
+                                                                               <span class="n">params</span><span class="p">[</span><span class="s1">&#39;population_data_type&#39;</span><span class="p">],</span>
+                                                                               <span class="n">params</span><span class="p">[</span><span class="s1">&#39;population_type&#39;</span><span class="p">],</span>
+                                                                               <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_path&#39;</span><span class="p">])</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Population Impacted: </span><span class="si">{</span><span class="n">pop_impacted</span><span class="si">:</span><span class="s1">,</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">population_dict</span><span class="p">[</span><span class="n">current_date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">pop_impacted</span>
+                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Move to the next day</span>
+                <span class="n">current_date</span> <span class="o">+=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s1">&#39;Finding matching files...&#39;</span><span class="p">)</span>
+
+            <span class="n">matching_files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_modis_nrt_file_list</span><span class="p">(</span><span class="n">tiles</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+
+            <span class="n">current_date</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">]</span>
+
+            <span class="n">year</span> <span class="o">=</span> <span class="n">current_date</span><span class="o">.</span><span class="n">year</span>
+            <span class="n">doy</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">current_date</span><span class="o">.</span><span class="n">timetuple</span><span class="p">()</span><span class="o">.</span><span class="n">tm_yday</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">&quot;</span>
+
+            <span class="n">hdf_files_to_process</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">tif_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">start</span><span class="o">=</span><span class="mi">1</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s1">&#39;Downloading and processing files...&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">matching_files</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">download_and_process_modis_nrt</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="n">hdf_files_to_process</span><span class="p">,</span> <span class="n">subdataset</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_band_selection</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">tif_list</span><span class="o">=</span><span class="n">tif_list</span><span class="p">)</span>
+                <span class="n">start</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s1">&#39;Merging and clipping files...&#39;</span><span class="p">)</span>
+            <span class="n">merged_output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;modis_nrt_merged_</span><span class="si">{</span><span class="n">year</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">doy</span><span class="si">}</span><span class="s2">.tif&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">merge_tifs</span><span class="p">(</span><span class="n">tif_list</span><span class="p">,</span> <span class="n">merged_output</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">tif_list</span> <span class="o">+</span> <span class="n">hdf_files_to_process</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;keep_individual_tiles&#39;</span><span class="p">]:</span>
+                    <span class="k">pass</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                        <span class="k">pass</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">process_and_clip_raster</span><span class="p">(</span><span class="n">merged_output</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">clipped_output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;modis_nrt_merged_</span><span class="si">{</span><span class="n">year</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">doy</span><span class="si">}</span><span class="s2">_clipped.tif&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;calculate_population&#39;</span><span class="p">]:</span>
+                <span class="k">try</span><span class="p">:</span>
+
+                    <span class="n">pop_impacted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculate_population_in_flood_area</span><span class="p">(</span><span class="n">clipped_output</span><span class="p">,</span>
+                                                                           <span class="n">params</span><span class="p">[</span><span class="s1">&#39;population_year&#39;</span><span class="p">],</span>
+                                                                           <span class="n">params</span><span class="p">[</span><span class="s1">&#39;population_data_type&#39;</span><span class="p">],</span>
+                                                                           <span class="n">params</span><span class="p">[</span><span class="s1">&#39;population_type&#39;</span><span class="p">],</span>
+                                                                           <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_path&#39;</span><span class="p">])</span>
+
+                    <span class="bp">self</span><span class="o">.</span><span class="n">population_dict</span><span class="p">[</span><span class="n">current_date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">pop_impacted</span>
+
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Population Impacted: </span><span class="si">{</span><span class="n">pop_impacted</span><span class="si">:</span><span class="s1">,</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Serialize the geometry to GeoJSON</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Geometry</span><span class="p">):</span>
+            <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>  <span class="c1"># If geometry is an Earth Engine object</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Feature</span><span class="p">):</span>
+            <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">FeatureCollection</span><span class="p">):</span>
+            <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">shapely</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">polygon</span><span class="o">.</span><span class="n">Polygon</span><span class="p">):</span>
+            <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">shapely</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">mapping</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span>  <span class="c1"># If geometry is already in GeoJSON format</span>
+
+        <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s1">&#39;Writing GeoJSON...&#39;</span><span class="p">)</span>
+        <span class="c1"># Define the GeoJSON filename</span>
+        <span class="n">geojson_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="s1">&#39;modis_nrt_geometry.geojson&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Write the GeoJSON to a file</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">geojson_filename</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">geojson_geometry</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;calculate_population&#39;</span><span class="p">]:</span>
+            <span class="n">pop_impacted_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="s1">&#39;population_impacted.json&#39;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">pop_impacted_filename</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">population_dict</span><span class="p">))</span>
+
+        <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s1">&#39;Process Complete!&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">clipped_output</span></div>
+
+
+
+<div class="viewcode-block" id="ModisNRTNotebookInterface.gather_parameters">
+<a class="viewcode-back" href="../../APIs.html#APIs.ModisNRT.ModisNRTNotebookInterface.gather_parameters">[docs]</a>
+    <span class="k">def</span> <span class="nf">gather_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: A dictionary containing the parameters for the method.</span>
+
+<span class="sd">        The dictionary will have the following keys and values:</span>
+<span class="sd">        - If `single_or_date_range_modis_nrt` is set to &#39;Single Date&#39;:</span>
+<span class="sd">            - &#39;date&#39;: The selected date from `date_picker_modis_nrt`</span>
+<span class="sd">            - &#39;multi_date&#39;: False</span>
+<span class="sd">            - &#39;folder_path&#39;: The selected folder path from `filechooser`</span>
+<span class="sd">            - &#39;create_sub_folder&#39;: The value of `create_sub_folder`</span>
+<span class="sd">            - &#39;clip_to_geometry&#39;: The value of `clip_to_geometry`</span>
+<span class="sd">            - &#39;keep_individual_tiles&#39;: The value of `keep_individual_tiles`</span>
+<span class="sd">            - &#39;add_image_to_map&#39;: The value of `add_image_to_map`</span>
+<span class="sd">            - &#39;calculate_population&#39;: The value of `calculate_population`</span>
+<span class="sd">            - &#39;nrt_band&#39;: The value of `modis_nrt_band_selection`</span>
+<span class="sd">            - &#39;population_year&#39;: The value of `population_source_year`</span>
+<span class="sd">            - &#39;population_type&#39;: The value of `population_source_variable`</span>
+<span class="sd">            - &#39;population_data_type&#39;: The value of `population_source`</span>
+<span class="sd">        - If `single_or_date_range_modis_nrt` is set to &#39;Date Range&#39;:</span>
+<span class="sd">            - &#39;start_date&#39;: The selected start date from `date_picker_modis_nrt`</span>
+<span class="sd">            - &#39;end_date&#39;: The selected end date from `date_picker_modis_nrt`</span>
+<span class="sd">            - &#39;multi_date&#39;: True</span>
+<span class="sd">            - &#39;folder_path&#39;: The selected folder path from `filechooser`</span>
+<span class="sd">            - &#39;create_sub_folder&#39;: The value of `create_sub_folder`</span>
+<span class="sd">            - &#39;clip_to_geometry&#39;: The value of `clip_to_geometry`</span>
+<span class="sd">            - &#39;keep_individual_tiles&#39;: The value of `keep_individual_tiles`</span>
+<span class="sd">            - &#39;add_image_to_map&#39;: The value of `add_image_to_map`</span>
+<span class="sd">            - &#39;calculate_population&#39;: The value of `calculate_population`</span>
+<span class="sd">            - &#39;nrt_band&#39;: The value of `modis_nrt_band_selection`</span>
+<span class="sd">            - &#39;population_year&#39;: The value of `population_source_year`</span>
+<span class="sd">            - &#39;population_type&#39;: The value of `population_source_variable`</span>
+<span class="sd">            - &#39;population_data_type&#39;: The value of `population_source`</span>
+<span class="sd">        - If `single_or_date_range_modis_nrt` is neither &#39;Single Date&#39; nor &#39;Date Range&#39;, returns None.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="s1">&#39;Single Date&#39;</span><span class="p">:</span>
+            <span class="n">date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_picker_modis_nrt</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;date&#39;</span><span class="p">:</span> <span class="n">date</span><span class="p">,</span>
+                <span class="s1">&#39;multi_date&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="s1">&#39;folder_path&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="o">.</span><span class="n">selected</span><span class="p">,</span>
+                <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;clip_to_geometry&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">clip_to_geometry</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;keep_individual_tiles&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">keep_individual_tiles</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;calculate_population&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculate_population</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;nrt_band&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_band_selection</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;population_year&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source_year</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;population_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source_variable</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;population_data_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source</span><span class="o">.</span><span class="n">value</span>
+            <span class="p">}</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span><span class="o">.</span><span class="n">value</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;Date Range&#39;</span><span class="p">,</span> <span class="s1">&#39;All Available Images&#39;</span><span class="p">]:</span>
+            <span class="n">start_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_picker_modis_nrt</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="s1">&#39;Date Range&#39;</span> <span class="k">else</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_available_dates</span><span class="p">)</span>
+            <span class="n">end_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_picker_modis_nrt</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">value</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range_modis_nrt</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="s1">&#39;Date Range&#39;</span> <span class="k">else</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_available_dates</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;start_date&#39;</span><span class="p">:</span> <span class="n">start_date</span><span class="p">,</span>
+                <span class="s1">&#39;end_date&#39;</span><span class="p">:</span> <span class="n">end_date</span><span class="p">,</span>
+                <span class="s1">&#39;multi_date&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="s1">&#39;folder_path&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="o">.</span><span class="n">selected</span><span class="p">,</span>
+                <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;clip_to_geometry&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">clip_to_geometry</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;keep_individual_tiles&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">keep_individual_tiles</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;calculate_population&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculate_population</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;nrt_band&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">modis_nrt_band_selection</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;population_year&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source_year</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;population_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source_variable</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="s1">&#39;population_data_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">population_source</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">pass</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Mercy Corps.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

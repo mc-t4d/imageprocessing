@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APIs.GloFasAPI &mdash; mcimageprocessing 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../_static/documentation_options.js?v=01f34227"></script>
+        <script src="../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            mcimageprocessing
+          </a>
+              <div class="version">
+                0.1.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../authors.html">Credits</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../history.html">History</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">mcimageprocessing</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">APIs.GloFasAPI</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for APIs.GloFasAPI</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span>
+<span class="kn">import</span> <span class="nn">ee</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">redirect_stdout</span>
+<span class="kn">import</span> <span class="nn">io</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">cdsapi</span>
+<span class="kn">import</span> <span class="nn">ipyfilechooser</span> <span class="k">as</span> <span class="nn">fc</span>
+<span class="kn">import</span> <span class="nn">ipywidgets</span> <span class="k">as</span> <span class="nn">widgets</span>
+<span class="kn">from</span> <span class="nn">ipywidgets</span> <span class="kn">import</span> <span class="n">DatePicker</span>
+<span class="kn">from</span> <span class="nn">ipywidgets</span> <span class="kn">import</span> <span class="n">VBox</span><span class="p">,</span> <span class="n">HBox</span>
+
+
+<span class="kn">from</span> <span class="nn">mcimageprocessing</span> <span class="kn">import</span> <span class="n">config_manager</span>
+<span class="kn">from</span> <span class="nn">mcimageprocessing.programmatic.APIs.EarthEngine</span> <span class="kn">import</span> <span class="n">EarthEngineManager</span>
+<span class="kn">from</span> <span class="nn">mcimageprocessing.programmatic.shared_functions.utilities</span> <span class="kn">import</span> <span class="n">process_and_clip_raster</span>
+
+<span class="kn">from</span> <span class="nn">osgeo</span> <span class="kn">import</span> <span class="n">gdal</span>
+
+<span class="c1"># Set error level to only report errors and ignore warnings - especially related to GloFas warnings regarding missing metadata for pygrib in the GRIB files natively from GloFas.</span>
+<span class="n">gdal</span><span class="o">.</span><span class="n">UseExceptions</span><span class="p">()</span>
+<span class="n">gdal</span><span class="o">.</span><span class="n">PushErrorHandler</span><span class="p">(</span><span class="s1">&#39;CPLQuietErrorHandler&#39;</span><span class="p">)</span>
+<span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="s1">&#39;CPL_LOG_ERRORS&#39;</span><span class="p">,</span> <span class="s1">&#39;OFF&#39;</span><span class="p">)</span>
+<span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="s1">&#39;CPL_LOG&#39;</span><span class="p">,</span> <span class="s1">&#39;OFF&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GloFasAPI">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPI">[docs]</a>
+<span class="k">class</span> <span class="nc">GloFasAPI</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ee_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EarthEngineManager</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+
+        <span class="c1"># ==============================================================================</span>
+        <span class="c1"># CONFIGURATION</span>
+        <span class="c1"># ==============================================================================</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span> <span class="o">=</span> <span class="n">ee_manager</span> <span class="k">if</span> <span class="n">ee_manager</span> <span class="k">else</span> <span class="n">EarthEngineManager</span><span class="p">()</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="n">config_manager</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;KEYS&#39;</span><span class="p">][</span><span class="s1">&#39;GloFas&#39;</span><span class="p">][</span><span class="s1">&#39;url&#39;</span><span class="p">]</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">config_manager</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;KEYS&#39;</span><span class="p">][</span><span class="s1">&#39;GloFas&#39;</span><span class="p">][</span><span class="s1">&#39;key&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">cdsapi</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;products&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;cems-glofas-seasonal&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;system_version&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;operational&#39;</span><span class="p">,</span> <span class="s1">&#39;version_3_1&#39;</span><span class="p">,</span> <span class="s1">&#39;version_2_2&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;lisflood&#39;</span><span class="p">],</span>
+                    <span class="s2">&quot;variable&quot;</span><span class="p">:</span> <span class="s2">&quot;river_discharge_in_the_last_24_hours&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;leadtime_hour&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">5161</span><span class="p">,</span> <span class="mi">24</span><span class="p">)),</span>
+                    <span class="s2">&quot;year&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2019</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span><span class="o">.</span><span class="n">year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)),</span>
+                    <span class="s2">&quot;month&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;01&quot;</span><span class="p">,</span> <span class="s2">&quot;02&quot;</span><span class="p">,</span> <span class="s2">&quot;03&quot;</span><span class="p">,</span> <span class="s2">&quot;04&quot;</span><span class="p">,</span> <span class="s2">&quot;05&quot;</span><span class="p">,</span> <span class="s2">&quot;06&quot;</span><span class="p">,</span> <span class="s2">&quot;07&quot;</span><span class="p">,</span> <span class="s2">&quot;08&quot;</span><span class="p">,</span> <span class="s2">&quot;09&quot;</span><span class="p">,</span> <span class="s2">&quot;10&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;11&quot;</span><span class="p">,</span> <span class="s2">&quot;12&quot;</span><span class="p">],</span>
+                    <span class="c1"># &quot;day&quot;: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],</span>
+                    <span class="c1"># &quot;area&quot;: [10.95, -90.95, -30.95, -29.95],</span>
+                    <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="s2">&quot;grib&quot;</span>
+                <span class="p">},</span>
+                <span class="s1">&#39;cems-glofas-forecast&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;system_version&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;operational&#39;</span><span class="p">,</span> <span class="s1">&#39;version_3_1&#39;</span><span class="p">,</span> <span class="s1">&#39;version_2_1&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;lisflood&#39;</span><span class="p">,</span> <span class="s1">&#39;htessel_lisflood&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;product_type&#39;</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="s1">&#39;control_forecast&#39;</span><span class="p">,</span> <span class="s1">&#39;ensemble_perturbed_forecasts&#39;</span><span class="p">,</span>
+                    <span class="p">],</span>
+                    <span class="s2">&quot;variable&quot;</span><span class="p">:</span> <span class="s2">&quot;river_discharge_in_the_last_24_hours&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;leadtime_hour&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">721</span><span class="p">,</span> <span class="mi">24</span><span class="p">)),</span>
+                    <span class="s2">&quot;year&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span><span class="o">.</span><span class="n">year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)),</span>
+                    <span class="s2">&quot;month&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;01&quot;</span><span class="p">,</span> <span class="s2">&quot;02&quot;</span><span class="p">,</span> <span class="s2">&quot;03&quot;</span><span class="p">,</span> <span class="s2">&quot;04&quot;</span><span class="p">,</span> <span class="s2">&quot;05&quot;</span><span class="p">,</span> <span class="s2">&quot;06&quot;</span><span class="p">,</span> <span class="s2">&quot;07&quot;</span><span class="p">,</span> <span class="s2">&quot;08&quot;</span><span class="p">,</span> <span class="s2">&quot;09&quot;</span><span class="p">,</span> <span class="s2">&quot;10&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;11&quot;</span><span class="p">,</span> <span class="s2">&quot;12&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;day&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">32</span><span class="p">)),</span>
+                    <span class="c1"># &quot;area&quot;: [10.95, -90.95, -30.95, -29.95],</span>
+                    <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="s2">&quot;grib&quot;</span>
+                <span class="p">},</span>
+                <span class="s1">&#39;cems-glofas-reforecast&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;system_version&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;version_4_0&#39;</span><span class="p">,</span> <span class="s1">&#39;version_3_1&#39;</span><span class="p">,</span> <span class="s1">&#39;version_2_2&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;lisflood&#39;</span><span class="p">,</span> <span class="s1">&#39;htessel_lisflood&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;product_type&#39;</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="s1">&#39;control_forecast&#39;</span><span class="p">,</span> <span class="s1">&#39;ensemble_perturbed_forecasts&#39;</span><span class="p">,</span>
+                    <span class="p">],</span>
+                    <span class="s2">&quot;leadtime_hour&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">1105</span><span class="p">,</span> <span class="mi">24</span><span class="p">)),</span>
+                    <span class="s2">&quot;year&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1999</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span><span class="o">.</span><span class="n">year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)),</span>
+                    <span class="s2">&quot;month&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;01&quot;</span><span class="p">,</span> <span class="s2">&quot;02&quot;</span><span class="p">,</span> <span class="s2">&quot;03&quot;</span><span class="p">,</span> <span class="s2">&quot;04&quot;</span><span class="p">,</span> <span class="s2">&quot;05&quot;</span><span class="p">,</span> <span class="s2">&quot;06&quot;</span><span class="p">,</span> <span class="s2">&quot;07&quot;</span><span class="p">,</span> <span class="s2">&quot;08&quot;</span><span class="p">,</span> <span class="s2">&quot;09&quot;</span><span class="p">,</span> <span class="s2">&quot;10&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;11&quot;</span><span class="p">,</span> <span class="s2">&quot;12&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;day&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">32</span><span class="p">)),</span>
+                    <span class="c1"># &quot;area&quot;: [10.95, -90.95, -30.95, -29.95],</span>
+                    <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="s2">&quot;grib&quot;</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;cdsapi&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">CRITICAL</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">&#39;.*Template .*&#39;</span><span class="p">)</span>
+
+    <span class="c1"># ==============================================================================</span>
+    <span class="c1"># PRIMARY FUNCTIONS</span>
+    <span class="c1"># ==============================================================================</span>
+
+<div class="viewcode-block" id="GloFasAPI.download_data">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPI.download_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">download_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">product_name</span><span class="p">,</span> <span class="n">request_parameters</span><span class="p">,</span> <span class="n">file_name</span><span class="p">):</span>
+        <span class="c1"># Construct the file path</span>
+        <span class="n">day</span> <span class="o">=</span> <span class="n">request_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;day&#39;</span><span class="p">,</span> <span class="s1">&#39;01&#39;</span><span class="p">)</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;folder_location&#39;</span><span class="p">],</span> <span class="n">file_name</span><span class="p">)</span>
+
+        <span class="n">f</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">()</span>
+        <span class="c1"># Call the CDS API</span>
+        <span class="k">with</span> <span class="n">redirect_stdout</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span>
+                <span class="n">product_name</span><span class="p">,</span>
+                <span class="p">{</span>
+                    <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;variable&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;format&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;system_version&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;system_version&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;hydrological_model&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;product_type&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;product_type&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;year&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;day&#39;</span><span class="p">:</span> <span class="n">day</span><span class="p">,</span>
+                    <span class="s1">&#39;month&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;month&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;leadtime_hour&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;leadtime_hour&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;area&#39;</span><span class="p">:</span> <span class="n">request_parameters</span><span class="p">[</span><span class="s1">&#39;area&#39;</span><span class="p">],</span>
+                <span class="p">},</span>
+                <span class="n">file_path</span>
+            <span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">file_path</span></div>
+
+
+<div class="viewcode-block" id="GloFasAPI.download_glofas_data">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPI.download_glofas_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">download_glofas_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bbox</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">distinct_values</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param bbox: The bounding box of the area to download Glofas data for.</span>
+<span class="sd">        :param glofas_params: The parameters for downloading Glofas data.</span>
+<span class="sd">        :param index: The index of the Glofas data.</span>
+<span class="sd">        :param distinct_values: The distinct values for the Glofas data (optional).</span>
+<span class="sd">        :return: The file path of the downloaded Glofas data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">request_parameters</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;glofas_product&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;glofas_product&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;variable&#39;</span><span class="p">:</span> <span class="s1">&#39;river_discharge_in_the_last_24_hours&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="s1">&#39;grib&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;system_version&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;system_version&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;hydrological_model&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;product_type&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;product_type&#39;</span><span class="p">,</span> <span class="s1">&#39;ensemble_perturbed_forecasts&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;year&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;month&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;month&#39;</span><span class="p">),</span>
+            <span class="c1"># Omit &#39;day&#39; to use the default value or provide a specific day</span>
+            <span class="s1">&#39;day&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;day&#39;</span><span class="p">,</span> <span class="s1">&#39;01&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;leadtime_hour&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;leadtime_hour&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;area&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;maxy&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;minx&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;miny&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="s1">&#39;maxx&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]],</span>
+            <span class="s1">&#39;folder_location&#39;</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;folder_location&#39;</span><span class="p">),</span>
+        <span class="p">}</span>
+
+        <span class="n">index</span> <span class="o">=</span> <span class="n">index</span> <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+
+        <span class="c1"># Construct file name based on the parameters</span>
+        <span class="n">file_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;glofas_product&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="s1">&#39;userdefined&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">distinct_values</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="kc">None</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">distinct_values</span><span class="p">)</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;year&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;month&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">request_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;day&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;01&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">.grib&quot;</span>
+
+        <span class="c1"># Download data and return the file path</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">download_data</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;glofas_product&#39;</span><span class="p">],</span> <span class="n">request_parameters</span><span class="p">,</span> <span class="n">file_name</span><span class="p">)</span></div>
+
+
+    <span class="c1"># ==============================================================================</span>
+    <span class="c1"># HELPER FUNCTIONS</span>
+    <span class="c1"># ==============================================================================</span>
+
+<div class="viewcode-block" id="GloFasAPI.no_data_helper_function">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPI.no_data_helper_function">[docs]</a>
+    <span class="k">def</span> <span class="nf">no_data_helper_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bbox</span><span class="p">,</span> <span class="n">glofas_params</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Helper function to handle &#39;no data available&#39; scenario by trying different combinations.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">system_version_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_params</span><span class="p">[</span><span class="s1">&#39;glofas_product&#39;</span><span class="p">]][</span><span class="s1">&#39;system_version&#39;</span><span class="p">]</span>
+        <span class="n">hydrological_model_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_params</span><span class="p">[</span><span class="s1">&#39;glofas_product&#39;</span><span class="p">]][</span><span class="s1">&#39;hydrological_model&#39;</span><span class="p">]</span>
+        <span class="n">product_type_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_params</span><span class="p">[</span><span class="s1">&#39;glofas_product&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;product_type&#39;</span><span class="p">,</span> <span class="p">[</span><span class="kc">None</span><span class="p">])</span>
+
+        <span class="n">all_combinations</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">system_version_list</span><span class="p">,</span> <span class="n">hydrological_model_list</span><span class="p">,</span> <span class="n">product_type_list</span><span class="p">))</span>
+
+        <span class="n">last_attempted_combination</span> <span class="o">=</span> <span class="p">(</span><span class="n">glofas_params</span><span class="p">[</span><span class="s1">&#39;system_version&#39;</span><span class="p">],</span> <span class="n">glofas_params</span><span class="p">[</span><span class="s1">&#39;hydrological_model&#39;</span><span class="p">],</span>
+                                      <span class="n">glofas_params</span><span class="p">[</span><span class="s1">&#39;product_type&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="n">glofas_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;product_type&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="n">all_combinations</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">last_attempted_combination</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">comb</span> <span class="ow">in</span> <span class="n">all_combinations</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">glofas_params</span><span class="p">[</span><span class="s1">&#39;system_version&#39;</span><span class="p">],</span> <span class="n">glofas_params</span><span class="p">[</span><span class="s1">&#39;hydrological_model&#39;</span><span class="p">],</span> <span class="n">glofas_params</span><span class="p">[</span>
+                    <span class="s1">&#39;product_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">comb</span>
+                <span class="n">file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">download_glofas_data</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">glofas_params</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">)</span>
+                <span class="n">processed_raster</span> <span class="o">=</span> <span class="n">process_and_clip_raster</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">glofas_params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">processed_raster</span><span class="p">:</span>  <span class="c1"># Check if processing was successful</span>
+                    <span class="k">return</span> <span class="n">processed_raster</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+                <span class="k">if</span> <span class="s2">&quot;no data is available within your requested subset&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+                    <span class="k">break</span>  <span class="c1"># Exit the loop if a different error occurs</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No suitable data could be found for any combination.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+    <span class="k">def</span> <span class="nf">_create_sub_folder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_folder</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new subfolder within the given base folder.</span>
+
+<span class="sd">        :param base_folder: The path of the base folder where the subfolder will be created.</span>
+<span class="sd">        :type base_folder: str</span>
+<span class="sd">        :return: The path of the newly created subfolder.</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">timestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">_%H%M%S&quot;</span><span class="p">)</span>  <span class="c1"># More readable timestamp</span>
+        <span class="n">folder_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base_folder</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;glofas_processed_on_</span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">folder_name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">folder_name</span>
+        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create subfolder: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">base_folder</span>
+
+
+<div class="viewcode-block" id="GloFasAPI.get_last_day_of_month">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPI.get_last_day_of_month">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_last_day_of_month</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">year</span><span class="p">,</span> <span class="n">month</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the last day of the given month and year.</span>
+
+<span class="sd">        :param year: The year</span>
+<span class="sd">        :param month: The month</span>
+<span class="sd">        :return: The date of the last day of the given month and year.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">next_month</span> <span class="o">=</span> <span class="n">month</span> <span class="o">%</span> <span class="mi">12</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">next_month_first_day</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="n">year</span> <span class="k">if</span> <span class="n">next_month</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">next_month</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">last_day_of_month</span> <span class="o">=</span> <span class="n">next_month_first_day</span> <span class="o">-</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">last_day_of_month</span></div>
+</div>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface">[docs]</a>
+<span class="k">class</span> <span class="nc">GloFasAPINotebookInterface</span><span class="p">(</span><span class="n">GloFasAPI</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ee_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EarthEngineManager</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">ee_manager</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Output</span><span class="p">()</span>  <span class="c1"># For displaying logs, errors, etc.</span>
+        <span class="c1"># Initialize widgets</span>
+
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">glofas_stack</span> <span class="o">=</span> <span class="n">VBox</span><span class="p">([])</span>
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.create_glofas_dropdown">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.create_glofas_dropdown">[docs]</a>
+    <span class="k">def</span> <span class="nf">create_glofas_dropdown</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dropdown_options</span><span class="p">,</span> <span class="n">description</span><span class="p">,</span> <span class="n">default_value</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates a dropdown widget for the GLOFAS application.</span>
+
+<span class="sd">        :param dropdown_options: A list of options for the dropdown.</span>
+<span class="sd">        :param description: The description label for the dropdown.</span>
+<span class="sd">        :param default_value: The default value for the dropdown.</span>
+<span class="sd">        :return: A Dropdown widget for the GLOFAS application.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dropdown</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+            <span class="n">options</span><span class="o">=</span><span class="n">dropdown_options</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="n">default_value</span><span class="p">,</span>  <span class="c1"># the default value</span>
+            <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">dropdown</span></div>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.create_widgets_for_glofas">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.create_widgets_for_glofas">[docs]</a>
+    <span class="k">def</span> <span class="nf">create_widgets_for_glofas</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">glofas_option</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create widgets specific to GloFas Data Type 2</span>
+
+<span class="sd">        :param glofas_option: The selected GloFas option</span>
+<span class="sd">        :return: A list of widgets specific to the selected GloFas option</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Create widgets specific to GloFas Data Type 2</span>
+        <span class="c1"># Example: A slider for selecting a range and a button</span>
+
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">system_version</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">ToggleButtons</span><span class="p">(</span>
+            <span class="n">options</span><span class="o">=</span><span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span>
+                     <span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;system_version&#39;</span><span class="p">]],</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;System Version:&#39;</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;system_version&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(),</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">hydrological_model</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">ToggleButtons</span><span class="p">(</span>
+            <span class="n">options</span><span class="o">=</span><span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span>
+                     <span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;hydrological_model&#39;</span><span class="p">]],</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Hydrological Model:&#39;</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;hydrological_model&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span>
+        <span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">product_type</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">ToggleButtons</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span>
+                         <span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;product_type&#39;</span><span class="p">]],</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Product Type:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;product_type&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(),</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">leadtime</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">IntSlider</span><span class="p">(</span>
+            <span class="n">value</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span>
+            <span class="nb">min</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;leadtime_hour&#39;</span><span class="p">]),</span>
+            <span class="nb">max</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;leadtime_hour&#39;</span><span class="p">]),</span>
+            <span class="n">step</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Lead Time:&#39;</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">orientation</span><span class="o">=</span><span class="s1">&#39;horizontal&#39;</span><span class="p">,</span>
+            <span class="n">readout</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">readout_format</span><span class="o">=</span><span class="s1">&#39;d&#39;</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">leadtime</span><span class="o">.</span><span class="n">layout</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="s1">&#39;auto&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">ToggleButtons</span><span class="p">(</span>
+            <span class="n">options</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Single Date&#39;</span><span class="p">],</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="s1">&#39;Single Date&#39;</span><span class="p">,</span>
+            <span class="n">tooltips</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Single Date&#39;</span><span class="p">],</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">glofas_date_vbox</span> <span class="o">=</span> <span class="n">VBox</span><span class="p">([])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">on_single_or_date_range_change</span><span class="p">({</span><span class="s1">&#39;new&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range</span><span class="o">.</span><span class="n">value</span><span class="p">},</span> <span class="n">glofas_option</span><span class="o">=</span><span class="n">glofas_option</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range</span><span class="o">.</span><span class="n">observe</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">change</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">on_single_or_date_range_change</span><span class="p">(</span><span class="n">change</span><span class="p">,</span> <span class="n">glofas_option</span><span class="o">=</span><span class="n">glofas_option</span><span class="p">),</span>
+            <span class="n">names</span><span class="o">=</span><span class="s1">&#39;value&#39;</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">no_data_helper_checklist</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s1">&#39;No-Data Helper Function&#39;</span><span class="p">,</span>
+                                                         <span class="n">tooltip</span><span class="o">=</span><span class="s2">&quot;Due to GloFas API framework, some versions and/or &quot;</span>
+                                                                 <span class="s2">&quot;models aren&#39;t available for certain dates. If enabled,&quot;</span>
+                                                                 <span class="s2">&quot;This will allow the program to automatically alter the version date and &quot;</span>
+                                                                 <span class="s2">&quot;hydrological model to find a matching dataset.&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">system_version</span><span class="o">.</span><span class="n">layout</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="s1">&#39;auto&#39;</span>
+        <span class="c1"># self.date_picker.layout.width = &#39;auto&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Add Image to Map&#39;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Create Sub-folder&#39;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clip_to_geometry</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span>
+            <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Clip Image to Geometry Bounds&#39;</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">indent</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">FileChooser</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="n">show_only_dirs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">glofas_end_of_vbox_items</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Accordion</span><span class="p">([</span>
+            <span class="n">widgets</span><span class="o">.</span><span class="n">TwoByTwoLayout</span><span class="p">(</span>
+                <span class="n">top_left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span><span class="p">,</span> <span class="n">top_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">no_data_helper_checklist</span><span class="p">,</span>
+                <span class="n">bottom_left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span><span class="p">,</span> <span class="n">bottom_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">clip_to_geometry</span>
+            <span class="p">)</span>
+        <span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">glofas_end_of_vbox_items</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;Options&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Return a list of widgets</span>
+        <span class="k">if</span> <span class="n">glofas_option</span> <span class="o">==</span> <span class="s1">&#39;cems-glofas-seasonal&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">system_version</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">hydrological_model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">leadtime</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">glofas_date_vbox</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">glofas_end_of_vbox_items</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">system_version</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">hydrological_model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_type</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">leadtime</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">glofas_date_vbox</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">glofas_end_of_vbox_items</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.get_available_dates">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.get_available_dates">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_available_dates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">glofas_option</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a list of available dates based on the selected GloFas option.&quot;&quot;&quot;</span>
+        <span class="n">min_year</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;year&#39;</span><span class="p">])</span>
+        <span class="n">max_year</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span><span class="p">[</span><span class="s1">&#39;products&#39;</span><span class="p">][</span><span class="n">glofas_option</span><span class="p">][</span><span class="s1">&#39;year&#39;</span><span class="p">])</span>
+        <span class="n">min_month</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># Assuming January is always included</span>
+        <span class="n">max_month</span> <span class="o">=</span> <span class="mi">12</span>  <span class="c1"># Assuming December is always included</span>
+        <span class="n">min_day</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="n">available_dates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">year</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">min_year</span><span class="p">,</span> <span class="n">max_year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">month</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">min_month</span><span class="p">,</span> <span class="n">max_month</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">day</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">min_day</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_day_of_month</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="n">month</span><span class="p">)</span><span class="o">.</span><span class="n">day</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="n">month</span><span class="p">,</span> <span class="n">day</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">():</span>
+                        <span class="k">break</span>
+                    <span class="n">available_dates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="n">month</span><span class="p">,</span> <span class="n">day</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">available_dates</span></div>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.update_date_dropdown">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.update_date_dropdown">[docs]</a>
+    <span class="k">def</span> <span class="nf">update_date_dropdown</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">glofas_option</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the date dropdown with available dates based on the selected GloFas option.&quot;&quot;&quot;</span>
+        <span class="n">available_dates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_available_dates</span><span class="p">(</span><span class="n">glofas_option</span><span class="p">)</span>
+        <span class="n">formatted_date_options</span> <span class="o">=</span> <span class="p">[(</span><span class="n">date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">),</span> <span class="n">date</span><span class="p">)</span> <span class="k">for</span> <span class="n">date</span> <span class="ow">in</span> <span class="n">available_dates</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">formatted_date_options</span></div>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.on_single_or_date_range_change">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.on_single_or_date_range_change">[docs]</a>
+    <span class="k">def</span> <span class="nf">on_single_or_date_range_change</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">change</span><span class="p">,</span> <span class="n">glofas_option</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Handles the change event when the option for single date or date range is changed.</span>
+
+<span class="sd">        :param change: A dictionary containing information about the change event.</span>
+<span class="sd">        :param glofas_option: The selected Glofas option.</span>
+<span class="sd">        :return: None</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">single_or_date_range_value</span> <span class="o">=</span> <span class="n">change</span><span class="p">[</span><span class="s1">&#39;new&#39;</span><span class="p">]</span>
+
+        <span class="n">options</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_date_dropdown</span><span class="p">(</span><span class="n">glofas_option</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">single_or_date_range_value</span> <span class="o">==</span> <span class="s1">&#39;Single Date&#39;</span><span class="p">:</span>
+            <span class="c1"># Create the DatePicker widget with constraints</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Select Date:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">glofas_date_vbox</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span><span class="p">]</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Create the DatePicker widgets with constraints</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span> <span class="o">=</span> <span class="n">HBox</span><span class="p">([</span>
+                <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                    <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span>
+                    <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Select Start Date:&#39;</span><span class="p">,</span>
+                    <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span>
+                <span class="p">),</span>
+
+                <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                    <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span>
+                    <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Select End Date:&#39;</span><span class="p">,</span>
+                    <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span>
+                <span class="p">)])</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">glofas_date_vbox</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.update_max_date">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.update_max_date">[docs]</a>
+    <span class="k">def</span> <span class="nf">update_max_date</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">year</span><span class="p">,</span> <span class="n">month</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the maximum date of the DatePicker when the year or month changes.</span>
+
+<span class="sd">        :param year: The selected year.</span>
+<span class="sd">        :param month: The selected month.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">max_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_day_of_month</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="n">month</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span><span class="o">.</span><span class="n">max</span> <span class="o">=</span> <span class="n">max_date</span></div>
+
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.on_glofas_option_change">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.on_glofas_option_change">[docs]</a>
+    <span class="k">def</span> <span class="nf">on_glofas_option_change</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">change</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Updates the glofas_stack based on the new value received in the change parameter.</span>
+
+<span class="sd">        :param change:  A dictionary containing the new value of the glofas option.</span>
+<span class="sd">        :return: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new_value</span> <span class="o">=</span> <span class="n">change</span><span class="p">[</span><span class="s1">&#39;new&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">glofas_stack</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">()</span>  <span class="c1"># Clear the glofas_stack</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_glofas_container</span><span class="p">(</span><span class="n">new_value</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.update_glofas_container">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.update_glofas_container">[docs]</a>
+    <span class="k">def</span> <span class="nf">update_glofas_container</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">glofas_value</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the GloFAS container based on the selected GloFAS product.</span>
+
+<span class="sd">        :param glofas_value: The selected GloFAS product.</span>
+<span class="sd">        :return: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">specific_widgets</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_widgets_for_glofas</span><span class="p">(</span><span class="n">glofas_value</span><span class="p">)</span>
+
+        <span class="c1"># Replace the children of the glofas_stack with the specific widgets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">glofas_stack</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">specific_widgets</span><span class="p">)</span></div>
+
+
+        <span class="c1"># else:</span>
+        <span class="c1">#     # If the selected GloFAS product is not recognized, clear the glofas_stack</span>
+        <span class="c1">#     self.glofas_stack.children = ()</span>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.gather_parameters">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.gather_parameters">[docs]</a>
+    <span class="k">def</span> <span class="nf">gather_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">glofas_product</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param glofas_product: The type of GloFAS product.</span>
+<span class="sd">        :return: A dictionary containing the parameters required for the given GloFAS product.</span>
+
+<span class="sd">        The `get_glofas_parameters` method takes in the `glofas_product` parameter to determine the type of GloFAS product. It then collects the necessary parameters based on the type of product</span>
+<span class="sd">        * and returns them in a dictionary.</span>
+
+<span class="sd">        Note: The returned dictionary may vary depending on the value of `glofas_product`.</span>
+
+<span class="sd">        Example usages:</span>
+<span class="sd">        ```</span>
+<span class="sd">        parameters = get_glofas_parameters(&#39;cems-glofas-seasonal&#39;)</span>
+<span class="sd">        # Returns:</span>
+<span class="sd">        # {</span>
+<span class="sd">        #     &#39;system_version&#39;: system_version,</span>
+<span class="sd">        #     &#39;hydrological_model&#39;: hydrological_model,</span>
+<span class="sd">        #     &#39;leadtime_hour&#39;: leadtime_hour,</span>
+<span class="sd">        #     &#39;year&#39;: year,</span>
+<span class="sd">        #     &#39;month&#39;: month,</span>
+<span class="sd">        #     &#39;day&#39;: day,</span>
+<span class="sd">        #    &quot;&quot;&quot;</span>
+
+        <span class="n">date_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">system_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">system_version</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;_&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">hydrological_model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hydrological_model</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">product_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_type</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;_&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="n">product_type</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">leadtime_hour</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">leadtime</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">if</span> <span class="n">date_type</span> <span class="o">==</span> <span class="s1">&#39;Single Date&#39;</span><span class="p">:</span>
+            <span class="n">date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">year</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">date</span><span class="o">.</span><span class="n">year</span><span class="p">)</span>
+            <span class="n">month</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">date</span><span class="o">.</span><span class="n">month</span><span class="p">)</span>
+            <span class="n">day</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">date</span><span class="o">.</span><span class="n">day</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">date_type</span> <span class="o">==</span> <span class="s1">&#39;Date Range&#39;</span><span class="p">:</span>
+            <span class="n">start_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">end_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">year</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">start_date</span><span class="o">.</span><span class="n">year</span><span class="p">)</span>
+            <span class="n">month</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">start_date</span><span class="o">.</span><span class="n">month</span><span class="p">)</span>
+            <span class="n">day</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">start_date</span><span class="o">.</span><span class="n">day</span><span class="p">)</span>
+        <span class="n">folder_location</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="o">.</span><span class="n">selected</span>
+        <span class="n">create_sub_folder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">clip_to_geometry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">clip_to_geometry</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">add_image_to_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">no_data_helper</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">no_data_helper_checklist</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="k">if</span> <span class="n">glofas_product</span> <span class="o">==</span> <span class="s1">&#39;cems-glofas-seasonal&#39;</span><span class="p">:</span>
+
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;glofas_product&#39;</span><span class="p">:</span> <span class="n">glofas_product</span><span class="p">,</span>
+                <span class="s1">&#39;system_version&#39;</span><span class="p">:</span> <span class="n">system_version</span><span class="p">,</span>
+                <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="n">hydrological_model</span><span class="p">,</span>
+                <span class="s1">&#39;leadtime_hour&#39;</span><span class="p">:</span> <span class="n">leadtime_hour</span><span class="p">,</span>
+                <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="n">year</span><span class="p">,</span>
+                <span class="s1">&#39;month&#39;</span><span class="p">:</span> <span class="n">month</span><span class="p">,</span>
+                <span class="s1">&#39;day&#39;</span><span class="p">:</span> <span class="n">day</span><span class="p">,</span>
+                <span class="s1">&#39;folder_location&#39;</span><span class="p">:</span> <span class="n">folder_location</span><span class="p">,</span>
+                <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="n">create_sub_folder</span><span class="p">,</span>
+                <span class="s1">&#39;clip_to_geometry&#39;</span><span class="p">:</span> <span class="n">clip_to_geometry</span><span class="p">,</span>
+                <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="n">add_image_to_map</span><span class="p">,</span>
+                <span class="s1">&#39;no_data_helper&#39;</span><span class="p">:</span> <span class="n">no_data_helper</span>
+            <span class="p">}</span>
+        <span class="k">elif</span> <span class="n">glofas_product</span> <span class="o">==</span> <span class="s1">&#39;cems-glofas-forecast&#39;</span><span class="p">:</span>
+
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;glofas_product&#39;</span><span class="p">:</span> <span class="n">glofas_product</span><span class="p">,</span>
+                <span class="s1">&#39;system_version&#39;</span><span class="p">:</span> <span class="n">system_version</span><span class="p">,</span>
+                <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="n">hydrological_model</span><span class="p">,</span>
+                <span class="s1">&#39;product_type&#39;</span><span class="p">:</span> <span class="n">product_type</span><span class="p">,</span>
+                <span class="s1">&#39;leadtime_hour&#39;</span><span class="p">:</span> <span class="n">leadtime_hour</span><span class="p">,</span>
+                <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="n">year</span><span class="p">,</span>
+                <span class="s1">&#39;month&#39;</span><span class="p">:</span> <span class="n">month</span><span class="p">,</span>
+                <span class="s1">&#39;day&#39;</span><span class="p">:</span> <span class="n">day</span><span class="p">,</span>
+                <span class="s1">&#39;folder_location&#39;</span><span class="p">:</span> <span class="n">folder_location</span><span class="p">,</span>
+                <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="n">create_sub_folder</span><span class="p">,</span>
+                <span class="s1">&#39;clip_to_geometry&#39;</span><span class="p">:</span> <span class="n">clip_to_geometry</span><span class="p">,</span>
+                <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="n">add_image_to_map</span><span class="p">,</span>
+                <span class="s1">&#39;no_data_helper&#39;</span><span class="p">:</span> <span class="n">no_data_helper</span>
+            <span class="p">}</span>
+        <span class="k">elif</span> <span class="n">glofas_product</span> <span class="o">==</span> <span class="s1">&#39;cems-glofas-reforecast&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;glofas_product&#39;</span><span class="p">:</span> <span class="n">glofas_product</span><span class="p">,</span>
+                <span class="s1">&#39;system_version&#39;</span><span class="p">:</span> <span class="n">system_version</span><span class="p">,</span>
+                <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="n">hydrological_model</span><span class="p">,</span>
+                <span class="s1">&#39;product_type&#39;</span><span class="p">:</span> <span class="n">product_type</span><span class="p">,</span>
+                <span class="s1">&#39;leadtime_hour&#39;</span><span class="p">:</span> <span class="n">leadtime_hour</span><span class="p">,</span>
+                <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="n">year</span><span class="p">,</span>
+                <span class="s1">&#39;month&#39;</span><span class="p">:</span> <span class="n">month</span><span class="p">,</span>
+                <span class="s1">&#39;day&#39;</span><span class="p">:</span> <span class="n">day</span><span class="p">,</span>
+                <span class="s1">&#39;folder_location&#39;</span><span class="p">:</span> <span class="n">folder_location</span><span class="p">,</span>
+                <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="n">create_sub_folder</span><span class="p">,</span>
+                <span class="s1">&#39;clip_to_geometry&#39;</span><span class="p">:</span> <span class="n">clip_to_geometry</span><span class="p">,</span>
+                <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="n">add_image_to_map</span><span class="p">,</span>
+                <span class="s1">&#39;no_data_helper&#39;</span><span class="p">:</span> <span class="n">no_data_helper</span>
+            <span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Invalid GloFAS product.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.process_api">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.process_api">[docs]</a>
+    <span class="k">def</span> <span class="nf">process_api</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">bbox</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process the GLOFAS API data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s2">&quot;Downloading data...&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;create_sub_folder&#39;</span><span class="p">]:</span>
+                <span class="c1"># Create a sub-folder</span>
+                <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_location&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_sub_folder</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_location&#39;</span><span class="p">])</span>
+
+
+
+            <span class="n">params_file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_location&#39;</span><span class="p">],</span> <span class="s1">&#39;parameters.json&#39;</span><span class="p">)</span>
+
+
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">params_file_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">single_or_date_range</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="s2">&quot;Date Range&quot;</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+
+                    <span class="n">start_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+                    <span class="n">end_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_picker</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+
+                    <span class="n">current_date</span> <span class="o">=</span> <span class="n">start_date</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">start_date</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+                        <span class="n">start_date</span> <span class="o">=</span> <span class="n">start_date</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">end_date</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+                        <span class="n">end_date</span> <span class="o">=</span> <span class="n">end_date</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">current_date</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+                        <span class="n">current_date</span> <span class="o">=</span> <span class="n">current_date</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+
+                    <span class="k">while</span> <span class="n">current_date</span> <span class="o">&lt;=</span> <span class="n">end_date</span><span class="p">:</span>
+                        <span class="n">params</span><span class="p">[</span><span class="s1">&#39;year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">current_date</span><span class="o">.</span><span class="n">year</span><span class="p">)</span>
+                        <span class="n">params</span><span class="p">[</span><span class="s1">&#39;month&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">current_date</span><span class="o">.</span><span class="n">month</span>
+                        <span class="n">params</span><span class="p">[</span><span class="s1">&#39;day&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">current_date</span><span class="o">.</span><span class="n">day</span><span class="p">)</span>
+                        <span class="n">file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">download_glofas_data</span><span class="p">(</span><span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span> <span class="n">distinct_values</span><span class="o">=</span><span class="n">distinct_values</span><span class="p">)</span>
+                        <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+                        <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s2">&quot;Processing data...&quot;</span><span class="p">)</span>
+                        <span class="n">processed_raster</span> <span class="o">=</span> <span class="n">process_and_clip_raster</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="p">)</span>
+                        <span class="n">current_date</span> <span class="o">+=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="s2">&quot;no data is available within your requested subset&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="ow">and</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;no_data_helper&#39;</span><span class="p">]:</span>
+                        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">no_data_helper_function</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;An error occurred that couldn&#39;t be handled by the no data helper function.&quot;</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="kc">None</span>
+
+            <span class="k">else</span><span class="p">:</span>
+
+                <span class="n">file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">download_glofas_data</span><span class="p">(</span><span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span> <span class="n">distinct_values</span><span class="o">=</span><span class="n">distinct_values</span><span class="p">)</span>
+                <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+                <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s2">&quot;Processing data...&quot;</span><span class="p">)</span>
+                <span class="n">processed_raster</span> <span class="o">=</span> <span class="n">process_and_clip_raster</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="p">)</span>
+            <span class="c1"># Serialize the geometry to GeoJSON</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Geometry</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>  <span class="c1"># If geometry is an Earth Engine object</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Feature</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">FeatureCollection</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span>  <span class="c1"># If geometry is already in GeoJSON format</span>
+
+            <span class="c1"># Define the GeoJSON filename</span>
+            <span class="n">geojson_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_location&#39;</span><span class="p">],</span> <span class="s1">&#39;geometry.geojson&#39;</span><span class="p">)</span>
+
+
+            <span class="c1"># Write the GeoJSON to a file</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">geojson_filename</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">geojson_geometry</span><span class="p">))</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="s2">&quot;Finished!&quot;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">processed_raster</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s2">&quot;no data is available within your requested subset&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="ow">and</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;no_data_helper&#39;</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">no_data_helper_function</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;An error occurred that couldn&#39;t be handled by the no data helper function.&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="GloFasAPINotebookInterface.setup_global_variables">
+<a class="viewcode-back" href="../../APIs.html#APIs.GloFasAPI.GloFasAPINotebookInterface.setup_global_variables">[docs]</a>
+    <span class="k">def</span> <span class="nf">setup_global_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">glofas_dict</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;products&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="c1"># &#39;cems-glofas-seasonal&#39;: {</span>
+                <span class="c1">#     &quot;system_version&quot;: [&#39;operational&#39;, &#39;version_3_1&#39;, &#39;version_2_2&#39;],</span>
+                <span class="c1">#     &#39;hydrological_model&#39;: [&#39;lisflood&#39;],</span>
+                <span class="c1">#     &quot;variable&quot;: &quot;river_discharge_in_the_last_24_hours&quot;,</span>
+                <span class="c1">#     &quot;leadtime_hour&quot;: list(range(24, 5161, 24)),</span>
+                <span class="c1">#     &quot;year&quot;: list(range(2019, datetime.date.today().year + 1)),</span>
+                <span class="c1">#     &quot;month&quot;: [&quot;01&quot;, &quot;02&quot;, &quot;03&quot;, &quot;04&quot;, &quot;05&quot;, &quot;06&quot;, &quot;07&quot;, &quot;08&quot;, &quot;09&quot;, &quot;10&quot;,</span>
+                <span class="c1">#               &quot;11&quot;, &quot;12&quot;],</span>
+                <span class="c1">#     # &quot;day&quot;: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],</span>
+                <span class="c1">#     # &quot;area&quot;: [10.95, -90.95, -30.95, -29.95],</span>
+                <span class="c1">#     &quot;format&quot;: &quot;grib&quot;</span>
+                <span class="c1"># },</span>
+                <span class="s1">&#39;cems-glofas-forecast&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;system_version&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;operational&#39;</span><span class="p">,</span> <span class="s1">&#39;version_3_1&#39;</span><span class="p">,</span> <span class="s1">&#39;version_2_1&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;hydrological_model&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;lisflood&#39;</span><span class="p">,</span> <span class="s1">&#39;htessel_lisflood&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;product_type&#39;</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="s1">&#39;control_forecast&#39;</span><span class="p">,</span> <span class="s1">&#39;ensemble_perturbed_forecasts&#39;</span><span class="p">,</span>
+                    <span class="p">],</span>
+                    <span class="s2">&quot;variable&quot;</span><span class="p">:</span> <span class="s2">&quot;river_discharge_in_the_last_24_hours&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;leadtime_hour&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">721</span><span class="p">,</span> <span class="mi">24</span><span class="p">)),</span>
+                    <span class="s2">&quot;year&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span><span class="o">.</span><span class="n">year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)),</span>
+                    <span class="s2">&quot;month&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;01&quot;</span><span class="p">,</span> <span class="s2">&quot;02&quot;</span><span class="p">,</span> <span class="s2">&quot;03&quot;</span><span class="p">,</span> <span class="s2">&quot;04&quot;</span><span class="p">,</span> <span class="s2">&quot;05&quot;</span><span class="p">,</span> <span class="s2">&quot;06&quot;</span><span class="p">,</span> <span class="s2">&quot;07&quot;</span><span class="p">,</span> <span class="s2">&quot;08&quot;</span><span class="p">,</span> <span class="s2">&quot;09&quot;</span><span class="p">,</span> <span class="s2">&quot;10&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;11&quot;</span><span class="p">,</span> <span class="s2">&quot;12&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;day&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">32</span><span class="p">)),</span>
+                    <span class="c1"># &quot;area&quot;: [10.95, -90.95, -30.95, -29.95],</span>
+                    <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="s2">&quot;grib&quot;</span>
+                <span class="p">},</span>
+                <span class="c1"># &#39;cems-glofas-reforecast&#39;: {</span>
+                <span class="c1">#     &quot;system_version&quot;: [&#39;version_4_0&#39;, &#39;version_3_1&#39;, &#39;version_2_2&#39;],</span>
+                <span class="c1">#     &#39;hydrological_model&#39;: [&#39;lisflood&#39;, &#39;htessel_lisflood&#39;],</span>
+                <span class="c1">#     &#39;product_type&#39;: [</span>
+                <span class="c1">#         &#39;control_forecast&#39;, &#39;ensemble_perturbed_forecasts&#39;,</span>
+                <span class="c1">#     ],</span>
+                <span class="c1">#     &quot;leadtime_hour&quot;: list(range(24, 1105, 24)),</span>
+                <span class="c1">#     &quot;year&quot;: list(range(1999, datetime.date.today().year + 1)),</span>
+                <span class="c1">#     &quot;month&quot;: [&quot;01&quot;, &quot;02&quot;, &quot;03&quot;, &quot;04&quot;, &quot;05&quot;, &quot;06&quot;, &quot;07&quot;, &quot;08&quot;, &quot;09&quot;, &quot;10&quot;,</span>
+                <span class="c1">#               &quot;11&quot;, &quot;12&quot;],</span>
+                <span class="c1">#     &quot;day&quot;: list(range(24, 32)),</span>
+                <span class="c1">#     # &quot;area&quot;: [10.95, -90.95, -30.95, -29.95],</span>
+                <span class="c1">#     &quot;format&quot;: &quot;grib&quot;</span>
+                <span class="c1"># }</span>
+            <span class="p">}</span>
+        <span class="p">}</span></div>
+</div>
+
+
+
+
+
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Mercy Corps.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

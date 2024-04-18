@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APIs.GPWv4 &mdash; mcimageprocessing 00.00.01 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../_static/documentation_options.js?v=d7bb8d4d"></script>
+        <script src="../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            mcimageprocessing
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../readme.html">Readme</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../authors.html">Credits</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../history.html">History</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">mcimageprocessing</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">APIs.GPWv4</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for APIs.GPWv4</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span>
+
+<span class="kn">import</span> <span class="nn">ee</span>
+<span class="kn">import</span> <span class="nn">ipyfilechooser</span> <span class="k">as</span> <span class="nn">fc</span>
+<span class="kn">import</span> <span class="nn">ipywidgets</span> <span class="k">as</span> <span class="nn">widgets</span>
+<span class="kn">from</span> <span class="nn">ipywidgets</span> <span class="kn">import</span> <span class="n">Layout</span>
+
+<span class="kn">from</span> <span class="nn">mcimageprocessing.programmatic.APIs.EarthEngine</span> <span class="kn">import</span> <span class="n">EarthEngineManager</span>
+<span class="kn">from</span> <span class="nn">mcimageprocessing.programmatic.shared_functions.utilities</span> <span class="kn">import</span> <span class="n">mosaic_images</span>
+
+
+<div class="viewcode-block" id="GPWv4">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4">[docs]</a>
+<span class="k">class</span> <span class="nc">GPWv4</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialize the object.</span>
+
+<span class="sd">    :param ee_manager: An instance of the EarthEngineManager class. If not provided, a new instance will be created.</span>
+<span class="sd">    :type ee_manager: Optional[EarthEngineManager]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data_type_options</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Population Count&quot;</span><span class="p">,</span> <span class="s2">&quot;layer&quot;</span><span class="p">:</span> <span class="s2">&quot;CIESIN/GPWv411/GPW_Population_Count&quot;</span><span class="p">,</span> <span class="s1">&#39;band&#39;</span><span class="p">:</span> <span class="s1">&#39;population_count&#39;</span><span class="p">},</span>
+                         <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Population Density&quot;</span><span class="p">,</span> <span class="s2">&quot;layer&quot;</span><span class="p">:</span> <span class="s2">&quot;CIESIN/GPWv411/GPW_Population_Density&quot;</span><span class="p">,</span> <span class="s1">&#39;band&#39;</span><span class="p">:</span> <span class="s1">&#39;population_density&#39;</span><span class="p">},</span>
+                         <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;UN-Adjusted Population Count&quot;</span><span class="p">,</span> <span class="s2">&quot;layer&quot;</span><span class="p">:</span> <span class="s2">&quot;CIESIN/GPWv411/GPW_UNWPP-Adjusted_Population_Count&quot;</span><span class="p">,</span> <span class="s1">&#39;band&#39;</span><span class="p">:</span> <span class="s1">&#39;unwpp-adjusted_population_count&#39;</span><span class="p">}]</span>
+    <span class="n">year_options</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span> <span class="mi">2021</span><span class="p">,</span> <span class="mi">5</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ee_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EarthEngineManager</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the object.</span>
+
+<span class="sd">        :param ee_manager: An instance of the EarthEngineManager class. If not provided, a new instance will be created.</span>
+<span class="sd">        :type ee_manager: Optional[EarthEngineManager]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span> <span class="o">=</span> <span class="n">ee_manager</span> <span class="k">if</span> <span class="n">ee_manager</span> <span class="k">else</span> <span class="n">EarthEngineManager</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_validate_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gpwv4_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Validates the given gpwv4_params dictionary.</span>
+
+<span class="sd">        :param gpwv4_params: A dictionary containing the parameters for GPWv4.</span>
+<span class="sd">                            Required keys: &#39;folder_output&#39;, &#39;year&#39;, &#39;datatype&#39;.</span>
+<span class="sd">        :type gpwv4_params: dict[str, any]</span>
+<span class="sd">        :return: True if all required keys are present and not empty; False otherwise.</span>
+<span class="sd">        :rtype: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">required_keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">,</span> <span class="s1">&#39;year&#39;</span><span class="p">,</span> <span class="s1">&#39;datatype&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">required_keys</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">gpwv4_params</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Missing required gpwv4_param: </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="n">key</span><span class="p">]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;gpwv4_param </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> is empty or invalid.&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_create_sub_folder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_folder</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new subfolder within the given base folder.</span>
+
+<span class="sd">        :param base_folder: The path of the base folder where the subfolder will be created.</span>
+<span class="sd">        :type base_folder: str</span>
+<span class="sd">        :return: The path of the newly created subfolder.</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">folder_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base_folder</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;GPWv4_processed_on_</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">())</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">folder_name</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">folder_name</span>
+        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create subfolder: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">base_folder</span>
+
+<div class="viewcode-block" id="GPWv4.process_gpwv4_layer">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4.process_gpwv4_layer">[docs]</a>
+    <span class="k">def</span> <span class="nf">process_gpwv4_layer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">gpwv4_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param geometry: The geometry object representing the area of interest for processing.</span>
+<span class="sd">        :param gpwv4_params: The dictionary containing all the parameters for processing the GPWv4 layer.</span>
+<span class="sd">        :return: The processed image or dictionary of statistics, depending on the value of the &#39;statistics_only&#39; parameter.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">try</span><span class="p">:</span>
+
+            <span class="k">if</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;statistics_only&#39;</span><span class="p">]:</span>
+                <span class="n">all_stats</span> <span class="o">=</span> <span class="n">ee</span><span class="o">.</span><span class="n">Dictionary</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;band&#39;</span><span class="p">]:</span>
+                <span class="n">band</span> <span class="o">=</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">band</span> <span class="o">=</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;band&#39;</span><span class="p">]</span>
+            <span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image</span><span class="p">(</span>
+                <span class="n">multi_date</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">start_date</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">gpwv4_params</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">-01-01&#39;</span><span class="p">,</span>
+                <span class="n">end_date</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">gpwv4_params</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">-12-31&#39;</span><span class="p">,</span>
+                <span class="n">image_collection</span><span class="o">=</span><span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">],</span>
+                <span class="n">band</span><span class="o">=</span><span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;band&#39;</span><span class="p">],</span>
+                <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
+                <span class="n">aggregation_method</span><span class="o">=</span><span class="s1">&#39;first&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;statistics_only&#39;</span><span class="p">]:</span>
+                <span class="n">projection</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">projection</span><span class="p">()</span>
+                <span class="n">scale</span> <span class="o">=</span> <span class="n">projection</span><span class="o">.</span><span class="n">nominalScale</span><span class="p">()</span>
+
+                <span class="n">sum_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image_sum</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">band</span><span class="p">)</span>
+
+                <span class="n">all_stats</span> <span class="o">=</span> <span class="n">all_stats</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">sum_value</span><span class="p">)</span>
+                <span class="n">all_stats_info</span> <span class="o">=</span> <span class="n">all_stats</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+                <span class="k">return</span> <span class="n">all_stats_info</span>
+
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">download_and_process_image</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">gpwv4_params</span><span class="p">,</span> <span class="n">band</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">image</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An error occurred: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="GPWv4.download_and_process_image">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4.download_and_process_image">[docs]</a>
+    <span class="k">def</span> <span class="nf">download_and_process_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">:</span> <span class="n">ee</span><span class="o">.</span><span class="n">Image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">scale</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">gpwv4_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+                                   <span class="n">band</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Downloads and processes an image by splitting it into tiles and optionally mosaicing them.</span>
+
+<span class="sd">        :param image: The image to download and process.</span>
+<span class="sd">        :param geometry: The geometry (region of interest) to download the image for.</span>
+<span class="sd">        :param scale: The scale to use for downloading the image.</span>
+<span class="sd">        :param gpwv4_params: Additional parameters for the download process.</span>
+<span class="sd">        :param band: The band of the image to download and process.</span>
+<span class="sd">        :return: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">file_names</span><span class="p">,</span> <span class="n">download_successful</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">download_and_split</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span>
+                                                                  <span class="n">params</span><span class="o">=</span><span class="n">gpwv4_params</span><span class="p">,</span>
+                                                                  <span class="n">band</span><span class="o">=</span><span class="n">band</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">download_successful</span><span class="p">:</span>
+            <span class="n">output_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;mosaic_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">.tif&quot;</span><span class="p">)</span>
+            <span class="n">mosaic_images</span><span class="p">(</span><span class="n">file_names</span><span class="p">,</span> <span class="n">output_filename</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="GPWv4.validate_parameters">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4.validate_parameters">[docs]</a>
+    <span class="k">def</span> <span class="nf">validate_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gpwv4_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param gpwv4_params: A dictionary containing the parameters for GPWv4 processing.</span>
+<span class="sd">            - &#39;folder_output&#39;: The selected output folder.</span>
+<span class="sd">            - &#39;year&#39;: The selected year.</span>
+<span class="sd">            - &#39;datatype&#39;: The selected data type.</span>
+
+<span class="sd">        :return: Returns True if all parameters are valid, False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please select an output folder.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;The selected output folder does not exist.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;year&#39;</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please select a valid year.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please select a valid data type.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="GPWv4.process_api">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4.process_api">[docs]</a>
+    <span class="k">def</span> <span class="nf">process_api</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Perform API processing.</span>
+
+<span class="sd">        :param geometry: The geometry to process.</span>
+<span class="sd">        :param distinct_values: The distinct values.</span>
+<span class="sd">        :param index: The index.</span>
+<span class="sd">        :param params: Additional parameters (optional).</span>
+<span class="sd">        :param bbox: The bounding box (optional).</span>
+<span class="sd">        :return: The processed result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_parameters</span><span class="p">(</span><span class="n">params</span><span class="p">):</span>
+            <span class="k">return</span>
+
+
+        <span class="n">geometry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">ee_ensure_geometry</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_datatype_residential_population</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">),</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]</span></div>
+
+
+
+    <span class="k">def</span> <span class="nf">_process_datatype_residential_population</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">gpwv4_params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param geometry: The geometry object containing the spatial area of interest.</span>
+<span class="sd">        :param gpwv4_params: The parameters for processing the GPWv4 layer.</span>
+<span class="sd">        :return: The processed image representing the residential population within the specified geometry.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_gpwv4_layer</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">gpwv4_params</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;statistics_only&#39;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save_statistics</span><span class="p">(</span><span class="n">gpwv4_params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="n">image</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">image</span>
+
+    <span class="k">def</span> <span class="nf">_save_statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">folder_output</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save statistics to a JSON file.</span>
+
+<span class="sd">        :param folder_output: The path to the output folder where the JSON file will be saved.</span>
+<span class="sd">        :param data: The data to be saved as JSON.</span>
+<span class="sd">        :return: None</span>
+
+<span class="sd">        Example usage:</span>
+<span class="sd">            &gt;&gt;&gt; _save_statistics(&#39;/path/to/output&#39;, {&#39;stat1&#39;: 100, &#39;stat2&#39;: 200})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder_output</span><span class="p">,</span> <span class="s1">&#39;statistics.json&#39;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">IOError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error saving statistics: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="GPWv4NotebookInterface">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4NotebookInterface">[docs]</a>
+<span class="k">class</span> <span class="nc">GPWv4NotebookInterface</span><span class="p">(</span><span class="n">GPWv4</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;GPWv4NotebookInterface is a class that extends the base class GPWv4 and provides a user interface for interacting with the GPWv4 API in a Jupyter notebook.</span>
+
+<span class="sd">    Usage:</span>
+<span class="sd">    ------</span>
+
+<span class="sd">    Instantiate an instance of GPWv4NotebookInterface by providing an optional instance of EarthEngineManager as the ee_manager parameter. If no ee_manager is provided, the default Earth</span>
+<span class="sd">    *EngineManager will be used.</span>
+
+<span class="sd">    Example:</span>
+
+<span class="sd">        &gt;&gt;&gt; interface = GPWv4NotebookInterface()</span>
+
+<span class="sd">    Methods:</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    __init__(ee_manager: Optional[EarthEngineManager] = None)</span>
+<span class="sd">        Initializes a new instance of GPWv4NotebookInterface.</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">        - ee_manager (Optional[EarthEngineManager]): An optional instance of EarthEngineManager to use.</span>
+
+<span class="sd">    create_widgets_for_gpwv4() -&gt; List[widgets.Widget]</span>
+<span class="sd">        Creates the interactive widgets for the GPWv4 API.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        - List[widgets.Widget]: A list of Widget objects that represent the interactive widgets.</span>
+
+<span class="sd">    gather_parameters() -&gt; Dict[str, Any]</span>
+<span class="sd">        Gathers the parameters from the interactive widgets.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        - Dict[str, Any]: A dictionary of parameter name-value pairs.</span>
+
+<span class="sd">    process_api(geometry: Any, distinct_values: Any, index: int, params=None, bbox=None) -&gt; None</span>
+<span class="sd">        Processes the GPWv4 API using the provided parameters and displays the result.</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">        - geometry (Any): The geometry to process.</span>
+<span class="sd">        - distinct_values (Any): The distinct values to process.</span>
+<span class="sd">        - index (int): The index of the item to process.</span>
+<span class="sd">        - params (Optional[Dict[str, Any]]): An optional dictionary of parameter name-value pairs. If not provided, the parameters will be gathered from the interactive widgets.</span>
+<span class="sd">        - bbox (Optional[Any]): An optional bounding box to use for filtering the data. If not provided, no filtering will be applied.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        - None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ee_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EarthEngineManager</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initializes an instance of the class.</span>
+
+<span class="sd">        :param ee_manager: An optional parameter of type EarthEngineManager. It represents the Earth Engine manager</span>
+<span class="sd">                           used for interacting with the Earth Engine Python API.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">ee_manager</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Output</span><span class="p">()</span>
+        <span class="c1"># Initialize widgets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_widgets_for_gpwv4</span><span class="p">()</span>
+
+<div class="viewcode-block" id="GPWv4NotebookInterface.create_widgets_for_gpwv4">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4NotebookInterface.create_widgets_for_gpwv4">[docs]</a>
+    <span class="k">def</span> <span class="nf">create_widgets_for_gpwv4</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">widgets</span><span class="o">.</span><span class="n">Widget</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a list of widgets for the GPWv4 data processing tool.</span>
+
+<span class="sd">        The `create_widgets_for_gpwv4` method creates several widgets that are used in the GPWv4 data processing tool. These widgets allow the user to select options such as data type, year</span>
+<span class="sd">        *, scale, file directory, and processing options.</span>
+
+<span class="sd">        The method initializes each widget with default values and settings. The `gpwv4_data_type` widget is a dropdown menu that displays available data types and their corresponding layers</span>
+<span class="sd">        *. The `gpwv4_year` widget is also a dropdown menu that displays available years for the data.</span>
+
+<span class="sd">        The `statistics_only_check` widget is a checkbox that allows the user to select whether only image statistics should be generated, represented as a dictionary. The `scale_input` widget</span>
+<span class="sd">        * is a text box where the user can input the desired scale for the processing.</span>
+
+<span class="sd">        The `add_image_to_map` and `create_sub_folder` widgets are checkboxes that give the user the option to add the processed image to the map and create a sub-folder, respectively. The `</span>
+<span class="sd">        *filechooser` widget is a file chooser dialog that allows the user to select the directory for the processed files.</span>
+
+<span class="sd">        The `gee_end_of_container_options` widget is an accordion container that holds the processing options checkboxes. It is configured with a two-by-two layout, with the `statistics_only</span>
+<span class="sd">        *_check` widget in the top left corner, the `add_image_to_map` widget in the top right corner, and the `create_sub_folder` widget in the bottom right corner.</span>
+
+<span class="sd">        The method creates a list named `widget_list` which contains all the widgets created. Finally, the method returns this list.</span>
+
+<span class="sd">        :return: A list of widgets used in the GPWv4 data processing tool.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_data_type</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="p">{</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]:</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;layer&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_type_options</span><span class="p">},</span>
+                <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data_type_options</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;layer&#39;</span><span class="p">],</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Data Type:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">layout</span><span class="o">=</span><span class="n">Layout</span><span class="p">(</span><span class="n">width</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_year</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+                <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">year_options</span><span class="p">,</span>
+                <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">year_options</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>  <span class="c1"># Default to the last year</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Year:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">layout</span><span class="o">=</span><span class="n">Layout</span><span class="p">(</span><span class="n">width</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">statistics_only_check</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span>
+                <span class="n">value</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Image Statistics Only (dictionary)&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">indent</span><span class="o">=</span><span class="kc">False</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale_input</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Text</span><span class="p">(</span>
+                <span class="n">value</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span>
+                <span class="n">placeholder</span><span class="o">=</span><span class="s1">&#39;Scale&#39;</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Scale:&#39;</span><span class="p">,</span>
+                <span class="n">disabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">layout</span><span class="o">=</span><span class="n">Layout</span><span class="p">()</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Add Image to Map&#39;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Create Sub-folder&#39;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">FileChooser</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="n">show_only_dirs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gee_end_of_container_options</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Accordion</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">widgets</span><span class="o">.</span><span class="n">TwoByTwoLayout</span><span class="p">(</span>
+                    <span class="n">top_left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">statistics_only_check</span><span class="p">,</span> <span class="n">top_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span><span class="p">,</span>
+                    <span class="n">bottom_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span>
+                <span class="p">)])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gee_end_of_container_options</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;Processing Options&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">widget_list</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_data_type</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_year</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">scale_input</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">gee_end_of_container_options</span>
+            <span class="p">]</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">widget_list</span></div>
+
+
+<div class="viewcode-block" id="GPWv4NotebookInterface.gather_parameters">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4NotebookInterface.gather_parameters">[docs]</a>
+    <span class="k">def</span> <span class="nf">gather_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Gather the parameters for the method.</span>
+
+<span class="sd">        :return: A dictionary containing the parameters.</span>
+<span class="sd">        :rtype: Dict[str, Any]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Ensure that you&#39;re accessing the correct attribute for the file chooser</span>
+        <span class="n">folder_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="o">.</span><span class="n">selected</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="c1"># Return the parameters as a dictionary</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;population_source&#39;</span><span class="p">:</span> <span class="s1">&#39;GPWv4&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_year</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;datatype&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_data_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;band&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_type_options</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">gpwv4_data_type</span><span class="o">.</span><span class="n">index</span><span class="p">][</span><span class="s1">&#39;band&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;statistics_only&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">statistics_only_check</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;folder_output&#39;</span><span class="p">:</span> <span class="n">folder_output</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="GPWv4NotebookInterface.process_api">
+<a class="viewcode-back" href="../../APIs.html#APIs.GPWv4.GPWv4NotebookInterface.process_api">[docs]</a>
+    <span class="k">def</span> <span class="nf">process_api</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process the API for a given geometry.</span>
+
+<span class="sd">        :param geometry: The geometry to process.</span>
+<span class="sd">        :type geometry: Any</span>
+
+<span class="sd">        :param distinct_values: The distinct values.</span>
+<span class="sd">        :type distinct_values: Any</span>
+
+<span class="sd">        :param index: The index.</span>
+<span class="sd">        :type index: int</span>
+
+<span class="sd">        :param params: The parameters.</span>
+<span class="sd">        :type params: Any, optional</span>
+
+<span class="sd">        :param bbox: The bounding box.</span>
+<span class="sd">        :type bbox: Any, optional</span>
+
+<span class="sd">        :return: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">try</span><span class="p">:</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Processing...&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;create_sub_folder&#39;</span><span class="p">):</span>
+                <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_sub_folder</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">])</span>
+
+            <span class="n">params_file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="s1">&#39;parameters.json&#39;</span><span class="p">)</span>
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">params_file_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+
+            <span class="c1"># Process the image</span>
+            <span class="n">image</span><span class="p">,</span> <span class="n">output_folder</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">process_api</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="n">pbar</span><span class="p">)</span>
+
+            <span class="c1"># Serialize the geometry to GeoJSON</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Geometry</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>  <span class="c1"># If geometry is an Earth Engine object</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Feature</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">FeatureCollection</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span>  <span class="c1"># If geometry is already in GeoJSON format</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saving geometry...&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Define the GeoJSON filename</span>
+            <span class="n">geojson_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="s1">&#39;geometry.geojson&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Write the GeoJSON to a file</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">geojson_filename</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">geojson_geometry</span><span class="p">))</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Finished!&quot;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">image</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An error occurred: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Mercy Corps.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
