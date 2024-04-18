@@ -737,8 +737,7 @@ class ModisNRTNotebookInterface(ModisNRT):
 
         if params.get('create_sub_folder'):
             params['folder_output'] = self._create_sub_folder(params['folder_path'])
-            print(params['folder_path'])
-            print(params['folder_output'])
+
             try:
                 os.rename(os.path.join(params['folder_path'], 'geometry.geojson'),
                           os.path.join(params['folder_output'], 'geometry.geojson'))
