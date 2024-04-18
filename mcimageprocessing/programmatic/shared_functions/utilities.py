@@ -224,10 +224,13 @@ def clip_raster(file_path, geometry, ee_instance=None):
 
         gdf = gdf.to_crs(src.crs)  # Reproject geometry to match raster CRS
 
+        nodata = -9999 if src.nodata is None else src.nodata
+
         # Clip the raster using the mask
-        out_image, out_transform = rasterio_mask(src, gdf.geometry, crop=True, all_touched=True, invert=False)
+        out_image, out_transform = rasterio_mask(src, gdf.geometry, crop=True, all_touched=True, invert=False, nodata=nodata)
         out_meta = src.meta.copy()
         out_meta.update({
+            'nodata': nodata,
             "driver": "GTiff",
             "height": out_image.shape[1],
             "width": out_image.shape[2],
