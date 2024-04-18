@@ -27,7 +27,7 @@ setup(
         'Programming Language :: Python :: 3.11',
     ],
     description="A Python package built for Mercy Corps to handle image processing and analysis.",
-    install_requires=requirements,  # This is correct and should stay
+    install_requires=requirements,
     long_description=readme + '\n\n' + history,
     keywords='mcimageprocessing',
     name='mcimageprocessing',
