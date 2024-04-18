@@ -111,3 +111,5 @@ ENV/
 
 /jupyter_testing/
 /mcimageprocessing/config/config.yaml
+
+.DS_Store
