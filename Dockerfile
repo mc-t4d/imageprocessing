@@ -12,18 +12,22 @@ WORKDIR /usr/src/app
 
 # Install system dependencies
 USER root
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common gnupg2 dirmngr && \
-    add-apt-repository ppa:ubuntugis/ppa && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    gnupg2 \
+    dirmngr \
     build-essential \
     libgdal-dev \
     gdal-bin \
     python3-gdal \
-    openssl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    openssl \
+    ca-certificates \
+    curl \
+    telnet \
+    && add-apt-repository ppa:ubuntugis/ppa \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 
 # Copy necessary files from the builder stage
 COPY --from=builder /app/dist /usr/src/app/dist
