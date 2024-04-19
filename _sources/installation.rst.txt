@@ -1,0 +1,90 @@
+.. highlight:: shell
+
+============
+Installation
+============
+
+
+Stable release
+--------------
+
+To install the `mcimageprocessing` package through Docker, follow the instructions from the Readme on our GitHub repo `here <https://github.com/mc-t4d/imageprocessing/blob/master/README.md>`_.
+
+To install the `mcimageprocessing` package through pip using a `setup.py` file, follow these steps:
+
+1. **Clone or Download the Package Source Code**
+
+First, you need to have the source code on your local machine. You can clone the source code using the following command:
+
+.. code-block:: console
+
+   $ git clone https://github.com/mc-t4d/imageprocessing.git
+
+Alternatively, download the source code as a ZIP file and extract it to a directory on your computer.
+
+2. **Navigate to the Package Directory**
+
+Make sure you are in the directory containing the `setup.py` file this should be in the base folder of the cloned repo. 
+This file contains the package metadata and dependencies needed for installation. 
+Run the following command in your terminal if you are not already in the base folder:
+
+.. code-block:: console
+
+    $ cd imageprocessing
+
+3. **Install the Package**
+
+Use `pip` to install the package. Run the following command to install the package along with its dependencies:
+
+.. code-block:: console
+
+    $ pip install .
+
+
+If you prefer to install the package in "editable" mode (useful for development purposes), where changes to the source code will immediately affect the installed package, use the following command:
+
+.. code-block:: console
+
+    $ pip install -e .
+
+
+4. **Verify the Installation**
+
+After installation, you can verify that the package is installed correctly by checking its presence in the list of installed packages:
+
+.. code-block:: console
+
+    $ pip list | grep mcimageprocessing
+
+
+This command should list `mcimageprocessing` along with its version, indicating that the package is installed.
+
+In order to decrypt the configuration file, you will need to ensure openssl is installed on your machine.  If it is not, you can install it using the following command:
+
+.. code-block:: console
+
+    linux: $ sudo apt-get install openssl
+    mac: $ brew install openssl
+    windows: $ download the installer from the [official website](https://slproweb.com/products/Win32OpenSSL.html)
+
+then run the following command to decrypt the configuration file:
+
+.. code-block:: console
+
+    linux: $ openssl enc -aes-256-cbc -d -in mcimageprocessing/config/config.enc -out mcimageprocessing/config/config.yaml -k [decryption key provided by T4D]
+    mac: $ openssl enc -aes-256-cbc -d -in mcimageprocessing/config/config.enc -out mcimageprocessing/config/config.yaml -k [decryption key provided by T4D]
+    windows: $ openssl enc -aes-256-cbc -d -in mcimageprocessing/config/config.enc -out mcimageprocessing/config/config.yaml -k [decryption key provided by T4D]
+
+This will create a _config.yaml_ file in the _config_ directory that you can use to store your API keys, pre-populated with the keys provided by T4D.
+
+5. **Testing the Installation**
+
+You can test whether the package is working properly by running some of its functions or scripts. If the package provides a command-line interface or scripts, try executing them to ensure everything is functioning as expected.
+
+6. **Updating the Package**
+
+If the source code of the package is updated, you can upgrade the installed package by navigating to the package directory and running:
+
+.. code-block:: console
+
+    $ pip install --upgrade .
