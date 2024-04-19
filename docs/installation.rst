@@ -8,6 +8,8 @@ Installation
 Stable release
 --------------
 
+To install the `mcimageprocessing` package through Docker, follow the instructions from the Readme on our GitHub repo `here <https://github.com/mc-t4d/imageprocessing/blob/master/README.md>`_.
+
 To install the `mcimageprocessing` package through pip using a `setup.py` file, follow these steps:
 
 1. **Clone or Download the Package Source Code**

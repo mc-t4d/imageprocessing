@@ -7,7 +7,7 @@ Overview of the Package
 
 This package provides a comprehensive solution for geospatial data processing and analysis, primarily designed to work within a Jupyter Notebook environment. It is equipped with a robust set of tools and functionalities, making it highly suitable for a wide range of applications in geospatial analysis, environmental monitoring, and data visualization.
 
-Find full documentation of the package functions [here](https://mc-t4d.github.io/imageprocessing/).
+Find full documentation of the package functions [here on our docs page](https://mc-t4d.github.io/imageprocessing/).
 
 ## Key Features
 
