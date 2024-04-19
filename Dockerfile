@@ -53,7 +53,7 @@ ENV GDAL_VERSION=3.6.2 \
     CONFIG_DIR=/usr/src/app/mcimageprocessing/config
 
 # Expose the port Jupyter will run on
-EXPOSE 8888
+EXPOSE 8888 8080 443
 
 # Add the entrypoint script
 
