@@ -34,7 +34,7 @@ setup(
     packages=find_packages(include=['mcimageprocessing', 'mcimageprocessing.*']),
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://github.com/ndowhaniuk/mcimageprocessing',
+    url='https://github.com/mc-t4d/mcimageprocessing',
     version='0.1.0',
     zip_safe=False,
 )
