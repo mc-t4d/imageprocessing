@@ -1,0 +1,439 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>shared_functions.utilities &mdash; mcimageprocessing  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            mcimageprocessing
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../readme.html">Readme</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Package Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../authors.html">Credits</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../history.html">History</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">mcimageprocessing</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">shared_functions.utilities</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for shared_functions.utilities</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ee</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">localtileserver</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pygrib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">rasterio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rasterio.features</span><span class="w"> </span><span class="kn">import</span> <span class="n">geometry_mask</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rasterio.merge</span><span class="w"> </span><span class="kn">import</span> <span class="n">merge</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">shape</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="n">LineString</span><span class="p">,</span> <span class="n">Point</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rasterio.mask</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask</span> <span class="k">as</span> <span class="n">rasterio_mask</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">shapely.wkt</span><span class="w"> </span><span class="kn">import</span> <span class="n">loads</span> <span class="k">as</span> <span class="n">from_wkt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+
+<div class="viewcode-block" id="suppress_external_warnings">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.suppress_external_warnings">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">suppress_external_warnings</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Redirect stderr to null</span>
+        <span class="n">stderr</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">devnull</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Execute the function</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Restore stderr</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span> <span class="o">=</span> <span class="n">stderr</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">return</span> <span class="n">wrapper</span></div>
+
+
+<div class="viewcode-block" id="mosaic_images">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.mosaic_images">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mosaic_images</span><span class="p">(</span><span class="n">file_names</span><span class="p">,</span> <span class="n">output_filename</span><span class="o">=</span><span class="s1">&#39;mosaic.tif&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Merges multiple raster files into a mosaic and saves it to an output file.</span>
+
+<span class="sd">    :param file_names: A list of file names of the raster files to be merged.</span>
+<span class="sd">    :param output_filename: The name of the output file to be created. Default is &#39;mosaic.tif&#39;.</span>
+<span class="sd">    :return: None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">src_files_to_mosaic</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">fn</span> <span class="ow">in</span> <span class="n">file_names</span><span class="p">:</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+        <span class="n">src_files_to_mosaic</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>
+
+    <span class="n">mosaic</span><span class="p">,</span> <span class="n">out_trans</span> <span class="o">=</span> <span class="n">merge</span><span class="p">(</span><span class="n">src_files_to_mosaic</span><span class="p">)</span>
+    <span class="n">out_meta</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">out_meta</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;driver&quot;</span><span class="p">:</span> <span class="s2">&quot;GTiff&quot;</span><span class="p">,</span>
+                     <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">mosaic</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                     <span class="s2">&quot;width&quot;</span><span class="p">:</span> <span class="n">mosaic</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                     <span class="s2">&quot;transform&quot;</span><span class="p">:</span> <span class="n">out_trans</span><span class="p">})</span>
+
+    <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">output_filename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="o">**</span><span class="n">out_meta</span><span class="p">)</span> <span class="k">as</span> <span class="n">dest</span><span class="p">:</span>
+        <span class="n">dest</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mosaic</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">fn</span> <span class="ow">in</span> <span class="n">file_names</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="process_and_clip_raster">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.process_and_clip_raster">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">process_and_clip_raster</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ee_instance</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param file_path: The file path of the raster file to be processed and clipped.</span>
+<span class="sd">    :param geometry: The geometry object to be used for clipping the raster.</span>
+<span class="sd">    :param params: Optional parameters for controlling the processing and clipping.</span>
+<span class="sd">    :param ee_instance: An instance of the Earth Engine API for using Earth Engine functions.</span>
+
+<span class="sd">    :return: If params[&#39;clip_to_geometry&#39;] is True, returns the file path of the clipped raster.</span>
+<span class="sd">             If params[&#39;clip_to_geometry&#39;] is False, returns the original file path.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span><span class="p">,</span> <span class="n">no_data_val</span> <span class="o">=</span> <span class="n">get_raster_min_max</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">min_val</span> <span class="o">==</span> <span class="o">-</span><span class="mi">9999</span><span class="p">:</span>
+        <span class="n">min_val</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">vis_params</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;min&#39;</span><span class="p">:</span> <span class="n">min_val</span><span class="p">,</span>
+        <span class="s1">&#39;max&#39;</span><span class="p">:</span> <span class="n">max_val</span><span class="p">,</span>
+        <span class="s1">&#39;palette&#39;</span><span class="p">:</span> <span class="s1">&#39;viridis&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;nodata&#39;</span><span class="p">:</span> <span class="n">no_data_val</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;clip_to_geometry&#39;</span><span class="p">]:</span>
+        <span class="n">raster_path</span> <span class="o">=</span> <span class="n">clip_raster</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">ee_instance</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">raster_path</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">raster_path</span> <span class="o">=</span> <span class="n">file_path</span>
+        <span class="k">return</span> <span class="n">raster_path</span></div>
+
+    <span class="c1"># if params[&#39;add_to_map&#39;]:</span>
+    <span class="c1">#     add_clipped_raster_to_map(map_object, raster_path, vis_params=vis_params)</span>
+
+<div class="viewcode-block" id="get_raster_min_max">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.get_raster_min_max">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_raster_min_max</span><span class="p">(</span><span class="n">raster_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param raster_path: The file path of the raster to be processed.</span>
+<span class="sd">    :return: A tuple containing the minimum value, maximum value, and nodata value of the raster.</span>
+
+<span class="sd">    This method retrieves the minimum value, maximum value, and nodata value of a given raster file. It assumes that the raster file has only one band.</span>
+
+<span class="sd">    First, the method opens the raster file using the GDAL library and gets the first band of the dataset.</span>
+
+<span class="sd">    Then, it checks if the band provides the minimum and maximum values. If not, it computes the minimum and maximum values using the ComputeRasterMinMax() method of the band.</span>
+
+<span class="sd">    Next, it reads the band data as an array.</span>
+
+<span class="sd">    If the band data contains values equal to 9999, it masks the data to ignore those values. It then finds the maximum value in the masked data and sets it as the new maximum value.</span>
+
+<span class="sd">    Finally, the method closes the dataset and returns a tuple containing the minimum value, maximum value, and nodata value of the raster.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">dataset</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">raster_path</span><span class="p">)</span>
+    <span class="n">band</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">GetRasterBand</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Assumes the raster has only one band</span>
+    <span class="n">min_val</span> <span class="o">=</span> <span class="n">band</span><span class="o">.</span><span class="n">GetMinimum</span><span class="p">()</span>
+    <span class="n">max_val</span> <span class="o">=</span> <span class="n">band</span><span class="o">.</span><span class="n">GetMaximum</span><span class="p">()</span>
+    <span class="n">nodata_val</span> <span class="o">=</span> <span class="n">band</span><span class="o">.</span><span class="n">GetNoDataValue</span><span class="p">()</span>
+
+    <span class="n">band_data</span> <span class="o">=</span> <span class="n">band</span><span class="o">.</span><span class="n">ReadAsArray</span><span class="p">()</span>
+
+    <span class="c1"># Check if 9999 is in the data</span>
+    <span class="k">if</span> <span class="mi">9999</span> <span class="ow">in</span> <span class="n">band_data</span><span class="p">:</span>
+        <span class="c1"># Mask the data to ignore values of 9999 or higher</span>
+        <span class="n">masked_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked_where</span><span class="p">(</span><span class="n">band_data</span> <span class="o">&gt;=</span> <span class="mi">9999</span><span class="p">,</span> <span class="n">band_data</span><span class="p">)</span>
+
+        <span class="c1"># Find the maximum value in the masked data</span>
+        <span class="n">next_highest_val</span> <span class="o">=</span> <span class="n">masked_data</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+        <span class="c1"># Set max_val to the next highest value</span>
+        <span class="n">max_val</span> <span class="o">=</span> <span class="n">next_highest_val</span>
+
+    <span class="c1"># If the minimum and maximum values are not natively provided by the raster band</span>
+    <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span> <span class="o">=</span> <span class="n">band</span><span class="o">.</span><span class="n">ComputeRasterMinMax</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">dataset</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Close the dataset</span>
+    <span class="k">return</span> <span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span><span class="p">,</span> <span class="n">nodata_val</span></div>
+
+
+<div class="viewcode-block" id="add_clipped_raster_to_map">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.add_clipped_raster_to_map">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">add_clipped_raster_to_map</span><span class="p">(</span><span class="n">map_object</span><span class="p">,</span> <span class="n">raster_path</span><span class="p">,</span> <span class="n">vis_params</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param map_object: The map object to which the clipped raster will be added.</span>
+<span class="sd">    :param raster_path: The file path or URL of the raster data to be added.</span>
+<span class="sd">    :param vis_params: Optional visualization parameters for the raster layer. Default is None.</span>
+<span class="sd">    :return: None</span>
+
+<span class="sd">    This method adds a clipped raster layer to the specified map object. The raster data is loaded from the provided raster_path. If visualization parameters are not specified, default parameters</span>
+<span class="sd">    * will be used. Once the raster layer is created, it is added to the map object and the map view is adjusted to fit the bounds of the raster data.</span>
+
+<span class="sd">    If a ValueError is raised during the process, it will be caught and a corresponding error message will be printed. Other types of exceptions will also be caught and an error message</span>
+<span class="sd">    * will be printed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">vis_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">vis_params</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">client</span> <span class="o">=</span> <span class="n">localtileserver</span><span class="o">.</span><span class="n">TileClient</span><span class="p">(</span><span class="n">raster_path</span><span class="p">)</span>
+        <span class="n">tile_layer</span> <span class="o">=</span> <span class="n">localtileserver</span><span class="o">.</span><span class="n">get_leaflet_tile_layer</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="o">**</span><span class="n">vis_params</span><span class="p">)</span>
+        <span class="n">map_object</span><span class="o">.</span><span class="n">add_layer</span><span class="p">(</span><span class="n">tile_layer</span><span class="p">)</span>
+        <span class="n">map_object</span><span class="o">.</span><span class="n">fit_bounds</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">bounds</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ValueError: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An error occurred: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="inspect_grib_file">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.inspect_grib_file">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">inspect_grib_file</span><span class="p">(</span><span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Inspect GRIB File</span>
+
+<span class="sd">    :param file_path: The path to the GRIB file to be inspected.</span>
+<span class="sd">    :return: None</span>
+
+<span class="sd">    This method opens the given GRIB file using the pygrib library and prints information about each message in the file. It does not return any value.</span>
+
+<span class="sd">    Example usage:</span>
+<span class="sd">        inspect_grib_file(&quot;path/to/grib/file.grib&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Open the GRIB file</span>
+        <span class="n">grib_file</span> <span class="o">=</span> <span class="n">pygrib</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+
+        <span class="c1"># Count the number of messages</span>
+        <span class="n">num_messages</span> <span class="o">=</span> <span class="n">grib_file</span><span class="o">.</span><span class="n">messages</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_messages</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="c1"># Read each message</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="n">grib_file</span><span class="o">.</span><span class="n">message</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="c1"># Attempt to read the data array</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">values</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="c1"># Handle cases where data can&#39;t be read</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  - An error occurred when reading data: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An overall error occurred: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="clip_raster">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.clip_raster">[docs]</a>
+<span class="nd">@suppress_external_warnings</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">clip_raster</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">ee_instance</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Clips a raster file based on a specified geometry.</span>
+
+<span class="sd">    :param file_path: The file path of the raster file to be clipped.</span>
+<span class="sd">    :param geometry: The geometry to be used for clipping. Can be a dictionary, an Earth Engine geometry, or a GeoDataFrame.</span>
+<span class="sd">    :param ee_instance: Optional Earth Engine instance for conversion.</span>
+<span class="sd">    :return: The file path of the clipped raster file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">file_path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.grib&#39;</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;GRIB file detected. Ensure appropriate handling is implemented.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Convert Earth Engine geometry to shapely geometry if applicable</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Geometry</span><span class="p">)</span> <span class="ow">and</span> <span class="n">ee_instance</span><span class="p">:</span>
+        <span class="n">geometry</span> <span class="o">=</span> <span class="n">ee_instance</span><span class="o">.</span><span class="n">ee_geometry_to_shapely</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+
+    <span class="c1"># Convert geometry input to a Shapely geometry object if it&#39;s a dictionary (assuming GeoJSON)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">geometry</span> <span class="o">=</span> <span class="n">shape</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+
+    <span class="c1"># If geometry is a GeoDataFrame, use the geometry directly</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
+        <span class="n">geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">unary_union</span>
+
+    <span class="c1"># Ensure geometry is a MultiPolygon for consistency</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">):</span>
+        <span class="n">geometry</span> <span class="o">=</span> <span class="n">MultiPolygon</span><span class="p">([</span><span class="n">geometry</span><span class="p">])</span>
+
+    <span class="c1"># Load the raster file</span>
+    <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+        <span class="c1"># Create a GeoDataFrame to handle the geometry</span>
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">([{</span><span class="s1">&#39;geometry&#39;</span><span class="p">:</span> <span class="n">geometry</span><span class="p">}],</span> <span class="n">crs</span><span class="o">=</span><span class="s2">&quot;EPSG:4326&quot;</span><span class="p">)</span>
+
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>  <span class="c1"># Reproject geometry to match raster CRS</span>
+
+        <span class="n">nodata</span> <span class="o">=</span> <span class="o">-</span><span class="mi">9999</span> <span class="k">if</span> <span class="n">src</span><span class="o">.</span><span class="n">nodata</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">src</span><span class="o">.</span><span class="n">nodata</span>
+
+        <span class="c1"># Clip the raster using the mask</span>
+        <span class="n">out_image</span><span class="p">,</span> <span class="n">out_transform</span> <span class="o">=</span> <span class="n">rasterio_mask</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">gdf</span><span class="o">.</span><span class="n">geometry</span><span class="p">,</span> <span class="n">crop</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">all_touched</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">invert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nodata</span><span class="o">=</span><span class="n">nodata</span><span class="p">)</span>
+        <span class="n">out_meta</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">out_meta</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;nodata&#39;</span><span class="p">:</span> <span class="n">nodata</span><span class="p">,</span>
+            <span class="s2">&quot;driver&quot;</span><span class="p">:</span> <span class="s2">&quot;GTiff&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">out_image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="s2">&quot;width&quot;</span><span class="p">:</span> <span class="n">out_image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+            <span class="s2">&quot;transform&quot;</span><span class="p">:</span> <span class="n">out_transform</span>
+        <span class="p">})</span>
+
+        <span class="c1"># Define the output file path</span>
+        <span class="n">output_path</span> <span class="o">=</span> <span class="n">file_path</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_clipped.tif&#39;</span>
+
+        <span class="c1"># Save the clipped raster</span>
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="o">**</span><span class="n">out_meta</span><span class="p">)</span> <span class="k">as</span> <span class="n">dest</span><span class="p">:</span>
+            <span class="n">dest</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">out_image</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">output_path</span></div>
+
+
+<div class="viewcode-block" id="calculate_bounds">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.calculate_bounds">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">calculate_bounds</span><span class="p">(</span><span class="n">input_geom</span><span class="p">):</span>
+    <span class="c1"># Initialize min and max coordinates</span>
+    <span class="n">min_lat</span><span class="p">,</span> <span class="n">min_lon</span><span class="p">,</span> <span class="n">max_lat</span><span class="p">,</span> <span class="n">max_lon</span> <span class="o">=</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">180</span><span class="p">,</span> <span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="o">-</span><span class="mi">180</span>
+
+    <span class="c1"># Function to update the bounds based on a coordinate pair</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_bounds</span><span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="p">):</span>
+        <span class="k">nonlocal</span> <span class="n">min_lat</span><span class="p">,</span> <span class="n">min_lon</span><span class="p">,</span> <span class="n">max_lat</span><span class="p">,</span> <span class="n">max_lon</span>
+        <span class="k">if</span> <span class="n">lat</span> <span class="o">&lt;</span> <span class="n">min_lat</span><span class="p">:</span>
+            <span class="n">min_lat</span> <span class="o">=</span> <span class="n">lat</span>
+        <span class="k">if</span> <span class="n">lon</span> <span class="o">&lt;</span> <span class="n">min_lon</span><span class="p">:</span>
+            <span class="n">min_lon</span> <span class="o">=</span> <span class="n">lon</span>
+        <span class="k">if</span> <span class="n">lat</span> <span class="o">&gt;</span> <span class="n">max_lat</span><span class="p">:</span>
+            <span class="n">max_lat</span> <span class="o">=</span> <span class="n">lat</span>
+        <span class="k">if</span> <span class="n">lon</span> <span class="o">&gt;</span> <span class="n">max_lon</span><span class="p">:</span>
+            <span class="n">max_lon</span> <span class="o">=</span> <span class="n">lon</span>
+
+    <span class="c1"># Helper function to process different geometry types</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process_geometry</span><span class="p">(</span><span class="n">geom</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geom</span><span class="p">,</span> <span class="p">(</span><span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">geom</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">:</span>
+                <span class="n">update_bounds</span><span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geom</span><span class="p">,</span> <span class="p">(</span><span class="n">LineString</span><span class="p">,</span> <span class="n">Point</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">geom</span><span class="o">.</span><span class="n">coords</span><span class="p">:</span>
+                <span class="n">update_bounds</span><span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="c1"># Handle different input types</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_geom</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>  <span class="c1"># GeoJSON</span>
+        <span class="k">for</span> <span class="n">feature</span> <span class="ow">in</span> <span class="n">input_geom</span><span class="p">[</span><span class="s1">&#39;features&#39;</span><span class="p">]:</span>
+            <span class="n">geom</span> <span class="o">=</span> <span class="n">from_wkt</span><span class="p">(</span><span class="n">feature</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">])</span>
+            <span class="n">process_geometry</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_geom</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>  <span class="c1"># GeoDataFrame</span>
+        <span class="k">for</span> <span class="n">geom</span> <span class="ow">in</span> <span class="n">input_geom</span><span class="o">.</span><span class="n">geometry</span><span class="p">:</span>
+            <span class="n">process_geometry</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_geom</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>  <span class="c1"># WKT or shapefile path</span>
+        <span class="k">if</span> <span class="n">input_geom</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.shp&#39;</span><span class="p">):</span>  <span class="c1"># Shapefile path</span>
+            <span class="n">input_geom</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">input_geom</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">geom</span> <span class="ow">in</span> <span class="n">input_geom</span><span class="o">.</span><span class="n">geometry</span><span class="p">:</span>
+                <span class="n">process_geometry</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># WKT</span>
+            <span class="n">geom</span> <span class="o">=</span> <span class="n">from_wkt</span><span class="p">(</span><span class="n">input_geom</span><span class="p">)</span>
+            <span class="n">process_geometry</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Unsupported geometry format&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">[[</span><span class="n">min_lat</span><span class="p">,</span> <span class="n">min_lon</span><span class="p">],</span> <span class="p">[</span><span class="n">max_lat</span><span class="p">,</span> <span class="n">max_lon</span><span class="p">]]</span></div>
+
+
+<div class="viewcode-block" id="generate_bbox">
+<a class="viewcode-back" href="../../shared_functions.html#shared_functions.utilities.generate_bbox">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_bbox</span><span class="p">(</span><span class="n">geometry</span><span class="p">):</span>
+    <span class="n">bounds</span> <span class="o">=</span> <span class="n">calculate_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+    <span class="n">bbox_polygon</span> <span class="o">=</span> <span class="n">Polygon</span><span class="p">([</span>
+        <span class="p">(</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>  <span class="c1"># lower-left</span>
+        <span class="p">(</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>  <span class="c1"># lower-right</span>
+        <span class="p">(</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>  <span class="c1"># upper-right</span>
+        <span class="p">(</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>  <span class="c1"># upper-left</span>
+        <span class="p">(</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>  <span class="c1"># back to lower-left to close the polygon</span>
+    <span class="p">])</span>
+    <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">([{</span><span class="s1">&#39;geometry&#39;</span><span class="p">:</span> <span class="n">bbox_polygon</span><span class="p">}],</span> <span class="n">crs</span><span class="o">=</span><span class="s1">&#39;EPSG:4326&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">bounds</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Mercy Corps.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

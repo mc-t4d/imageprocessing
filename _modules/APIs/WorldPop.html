@@ -1,0 +1,633 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APIs.WorldPop &mdash; mcimageprocessing  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            mcimageprocessing
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../readme.html">Readme</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Package Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../authors.html">Credits</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../history.html">History</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">mcimageprocessing</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">APIs.WorldPop</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for APIs.WorldPop</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ee</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ipyfilechooser</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">fc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ipywidgets</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">widgets</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geojson</span><span class="w"> </span><span class="kn">import</span> <span class="n">Feature</span><span class="p">,</span> <span class="n">FeatureCollection</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ipywidgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Layout</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">mcimageprocessing.programmatic.APIs.EarthEngine</span><span class="w"> </span><span class="kn">import</span> <span class="n">EarthEngineManager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mcimageprocessing.programmatic.shared_functions.utilities</span><span class="w"> </span><span class="kn">import</span> <span class="n">mosaic_images</span>
+
+
+<div class="viewcode-block" id="WorldPop">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPop">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WorldPop</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class for processing WorldPop data.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ee_manager (Optional[EarthEngineManager]): An instance of EarthEngineManager (optional).</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        data_type_options (list[str]): List of valid data type options.</span>
+<span class="sd">        year_options (list[str]): List of valid year options.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data_type_options</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Residential Population&#39;</span><span class="p">,</span> <span class="s1">&#39;Age and Sex Structures&#39;</span><span class="p">]</span>
+    <span class="n">year_options</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span> <span class="mi">2021</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ee_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EarthEngineManager</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the object.</span>
+
+<span class="sd">        :param ee_manager: An instance of EarthEngineManager (optional).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_agesex_bands</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;population&#39;</span><span class="p">,</span> <span class="s1">&#39;M_0&#39;</span><span class="p">,</span> <span class="s1">&#39;M_1&#39;</span><span class="p">,</span> <span class="s1">&#39;M_5&#39;</span><span class="p">,</span> <span class="s1">&#39;M_10&#39;</span><span class="p">,</span> <span class="s1">&#39;M_15&#39;</span><span class="p">,</span> <span class="s1">&#39;M_20&#39;</span><span class="p">,</span> <span class="s1">&#39;M_25&#39;</span><span class="p">,</span> <span class="s1">&#39;M_30&#39;</span><span class="p">,</span> <span class="s1">&#39;M_35&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;M_40&#39;</span><span class="p">,</span> <span class="s1">&#39;M_45&#39;</span><span class="p">,</span> <span class="s1">&#39;M_50&#39;</span><span class="p">,</span> <span class="s1">&#39;M_55&#39;</span><span class="p">,</span> <span class="s1">&#39;M_60&#39;</span><span class="p">,</span> <span class="s1">&#39;M_65&#39;</span><span class="p">,</span> <span class="s1">&#39;M_70&#39;</span><span class="p">,</span> <span class="s1">&#39;M_75&#39;</span><span class="p">,</span> <span class="s1">&#39;M_80&#39;</span><span class="p">,</span> <span class="s1">&#39;F_0&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;F_1&#39;</span><span class="p">,</span> <span class="s1">&#39;F_5&#39;</span><span class="p">,</span> <span class="s1">&#39;F_10&#39;</span><span class="p">,</span> <span class="s1">&#39;F_15&#39;</span><span class="p">,</span> <span class="s1">&#39;F_20&#39;</span><span class="p">,</span> <span class="s1">&#39;F_25&#39;</span><span class="p">,</span> <span class="s1">&#39;F_30&#39;</span><span class="p">,</span> <span class="s1">&#39;F_35&#39;</span><span class="p">,</span> <span class="s1">&#39;F_40&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;F_45&#39;</span><span class="p">,</span> <span class="s1">&#39;F_50&#39;</span><span class="p">,</span> <span class="s1">&#39;F_55&#39;</span><span class="p">,</span> <span class="s1">&#39;F_60&#39;</span><span class="p">,</span> <span class="s1">&#39;F_65&#39;</span><span class="p">,</span> <span class="s1">&#39;F_70&#39;</span><span class="p">,</span> <span class="s1">&#39;F_75&#39;</span><span class="p">,</span> <span class="s1">&#39;F_80&#39;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span> <span class="o">=</span> <span class="n">ee_manager</span> <span class="k">if</span> <span class="n">ee_manager</span> <span class="k">else</span> <span class="n">EarthEngineManager</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Validate parameters for the given method.</span>
+
+<span class="sd">        :param params: A dictionary of parameters.</span>
+<span class="sd">        :return: True if all required keys are present and not empty, False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">required_keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">,</span> <span class="s1">&#39;year&#39;</span><span class="p">,</span> <span class="s1">&#39;datatype&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">required_keys</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Missing required worldpop_param: </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;worldpop_param </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> is empty or invalid.&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_sub_folder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_folder</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param base_folder: The base folder in which the subfolder will be created.</span>
+<span class="sd">        :return: The path of the created subfolder.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">timestamp</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">())</span>
+        <span class="n">safe_timestamp</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;[^a-zA-Z0-9\-_\.]&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">)</span>  <span class="c1"># Remove unsafe characters</span>
+        <span class="n">folder_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base_folder</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;WorldPop_processed_on_</span><span class="si">{</span><span class="n">safe_timestamp</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">folder_name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">folder_name</span>
+        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create subfolder: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">base_folder</span>
+
+<div class="viewcode-block" id="WorldPop.process_residential_population">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPop.process_residential_population">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process_residential_population</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param geometry: The geometry representing the area of interest.</span>
+<span class="sd">        :param params: A dictionary containing parameters for processing the residential population.</span>
+<span class="sd">            - &quot;statistics_only&quot;: A boolean indicating whether to only compute statistics or also download and process the image.</span>
+<span class="sd">            - &quot;year&quot;: A string representing the year to filter the image collection.</span>
+<span class="sd">        :return: If &quot;statistics_only&quot; is True, returns a dictionary containing statistics of the residential population. Otherwise, returns the processed image.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">all_stats</span> <span class="o">=</span> <span class="n">ee</span><span class="o">.</span><span class="n">Dictionary</span><span class="p">()</span>
+
+        <span class="n">band</span> <span class="o">=</span> <span class="s1">&#39;population&#39;</span>
+        <span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image</span><span class="p">(</span>
+            <span class="n">multi_date</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">start_date</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">-01-01&#39;</span><span class="p">,</span>
+            <span class="n">end_date</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">-12-31&#39;</span><span class="p">,</span>
+            <span class="n">image_collection</span><span class="o">=</span><span class="s1">&#39;WorldPop/GP/100m/pop&#39;</span><span class="p">,</span>
+            <span class="n">band</span><span class="o">=</span><span class="n">band</span><span class="p">,</span>
+            <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
+            <span class="n">aggregation_method</span><span class="o">=</span><span class="s1">&#39;max&#39;</span><span class="p">)</span>
+
+        <span class="n">geojson</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+        <span class="n">multipolygon_feature</span> <span class="o">=</span> <span class="n">Feature</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="n">geojson</span><span class="p">)</span>
+
+        <span class="n">feature_collection</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">([</span><span class="n">multipolygon_feature</span><span class="p">])</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;flood_pop_calc&#39;</span><span class="p">]:</span>
+                <span class="n">sum_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image_sum</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">band</span><span class="p">)</span>
+                <span class="n">all_stats</span> <span class="o">=</span> <span class="n">all_stats</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">sum_value</span><span class="p">)</span>  <span class="c1"># Store the sum value in the dictionary</span>
+                <span class="n">all_stats_info</span> <span class="o">=</span> <span class="n">all_stats</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>  <span class="c1"># This will fetch the results if &#39;all_stats&#39; is an ee.Dictionary</span>
+                <span class="k">return</span> <span class="n">all_stats_info</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;statistics_only&#39;</span><span class="p">]:</span>
+            <span class="c1"># Assuming &#39;image&#39;, &#39;geometry&#39;, &#39;scale&#39;, and &#39;band&#39; are defined and available in this scope</span>
+            <span class="n">sum_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image_sum</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">band</span><span class="p">)</span>
+            <span class="n">all_stats</span> <span class="o">=</span> <span class="n">all_stats</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">sum_value</span><span class="p">)</span>  <span class="c1"># Store the sum value in the dictionary</span>
+            <span class="n">all_stats_info</span> <span class="o">=</span> <span class="n">all_stats</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>  <span class="c1"># This will fetch the results if &#39;all_stats&#39; is an ee.Dictionary</span>
+            <span class="k">return</span> <span class="n">all_stats_info</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">download_and_process_image</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">band</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">image</span></div>
+
+
+
+<div class="viewcode-block" id="WorldPop.download_and_process_image">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPop.download_and_process_image">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">download_and_process_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">:</span> <span class="n">ee</span><span class="o">.</span><span class="n">Image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">scale</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+                                   <span class="n">band</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Downloads and processes the given image.</span>
+
+<span class="sd">        :param image: The Earth Engine image to be downloaded and processed.</span>
+<span class="sd">        :param geometry: The geometry to filter the image by.</span>
+<span class="sd">        :param scale: The scale of the image.</span>
+<span class="sd">        :param params: Additional parameters for the download and processing.</span>
+<span class="sd">        :param band: The specific band to be processed.</span>
+
+<span class="sd">        :return: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">file_names</span><span class="p">,</span> <span class="n">download_successful</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">download_and_split</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span>
+                                                                  <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+                                                                  <span class="n">band</span><span class="o">=</span><span class="n">band</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">download_successful</span><span class="p">:</span>
+            <span class="n">output_filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;mosaic_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">.tif&quot;</span>
+            <span class="n">output_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="n">output_filename</span><span class="p">)</span>
+            <span class="n">mosaic_images</span><span class="p">(</span><span class="n">file_names</span><span class="p">,</span> <span class="n">output_filename</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="WorldPop.process_age_and_sex_structures">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPop.process_age_and_sex_structures">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process_age_and_sex_structures</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method to process age and sex structures for a given geometry.</span>
+
+<span class="sd">        :param geometry: The geometry of interest.</span>
+<span class="sd">        :param params: A dictionary of parameters.</span>
+<span class="sd">            - &#39;statistics_only&#39;: If True, calculate statistics only. If False, download and process image.</span>
+<span class="sd">        :return: A dictionary containing the processed age and sex statistics. If &#39;statistics_only&#39; is True, the dictionary</span>
+<span class="sd">                 will contain statistics for each band. If &#39;statistics_only&#39; is False, the method returns None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">all_stats</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;statistics_only&#39;</span><span class="p">]:</span>
+            <span class="n">all_computed_stats</span> <span class="o">=</span> <span class="n">ee</span><span class="o">.</span><span class="n">Dictionary</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_agesex_bands</span><span class="p">:</span>
+                <span class="c1"># Assuming self.get_image is a method that fetches the image. You might need to replace this with your actual method to get the image.</span>
+                <span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image</span><span class="p">(</span>
+                    <span class="n">multi_date</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="n">start_date</span><span class="o">=</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span>
+                    <span class="n">end_date</span><span class="o">=</span><span class="s1">&#39;2020-12-31&#39;</span><span class="p">,</span>
+                    <span class="n">image_collection</span><span class="o">=</span><span class="s1">&#39;WorldPop/GP/100m/pop_age_sex_cons_unadj&#39;</span><span class="p">,</span>
+                    <span class="n">band</span><span class="o">=</span><span class="n">band</span><span class="p">,</span>
+                    <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
+                    <span class="n">aggregation_method</span><span class="o">=</span><span class="s1">&#39;max&#39;</span>
+                <span class="p">)</span>
+
+                <span class="k">try</span><span class="p">:</span>
+
+                    <span class="n">sum_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image_sum</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">band</span><span class="p">)</span>
+                    <span class="n">all_stats</span><span class="p">[</span><span class="n">band</span><span class="p">]</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">sum_value</span><span class="p">)</span>
+
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+
+
+            <span class="k">return</span> <span class="n">all_stats</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_agesex_bands</span><span class="p">:</span>
+                <span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image</span><span class="p">(</span>
+                    <span class="n">multi_date</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="n">start_date</span><span class="o">=</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span>
+                    <span class="n">end_date</span><span class="o">=</span><span class="s1">&#39;2020-12-31&#39;</span><span class="p">,</span>
+                    <span class="n">image_collection</span><span class="o">=</span><span class="s1">&#39;WorldPop/GP/100m/pop_age_sex_cons_unadj&#39;</span><span class="p">,</span>
+                    <span class="n">band</span><span class="o">=</span><span class="n">band</span><span class="p">,</span>
+                    <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
+                    <span class="n">aggregation_method</span><span class="o">=</span><span class="s1">&#39;max&#39;</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">download_and_process_image</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">band</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="WorldPop.get_image_dates">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPop.get_image_dates">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_image_dates</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: A list of datetime objects representing the dates of the images in the image collection.</span>
+<span class="sd">        :rtype: List[datetime.datetime]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Get the image collection</span>
+        <span class="n">image_collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image_collection_dates</span><span class="p">(</span><span class="s2">&quot;WorldPop/POP&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Get the dates</span>
+        <span class="n">dates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">get_image_dates</span><span class="p">(</span><span class="n">image_collection</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">dates</span></div>
+
+
+<div class="viewcode-block" id="WorldPop.validate_parameters">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPop.validate_parameters">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Validate the parameters passed to the method.</span>
+
+<span class="sd">        :param params: The parameters dictionary to validate.</span>
+<span class="sd">        :type params: dict[str, any]</span>
+<span class="sd">        :return: True if all the parameters are valid, False otherwise.</span>
+<span class="sd">        :rtype: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please select an output folder.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;The selected output folder does not exist.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;api_source&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;WorldPop&#39;</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please select a valid API source.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;year&#39;</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please select a valid year.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please select a valid data type.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="WorldPop.process_api">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPop.process_api">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process_api</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process API method.</span>
+
+<span class="sd">        :param geometry: The geometry to process.</span>
+<span class="sd">        :param distinct_values: The distinct values to process.</span>
+<span class="sd">        :param index: The index to process.</span>
+<span class="sd">        :param params: Additional parameters for processing (optional).</span>
+<span class="sd">        :param bbox: The bounding box for processing (optional).</span>
+<span class="sd">        :return: The processed result.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_parameters</span><span class="p">(</span><span class="n">params</span><span class="p">):</span>
+            <span class="k">return</span>
+
+
+        <span class="n">geometry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_instance</span><span class="o">.</span><span class="n">ee_ensure_geometry</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;datatype&#39;</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Residential Population&#39;</span><span class="p">:</span>
+                <span class="n">image</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_datatype_residential_population</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">image</span><span class="p">,</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Age and Sex Structures&#39;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_datatype_age_and_sex_structures</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">),</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;No valid data type provided.&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;No valid params provided.&quot;</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_datatype_residential_population</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process the datatype &#39;residential_population&#39; for a given geometry and parameters.</span>
+
+<span class="sd">        :param geometry: The geometry for which to process the residential population data.</span>
+<span class="sd">        :param params: A dictionary of parameters for processing the data.</span>
+<span class="sd">            - &#39;statistics_only&#39; (bool): If True, only statistics will be calculated and saved.</span>
+<span class="sd">            - &#39;folder_output&#39; (str): The folder where the processed data will be saved.</span>
+
+<span class="sd">        :return: The processed image of residential population.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_residential_population</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;statistics_only&#39;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save_statistics</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="n">image</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">image</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_datatype_age_and_sex_structures</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process datatype, age, and sex structures.</span>
+
+<span class="sd">        :param geometry: The geometry to process.</span>
+<span class="sd">        :param params: The parameters for processing.</span>
+<span class="sd">        :return: The processed statistics.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">statistics</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_age_and_sex_structures</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;statistics_only&#39;</span><span class="p">]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_save_statistics</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="n">statistics</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">statistics</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_save_statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">folder_output</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save statistics data to a JSON file.</span>
+
+<span class="sd">        :param folder_output: The directory where the statistics file will be saved.</span>
+<span class="sd">        :param data: The statistics data to be saved.</span>
+<span class="sd">        :return: None</span>
+<span class="sd">        :raises IOError: If there is an error while saving the statistics file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder_output</span><span class="p">,</span> <span class="s1">&#39;statistics.json&#39;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">IOError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error saving statistics: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="WorldPopNotebookInterface">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPopNotebookInterface">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WorldPopNotebookInterface</span><span class="p">(</span><span class="n">WorldPop</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    WorldPopNotebookInterface</span>
+<span class="sd">    ========================</span>
+
+<span class="sd">    :class:`~WorldPopNotebookInterface` is a subclass of :class:`~WorldPop` class and provides an interface for interacting with the WorldPop API in a Jupyter Notebook environment.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">    -----------</span>
+<span class="sd">    - ee_manager (:class:`~EarthEngineManager`, optional): An instance of the EarthEngineManager class. Defaults to None.</span>
+
+<span class="sd">    Methods:</span>
+<span class="sd">    --------</span>
+<span class="sd">    __init__(ee_manager: Optional[:class:`~EarthEngineManager`] = None)</span>
+<span class="sd">        Initializes the WorldPopNotebookInterface class.</span>
+
+<span class="sd">    create_widgets_for_worldpop() -&gt; List[:class:`~widgets.Widget`]</span>
+<span class="sd">        Creates and returns a list of widgets for configuring the WorldPop parameters.</span>
+
+<span class="sd">    gather_parameters(**kwargs) -&gt; Dict[str, Any]</span>
+<span class="sd">        Gathers user-selected parameters and returns them as a dictionary.</span>
+
+<span class="sd">    process_api(geometry: Any, distinct_values: Any, index: int, params=None, bbox=None) -&gt; None</span>
+<span class="sd">        Processes the WorldPop API with the provided parameters.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ee_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EarthEngineManager</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Constructor for the class.</span>
+
+<span class="sd">        :param ee_manager: An instance of the EarthEngineManager class.</span>
+<span class="sd">                           If provided, it will be used for Earth Engine operations.</span>
+<span class="sd">                           If not provided, Earth Engine functions will be unavailable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">ee_manager</span><span class="p">)</span>  <span class="c1"># Initialize the base WorldPop class</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Output</span><span class="p">()</span>  <span class="c1"># For displaying logs, errors, etc.</span>
+        <span class="c1"># Initialize widgets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_widgets_for_worldpop</span><span class="p">()</span>
+
+<div class="viewcode-block" id="WorldPopNotebookInterface.create_widgets_for_worldpop">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPopNotebookInterface.create_widgets_for_worldpop">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_widgets_for_worldpop</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">widgets</span><span class="o">.</span><span class="n">Widget</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create and initialize widgets for configuring WorldPop data parameters.</span>
+
+<span class="sd">        :return: A list of widget objects.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_data_type</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+            <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data_type_options</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data_type_options</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>  <span class="c1"># Default to &#39;Residential Population&#39;</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Data Type:&#39;</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">layout</span><span class="o">=</span><span class="n">Layout</span><span class="p">(</span><span class="n">width</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_year</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+            <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">year_options</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">year_options</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>  <span class="c1"># Default to the last year</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Year:&#39;</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">layout</span><span class="o">=</span><span class="n">Layout</span><span class="p">(</span><span class="n">width</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">statistics_only_check</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span>
+            <span class="n">value</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Image Statistics Only (dictionary)&#39;</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">indent</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale_input</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Text</span><span class="p">(</span>
+            <span class="n">value</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span>
+            <span class="n">placeholder</span><span class="o">=</span><span class="s1">&#39;Scale&#39;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Scale:&#39;</span><span class="p">,</span>
+            <span class="n">disabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">layout</span><span class="o">=</span><span class="n">Layout</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Add Image to Map&#39;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Checkbox</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Create Sub-folder&#39;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">FileChooser</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="n">show_only_dirs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gee_end_of_container_options</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Accordion</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">widgets</span><span class="o">.</span><span class="n">TwoByTwoLayout</span><span class="p">(</span>
+                <span class="n">top_left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">statistics_only_check</span><span class="p">,</span> <span class="n">top_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span><span class="p">,</span>
+                <span class="n">bottom_right</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span>
+            <span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gee_end_of_container_options</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;Processing Options&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">widget_list</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_data_type</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_year</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale_input</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gee_end_of_container_options</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">widget_list</span></div>
+
+
+<div class="viewcode-block" id="WorldPopNotebookInterface.gather_parameters">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPopNotebookInterface.gather_parameters">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">gather_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param kwargs: Additional keyword arguments. No other parameters are required.</span>
+
+<span class="sd">        :return: A dictionary containing the gathered parameters.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Ensure that you&#39;re accessing the correct attribute for the file chooser</span>
+        <span class="n">folder_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="o">.</span><span class="n">selected</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">filechooser</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="c1"># Return the parameters as a dictionary</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;population_source&#39;</span><span class="p">:</span> <span class="s1">&#39;WorldPop&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;year&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_year</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;datatype&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">worldpop_data_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;statistics_only&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">statistics_only_check</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;add_image_to_map&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_image_to_map</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;create_sub_folder&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_sub_folder</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;folder_output&#39;</span><span class="p">:</span> <span class="n">folder_output</span><span class="p">,</span>
+            <span class="s1">&#39;band&#39;</span><span class="p">:</span> <span class="s1">&#39;population&#39;</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="WorldPopNotebookInterface.process_api">
+<a class="viewcode-back" href="../../APIs.html#APIs.WorldPop.WorldPopNotebookInterface.process_api">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process_api</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geometry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process API.</span>
+
+<span class="sd">        :param geometry: The geometry parameter.</span>
+<span class="sd">        :param distinct_values: The distinct_values parameter.</span>
+<span class="sd">        :param index: The index parameter.</span>
+<span class="sd">        :param params: The params parameter.</span>
+<span class="sd">        :param bbox: The bbox parameter.</span>
+<span class="sd">        :return: None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Processing </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worldpop_data_type</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2"> for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worldpop_year</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;create_sub_folder&#39;</span><span class="p">):</span>
+                <span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_sub_folder</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">])</span>
+
+            <span class="n">params_file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="s1">&#39;parameters.json&#39;</span><span class="p">)</span>
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">params_file_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+
+            <span class="n">image</span><span class="p">,</span> <span class="n">output_folder</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">process_api</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">distinct_values</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="n">pbar</span><span class="p">)</span>
+            <span class="c1"># Serialize the geometry to GeoJSON</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Geometry</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>  <span class="c1"># If geometry is an Earth Engine object</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">Feature</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">ee</span><span class="o">.</span><span class="n">FeatureCollection</span><span class="p">):</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span><span class="o">.</span><span class="n">getInfo</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">geojson_geometry</span> <span class="o">=</span> <span class="n">geometry</span>  <span class="c1"># If geometry is already in GeoJSON format</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saving geometry...&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Define the GeoJSON filename</span>
+            <span class="n">geojson_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;folder_output&#39;</span><span class="p">],</span> <span class="s1">&#39;geometry.geojson&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Write the GeoJSON to a file</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">geojson_filename</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">geojson_geometry</span><span class="p">))</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix_str</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Finished!&quot;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">image</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Mercy Corps.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
