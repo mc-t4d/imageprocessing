@@ -262,7 +262,7 @@ googleapis-common-protos==1.62.0
     # via
     #   google-api-core
     #   mcimageprocessing (setup.py)
-h11==0.14.0
+h11==0.16.0
     # via
     #   mcimageprocessing (setup.py)
     #   uvicorn
