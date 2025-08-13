@@ -551,7 +551,7 @@ prompt-toolkit==3.0.43
     #   ipython
     #   jupyter-console
     #   mcimageprocessing (setup.py)
-protobuf==4.25.2
+protobuf==4.25.8
     # via
     #   google-api-core
     #   googleapis-common-protos
